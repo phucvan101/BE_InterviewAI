@@ -1,0 +1,59 @@
+table_name,column_name,data_type,nullable,primary_key,foreign_key,unique,default,description
+users,id,INTEGER,NO,YES,,YES,,Auto-increment primary key
+users,email,VARCHAR(255),NO,,,YES,,"Email đăng nhập"
+users,username,VARCHAR(50),NO,,,YES,,"Tên đăng nhập"
+users,full_name,VARCHAR(100),YES,,,,,Họ tên đầy đủ
+users,hashed_password,VARCHAR(255),NO,,,,,Mật khẩu đã hash bcrypt
+users,is_active,BOOLEAN,NO,,,,TRUE,Tài khoản còn hoạt động
+users,is_superuser,BOOLEAN,NO,,,,FALSE,Quyền Admin
+users,is_verified,BOOLEAN,NO,,,,FALSE,Email đã xác minh
+users,created_at,TIMESTAMP WITH TIME ZONE,NO,,,,NOW(),Thời điểm tạo
+users,updated_at,TIMESTAMP WITH TIME ZONE,NO,,,,NOW(),Thời điểm cập nhật
+cv_profiles,id,INTEGER,NO,YES,,,,Auto-increment primary key
+cv_profiles,user_id,INTEGER,NO,,users.id,YES,,FK tới users - 1 user 1 CV
+cv_profiles,summary,TEXT,YES,,,,,Giới thiệu bản thân
+cv_profiles,years_of_experience,INTEGER,YES,,,,,Số năm kinh nghiệm
+cv_profiles,skills,JSONB,YES,,,,,Danh sách kỹ năng
+cv_profiles,education,JSONB,YES,,,,,Học vấn
+cv_profiles,work_experience,JSONB,YES,,,,,Kinh nghiệm làm việc
+cv_profiles,cv_file_url,VARCHAR(500),YES,,,,,URL file CV upload
+cv_profiles,updated_at,TIMESTAMP WITH TIME ZONE,NO,,,,NOW(),Thời điểm cập nhật
+interview_sessions,id,INTEGER,NO,YES,,,,Auto-increment primary key
+interview_sessions,user_id,INTEGER,NO,,users.id,,,FK tới users
+interview_sessions,title,VARCHAR(200),NO,,,,,Tiêu đề buổi phỏng vấn
+interview_sessions,job_position,VARCHAR(100),NO,,,,,Vị trí ứng tuyển
+interview_sessions,job_level,VARCHAR(50),YES,,,,,junior / mid / senior
+interview_sessions,tech_stack,TEXT,YES,,,,,Tech stack liên quan
+interview_sessions,status,VARCHAR(20),NO,,,,pending,pending / in_progress / completed / cancelled
+interview_sessions,duration_minutes,INTEGER,YES,,,,,Thời lượng dự kiến (phút)
+interview_sessions,overall_score,FLOAT,YES,,,,,Điểm tổng kết 0-100
+interview_sessions,feedback_summary,TEXT,YES,,,,,Nhận xét tổng thể từ AI
+interview_sessions,created_at,TIMESTAMP WITH TIME ZONE,NO,,,,NOW(),Thời điểm tạo
+interview_sessions,updated_at,TIMESTAMP WITH TIME ZONE,NO,,,,NOW(),Thời điểm cập nhật
+questions,id,INTEGER,NO,YES,,,,Auto-increment primary key
+questions,content,TEXT,NO,,,,,Nội dung câu hỏi
+questions,category,VARCHAR(100),YES,,,,,Chủ đề: OOP / Database / System Design
+questions,difficulty,VARCHAR(20),NO,,,,medium,easy / medium / hard
+questions,tech_tags,JSONB,YES,,,,,Tag kỹ thuật
+questions,expected_answer,TEXT,YES,,,,,Đáp án mẫu
+questions,is_active,BOOLEAN,NO,,,,TRUE,Câu hỏi còn dùng
+questions,created_by,INTEGER,YES,,users.id,,,FK tới users (admin tạo)
+questions,created_at,TIMESTAMP WITH TIME ZONE,NO,,,,NOW(),Thời điểm tạo
+interview_questions,id,INTEGER,NO,YES,,,,Auto-increment primary key
+interview_questions,session_id,INTEGER,NO,,interview_sessions.id,,,FK tới interview_sessions
+interview_questions,question_id,INTEGER,YES,,questions.id,,,FK tới questions (NULL nếu AI sinh)
+interview_questions,question_content,TEXT,NO,,,,,Nội dung câu hỏi
+interview_questions,order_index,INTEGER,NO,,,,,Thứ tự câu hỏi trong session
+interview_questions,user_answer,TEXT,YES,,,,,Câu trả lời của ứng viên
+interview_questions,ai_feedback,TEXT,YES,,,,,Nhận xét AI cho câu này
+interview_questions,score,FLOAT,YES,,,,,Điểm câu này 0-10
+interview_questions,answered_at,TIMESTAMP WITH TIME ZONE,YES,,,,,Thời điểm trả lời
+ai_usage_logs,id,INTEGER,NO,YES,,,,Auto-increment primary key
+ai_usage_logs,user_id,INTEGER,NO,,users.id,,,FK tới users
+ai_usage_logs,session_id,INTEGER,YES,,interview_sessions.id,,,FK tới interview_sessions
+ai_usage_logs,model_name,VARCHAR(100),NO,,,,,Tên model AI: gpt-4o / gemini-pro
+ai_usage_logs,prompt_tokens,INTEGER,YES,,,,,Số token input
+ai_usage_logs,completion_tokens,INTEGER,YES,,,,,Số token output
+ai_usage_logs,total_cost_usd,FLOAT,YES,,,,,Chi phí ước tính (USD)
+ai_usage_logs,action_type,VARCHAR(50),YES,,,,,generate_question / evaluate_answer
+ai_usage_logs,created_at,TIMESTAMP WITH TIME ZONE,NO,,,,NOW(),Thời điểm gọi AI
