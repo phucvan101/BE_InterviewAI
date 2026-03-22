@@ -10,8 +10,8 @@ from app.core.security import (
     hash_password,
     verify_password,
 )
-from app.models.user import User
-from app.schemas.user import (
+from app.feature.auth.models.user import User
+from app.feature.auth.schemas.user import (
     PaginatedUsers,
     RefreshTokenRequest,
     TokenResponse,

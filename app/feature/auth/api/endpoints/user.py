@@ -3,8 +3,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
 from app.core.dependencies import get_current_active_user, get_current_superuser
-from app.models.user import User
-from app.schemas.user import (
+from app.feature.auth.models.user import User
+from app.feature.auth.schemas.user import (
     PaginatedUsers,
     RefreshTokenRequest,
     TokenResponse,
@@ -14,7 +14,7 @@ from app.schemas.user import (
     UserUpdate,
     UserUpdatePassword,
 )
-from app.services.user_service import UserService
+from app.feature.auth.services.user_service import UserService
 
 router = APIRouter(prefix="/users", tags=["Users"])
 
