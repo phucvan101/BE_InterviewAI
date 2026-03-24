@@ -1,0 +1,37 @@
+{
+    "personal_info": {
+        "name": "MAI LINH LAN",
+        "dob": "",
+        "gender": "",
+        "phone": "+84 123 456 789",
+        "email": "xinchao@trangwebhay.vn",
+        "address": ""
+    },
+    "objective": "",
+    "education": [
+        {
+            "degree": "Cử nhân Khoa học Du lịch",
+            "institution": "Đại học An Nam",
+            "year": "2020",
+            "details": "Tốt nghiệp loại Xuất sắc, Luận án tốt nghiệp xuất sắc, Chủ tịch câu lạc bộ tranh luận"
+        }
+    ],
+    "work_experience": [
+        {
+            "title": "Tiếp viên hàng không",
+            "company": "Việt An Airlines",
+            "start_date": "Tháng 3/2022",
+            "end_date": "Tháng 8/2025",
+            "description": [
+                "Nâng cao chất lượng dịch vụ tổng thể lên 30% bằng cách hướng dẫn hơn 40 tiếp viên hàng không trẻ và đào tạo họ theo tiêu chuẩn sức khỏe và an toàn cao cấp",
+                "Duy trì đánh giá phản hồi tích cực 100% từ hành khách bằng cách cung cấp dịch vụ khách hàng xuất sắc và đảm bảo sự thoải mái, an toàn của họ",
+                "Hoàn thành hơn 2.000 giờ bay quốc tế và nội địa"
+            ]
+        }
+    ],
+    "skills": [
+        "Sơ cứu & cấp cứu",
+        "Lưu loát tiếng Anh",
+        "Dịch vụ khách hàng xuất sắc"
+    ]
+}
