@@ -1,0 +1,34 @@
+{
+    "personal_info": {
+        "name": "Quý Hoàng",
+        "dob": "18/12/1997",
+        "gender": "",
+        "phone": "0123456789",
+        "email": "hoangminhquy3371@gmail.com",
+        "address": "Hà Nội"
+    },
+    "objective": "Với hơn 3 năm kinh nghiệm làm việc tại vị trí Nhân viên kinh doanh, tôi có nền tảng vững chắc về quy trình bán hàng, kỹ năng nắm bắt tâm lý khách hàng và kinh nghiệm chốt sales. Tại công ty gần nhất, tôi đã tư vấn và xây dựng mối quan hệ bền vững với hơn 200 khách hàng lớn, đạt danh hiệu Nhân viên kinh doanh xuất sắc năm 2024. Tôi mong muốn có cơ hội làm việc tại Quý công ty để nâng cao kỹ năng chuyên môn đồng thời đóng góp sự phát triển bền vững của công ty trong tương lai.",
+    "education": [
+        {
+            "degree": "Quản trị kinh doanh",
+            "university": "Đại học Kinh tế TOPCV",
+            "years": "2017 - 2021",
+            "description": "Chuyên ngành Quản trị doanh nghiệp"
+        }
+    ],
+    "work_experience": [
+        {
+            "title": "Chuyên viên viên kinh doanh",
+            "company": "Công ty cổ phần nội thất HLT",
+            "years": "2024 - Nay",
+            "description": "• Tìm kiếm khách hàng mới thông qua các kênh: LinkedIn, Facebook, Zalo, Email Marketing để phát triển mạng lưới khách hàng và tăng độ phủ thương hiệu.\n• Phân tích nhu cầu khách hàng để đưa ra các đề xuất cải tiến quy trình bán hàng, tối ưu hóa chiến lược tiếp cận khách hàng.\n• Quản lý và phát triển mối quan hệ với hơn 200 khách hàng lớn, gồm các nhóm khách hàng chiến lược trong ngành đồ gia dụng và nội thất, giúp duy trì hợp đồng dài hạn và gia tăng doanh thu.\n• Phối hợp với bộ phận Marketing triển khai các chiến dịch quảng cáo, khuyến mãi và các hoạt động marketing để mở rộng tệp khách hàng tiềm năng và tăng trưởng doanh thu.\n• Theo dõi tình trạng đơn hàng và hỗ trợ giải đáp thắc mắc của khách hàng.\n• Hỗ trợ giải đáp của khách hàng sau khi mua sản phẩm, giúp nâng cao trải nghiệm sau mua và duy trì mối quan hệ lâu dài với khách hàng.\n• Thành tựu: Đạt danh hiệu \"Nhân viên xuất sắc nhất năm 2024\" với doanh số vượt 15% KPI trong Quý I và Quý II."
+        },
+        {
+            "title": "Nhân viên kinh doanh",
+            "company": "Công ty cổ phần MML",
+            "years": "2022 - 2023",
+            "description": "• Tìm kiếm và phát triển mối quan hệ với khách hàng tiềm năng, đồng thời duy trì kết nối với khách hàng cũ, hỗ trợ giải đáp thắc mắc và xử lý các khiếu nại liên quan đến sản phẩm/dịch vụ.\n• Tổng hợp thông tin, đánh giá tình hình kinh doanh của đối thủ, đề xuất phương án triển khai để tăng doanh số bán hàng cho doanh nghiệp.\n• Gửi mail thông báo chương trình khuyến mãi, hội chợ, trải nghiệm sản phẩm cho khách hàng.\n• Tổ chức triển khai sự kiện, chương trình PR sản phẩm của công ty.\n• Lên dự thảo hợp đồng, báo giá gửi khách hàng.\n• Làm báo cáo tuần/tháng/quý về tiến độ công việc."
+        }
+    ],
+    "skills": []
+}
