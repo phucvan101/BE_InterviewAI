@@ -55,8 +55,21 @@ class Settings(BaseSettings):
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
     REFRESH_TOKEN_EXPIRE_DAYS: int = 7
 
+    # ── Google OAuth ─────────────────────────
+    GOOGLE_CLIENT_ID: Optional[str] = None
+    GOOGLE_CLIENT_SECRET: Optional[str] = None
+    GOOGLE_REDIRECT_URI: Optional[str] = None
+    GOOGLE_AUTH_URI: str = "https://accounts.google.com/o/oauth2/v2/auth"
+    GOOGLE_TOKEN_URI: str = "https://oauth2.googleapis.com/token"
+    GOOGLE_TOKENINFO_URI: str = "https://oauth2.googleapis.com/tokeninfo"
+    GOOGLE_ALLOWED_ISSUERS: List[str] = ["https://accounts.google.com", "accounts.google.com"]
+    GOOGLE_SCOPES: List[str] = ["openid", "email", "profile"]
+
     # ── CORS ─────────────────────────────────
     ALLOWED_ORIGINS: List[str] = ["http://localhost:3000", "http://localhost:5173"]
+
+    # ── Frontend ──────────────────────────────
+    FRONTEND_URL: str = "http://localhost:3000"
 
 
 # Singleton instance

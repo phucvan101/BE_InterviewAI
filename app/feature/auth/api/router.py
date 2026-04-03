@@ -1,11 +1,13 @@
 from fastapi import APIRouter
 
+from app.feature.auth.api.endpoints.google_oauth import router as google_oauth_router
 from app.feature.auth.api.endpoints.user import router as user_router
 
 api_router = APIRouter()
 
 # Register all endpoint routers here
 api_router.include_router(user_router)
+api_router.include_router(google_oauth_router)
 
 # Example: add more routers as the project grows
 # from app.api.endpoints.auth import router as auth_router
