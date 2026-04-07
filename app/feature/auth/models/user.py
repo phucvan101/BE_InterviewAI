@@ -1,7 +1,7 @@
-from datetime import datetime
+from datetime import datetime, timezone
 
 from sqlalchemy import Boolean, DateTime, Integer, String, func
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.database import Base
 
@@ -35,6 +35,10 @@ class User(Base):
         onupdate=func.now(),
         nullable=False,
     )
+
+    # ── ORM Relationships ────────────────────
+    cv_profiles = relationship("CVProfile", back_populates="user")
+    interview_sessions = relationship("InterviewSession", back_populates="user")
 
     def __repr__(self) -> str:
         return f"<User id={self.id} email={self.email!r}>"

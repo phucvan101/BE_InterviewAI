@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 import fitz
 import string
 import os
@@ -16,8 +17,8 @@ MODEL_NAME = os.getenv("MODEL_NAME")  # Thay đổi trong .env
 client = genai.Client(api_key=GEMINI_API_KEY)
 
 # ================= CONFIG =================
-INPUT_FOLDER = r"C:\Users\pc\Documents\code\DATN\BE\BE_InterviewAI\app\feature\feature_up_cv\cv_test"
-OUTPUT_FOLDER = r"C:\Users\pc\Documents\code\DATN\BE\BE_InterviewAI\app\feature\feature_up_cv\cv_output"
+INPUT_FOLDER = r"C:\Users\pc\Documents\code\DATN\BE_InterviewAI\app\feature\feature_up_cv\cv_test"
+OUTPUT_FOLDER = r"C:\Users\pc\Documents\code\DATN\BE_InterviewAI\app\feature\feature_up_cv\cv_output"
 os.makedirs(OUTPUT_FOLDER, exist_ok=True)
 
 # ================= PDF CLASSIFY =================
@@ -104,7 +105,7 @@ def call_llm(prompt, max_retry=5, wait_sec=10):
                 raise Exception("Empty response")
             return response.text
         except Exception as e:
-            print(f" Gemini error (attempt {attempt}): {e}")
+            # print(f" Gemini error (attempt {attempt}): {e}")
             time.sleep(wait_sec)
     raise Exception("Gemini API failed after retries")
 
@@ -138,7 +139,7 @@ def fallback():
 
 def robust_parse(text, max_retry=3):
     for i in range(max_retry):
-        print(f"   LLM attempt {i+1}...")
+        # print(f"   LLM attempt {i+1}...")
         prompt = build_prompt(text)
         raw = call_llm(prompt)
         json_text = extract_first_json(raw)

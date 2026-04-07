@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 import uvicorn
 
 from app.core.config import settings

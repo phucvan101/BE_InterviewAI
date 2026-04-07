@@ -4,13 +4,6 @@ from typing import List, Optional
 
 
 class Settings(BaseSettings):
-    
-    smtp_host: Optional[str] = None
-    smtp_port: Optional[int] = None
-    smtp_user: Optional[str] = None
-    smtp_password: Optional[str] = None
-    smtp_from_email: Optional[str] = None
-    smtp_from_name: Optional[str] = None
 
     model_config = SettingsConfigDict(
         env_file=".env",
@@ -34,10 +27,6 @@ class Settings(BaseSettings):
     @field_validator("DATABASE_URL", mode="before")
     @classmethod
     def normalize_database_url(cls, value: str) -> str:
-        """
-        Ensure async SQLAlchemy always uses async PostgreSQL driver.
-        Accepts legacy `postgres://` and `postgresql://` forms.
-        """
         if not isinstance(value, str):
             return value
 
@@ -57,6 +46,29 @@ class Settings(BaseSettings):
 
     # ── CORS ─────────────────────────────────
     ALLOWED_ORIGINS: List[str] = ["http://localhost:3000", "http://localhost:5173"]
+
+    # ── SMTP ─────────────────────────────────
+    smtp_host: Optional[str] = None
+    smtp_port: Optional[int] = None
+    smtp_user: Optional[str] = None
+    smtp_password: Optional[str] = None
+    smtp_from_email: Optional[str] = None
+    smtp_from_name: Optional[str] = None
+
+    # ── Frontend ─────────────────────────────
+    frontend_url: Optional[str] = None
+
+    # ── Google OAuth ─────────────────────────
+    google_client_id: Optional[str] = None
+    google_client_secret: Optional[str] = None
+    google_redirect_uri: Optional[str] = None
+
+    # ── AI / Speech ──────────────────────────
+    deepgram_api_key: Optional[str] = None
+    deepgram_model: str = "general"
+
+    gemini_api_key: Optional[str] = None
+    model_name: str = "models/gemini-2.5-flash"
 
 
 # Singleton instance
