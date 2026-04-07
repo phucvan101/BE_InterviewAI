@@ -16,7 +16,7 @@ from app.core.database import init_db
 async def lifespan(app: FastAPI):
     # ── Startup ──
     print(f"🚀  Starting {settings.APP_NAME} v{settings.APP_VERSION}")
-    await init_db()          # create tables (use Alembic in production)
+    await init_db()          # create tables + apply Alembic migrations
     yield
     # ── Shutdown ──
     print("👋  Shutting down...")

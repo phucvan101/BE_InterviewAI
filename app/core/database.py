@@ -1,3 +1,8 @@
+import asyncio
+from pathlib import Path
+
+from alembic import command
+from alembic.config import Config
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.orm import DeclarativeBase
 
@@ -43,3 +48,9 @@ async def get_db() -> AsyncSession:
 async def init_db() -> None:
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+
+    # Apply Alembic migrations (seed default admin, etc.)
+    alembic_cfg = Config(str(Path(__file__).resolve().parents[2] / "alembic.ini"))
+    alembic_cfg.set_main_option("script_location", "alembic")
+    alembic_cfg.set_main_option("sqlalchemy.url", settings.DATABASE_URL)
+    await asyncio.to_thread(command.upgrade, alembic_cfg, "head")
