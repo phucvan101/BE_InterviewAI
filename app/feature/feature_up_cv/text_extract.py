@@ -39,7 +39,7 @@ def extract_text_from_docx(file_path: str) -> str:
 
 def extract_text_auto(file_path: str) -> str:
     """
-    Extract text from .pdf or .docx based on file suffix.
+    Extract text from .pdf, .docx, or .txt based on file suffix.
     """
     path = Path(file_path)
     suffix = path.suffix.lower()
@@ -47,5 +47,7 @@ def extract_text_auto(file_path: str) -> str:
         return extract_text_from_pdf(file_path)
     if suffix == ".docx":
         return extract_text_from_docx(file_path)
+    if suffix == ".txt":
+        return path.read_text(encoding="utf-8").strip()
     raise UnsupportedFileTypeError(f"Unsupported file type: {suffix}")
 
