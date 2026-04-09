@@ -1,12 +1,8 @@
 # -*- coding: utf-8 -*-
-import os
-import json
 import tempfile
 from pathlib import Path
-from docx import Document as DocxDocument
 from fastapi import APIRouter, File, UploadFile, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
-import pypdf
 
 from app.core.database import get_db
 
@@ -15,42 +11,6 @@ router = APIRouter(prefix="/company-research", tags=["Company Research"])
 # Directory to store uploaded company research files
 UPLOAD_DIR = Path(tempfile.gettempdir()) / "interview_company_uploads"
 UPLOAD_DIR.mkdir(exist_ok=True)
-
-
-def extract_text_from_pdf(file_path: str) -> str:
-    """Extract text from PDF file"""
-    try:
-        text = ""
-        with open(file_path, 'rb') as f:
-            reader = pypdf.PdfReader(f)
-            for page in reader.pages:
-                text += page.extract_text()
-        return text
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Lỗi khi đọc file PDF: {str(e)}"
-        )
-
-
-def extract_text_from_docx(file_path: str) -> str:
-    """Extract text from DOCX file"""
-    try:
-        doc = DocxDocument(file_path)
-        text = ""
-        for paragraph in doc.paragraphs:
-            text += paragraph.text + "\n"
-        for table in doc.tables:
-            for row in table.rows:
-                for cell in row.cells:
-                    text += cell.text + " "
-        return text
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Lỗi khi đọc file DOCX: {str(e)}"
-        )
-
 
 @router.post("/upload", status_code=status.HTTP_200_OK)
 async def upload_company_research(

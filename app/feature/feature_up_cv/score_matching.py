@@ -10,21 +10,15 @@ Analyzes CV against Job Description and returns:
 import json
 import os
 import re
-from typing import Dict, Any, List
-import google.generativeai as genai
+from typing import Dict, Any
 from dotenv import load_dotenv
 
 # Load environment variables
 load_dotenv()
 
-# Configure Gemini API
-GEMINI_API_KEY = os.getenv('GEMINI_API_KEY')
 MODEL_NAME = os.getenv('MODEL_NAME', 'models/gemini-2.5-flash')
 
-if not GEMINI_API_KEY:
-    raise ValueError("GEMINI_API_KEY not found in .env file")
-
-genai.configure(api_key=GEMINI_API_KEY)
+from app.feature.feature_up_cv.gemini_client import generate_content
 
 
 def load_json_file(file_path: str) -> Dict[str, Any]:
@@ -46,87 +40,86 @@ def build_matching_prompt(cv_data: Dict, jd_data: Dict) -> str:
     cv_json = json.dumps(cv_data, ensure_ascii=False, indent=2)
     jd_json = json.dumps(jd_data, ensure_ascii=False, indent=2)
     
+    # Prefer structured JD when available (for stability)
+    jd_structured = jd_data.get("structured", None) if isinstance(jd_data, dict) else None
+    jd_structured_json = (
+        json.dumps(jd_structured, ensure_ascii=False, indent=2) if jd_structured else ""
+    )
+
     prompt = f"""
-Bạn là một chuyên gia tuyển dụng và phân tích CV. Hãy đánh giá mức độ phù hợp giữa CV ứng viên và mô tả công việc (JD).
+Bạn là chuyên gia tuyển dụng + phân tích năng lực. Nhiệm vụ: đánh giá mức độ phù hợp giữa CV ứng viên và JD.
+Bạn sẽ dựa trên:
+1) Kỹ năng bắt buộc / ưu tiên từ JD (ưu tiên dùng JD_STRUCTURED nếu có)
+2) Kinh nghiệm (năm, lĩnh vực, phạm vi công việc)
+3) Trách nhiệm chính và mức độ tương đồng
 
-## CV CỦA ỨNG VIÊN:
-```json
+Ràng buộc bắt buộc:
+- CHỈ trả về 1 JSON object, KHÔNG có text/markdown nào khác.
+- KHÔNG giải thích dài dòng; chỉ điền vào các field theo schema.
+- Điểm là số nguyên 0-100.
+- `missing_skills` phải liệt kê đầy đủ kỹ năng quan trọng bị thiếu (ưu tiên skills_required).
+- `matched_skills` chỉ liệt kê các kỹ năng thực sự có trong CV (dựa vào CV.skills / work_experience highlights).
+- Nếu kỹ năng tương tự tên khác -> đưa vào `related_skills` (vd: "Postgres" ~ "PostgreSQL").
+- Loại bỏ trùng lặp trong các list.
+- Ngôn ngữ: Tiếng Việt (trừ keyword công nghệ).
+
+Input:
+CV_JSON:
 {cv_json}
-```
 
-## MÔ TẢ CÔNG VIỆC (JD):
-```json
+JD_JSON (raw):
 {jd_json}
-```
 
-## HƯỚNG DẪN ĐÁNH GIÁ:
+JD_STRUCTURED (nếu có, dùng ưu tiên):
+{jd_structured_json}
 
-### 1. PHÂN TÍCH KỸ NĂNG (Skill Matching):
-- So sánh từng kỹ năng yêu cầu trong JD với kinh nghiệm & kỹ năng có trong CV
-- Ghi rõ:
-  - Kỹ năng KHỚP (có trong CV)
-  - Kỹ năng LIÊN QUAN (có nhưng khác tên gọi)
-  - Kỹ năng THIẾU (không có trong CV)
-
-### 2. PHÂN TÍCH KINH NGHIỆM:
-- So sánh năm kinh nghiệm yêu cầu với năm kinh nghiệm của ứng viên
-- Đánh giá mức độ phù hợp: Đủ / Chưa đủ / Vượt yêu cầu
-
-### 3. PHÂN TÍCH VỊ TRÍ & ĐỊNH HƯỚNG NGHỀ NGHIỆP:
-- Đánh giá ứng viên có định hướng phù hợp không
-- Liệu kinh nghiệm trước đó có liên quan không
-
-### 4. TIÊU CHÍ ĐÁNH GIÁ ĐIỂM:
-- 85-100: Rất phù hợp (có hầu hết skills + kinh nghiệm đủ)
-- 70-84: Khá phù hợp (có nhiều skills chính, kinh nghiệm tương đương)
-- 60-69: Trung bình (có một số skills chính, kinh nghiệm thiếu)
-- 50-59: Ít phù hợp (thiếu nhiều skills quan trọng)
-- 0-49: Không phù hợp (thiếu hầu hết skills yêu cầu)
-
-## RETURN FORMAT (STRICT JSON):
-Hãy trả về CHÍNH XÁC dưới định dạng JSON sau không có bất cứ text nào khác:
-
+Schema output:
 {{
-  "overall_score": <số từ 0-100>,
-  "score_rationale": "<giải thích vì sao đạt điểm này (2-3 câu)>",
-  "matched_skills": [
-    "<danh sách kỹ năng CV đã có>",
-    "..."
-  ],
-  "related_skills": [
-    "<danh sách kỹ năng liên quan/tương tự>",
-    "..."
-  ],
-  "missing_skills": [
-    "<danh sách kỹ năng THIẾU trong CV>",
-    "..."
-  ],
-  "experience_assessment": "<đánh giá kinh nghiệm: Đủ/Chưa đủ/Vượt>",
-  "experience_detail": "<giải thích chi tiết về kinh nghiệm>",
-  "main_strengths": [
-    "<điểm mạnh chính 1>",
-    "<điểm mạnh chính 2>",
-    "..."
-  ],
-  "areas_for_development": [
-    "<khu vực cần phát triển 1>",
-    "<khu vực cần phát triển 2>",
-    "..."
-  ],
-  "recommendation": "<khuyến nghị tổng quát cho ứng viên (2-3 câu)>"
+  "overall_score": 0,
+  "score_rationale": "",
+  "matched_skills": [],
+  "related_skills": [],
+  "missing_skills": [],
+  "experience_assessment": "",
+  "experience_detail": "",
+  "main_strengths": [],
+  "areas_for_development": [],
+  "recommendation": "",
+  "evidence": {{
+    "cv_skills": [],
+    "jd_skills_required": [],
+    "jd_skills_preferred": []
+  }}
 }}
 
-QUAN TRỌNG: 
-- Chỉ trả về JSON, không có text khác
-- Tất cả text phải là Tiếng Việt
-- Điểm số phải là số nguyên từ 0-100
-- Danh sách missing_skills là CRITICAL, phải liệt kê tất cả kỹ năng thiếu
-"""
+Few-shot (format reference only):
+CV_EXAMPLE: {{"skills":["Python","FastAPI"]}}
+JD_EXAMPLE: {{"structured":{{"skills_required":["Python","FastAPI","PostgreSQL"]}}}}
+OUTPUT_EXAMPLE:
+{{
+  "overall_score": 70,
+  "score_rationale":"Ứng viên có kỹ năng chính nhưng thiếu một kỹ năng quan trọng trong yêu cầu.",
+  "matched_skills":["Python","FastAPI"],
+  "related_skills":[],
+  "missing_skills":["PostgreSQL"],
+  "experience_assessment":"",
+  "experience_detail":"",
+  "main_strengths":["Nắm vững Python/FastAPI"],
+  "areas_for_development":["Bổ sung PostgreSQL"],
+  "recommendation":"Nên học và thực hành PostgreSQL để đáp ứng JD tốt hơn.",
+  "evidence":{{"cv_skills":["Python","FastAPI"],"jd_skills_required":["Python","FastAPI","PostgreSQL"],"jd_skills_preferred":[]}}
+}}
+
+Self-check:
+- Valid JSON only?
+- Contains all required keys?
+- No text outside JSON?
+""".strip()
     
     return prompt
 
 
-def parse_model_response(response_text: str) -> Dict[str, Any]:
+def parser_model_response(response_text: str) -> Dict[str, Any]:
     """
     Parse Gemini response and extract JSON
     """
@@ -168,22 +161,27 @@ def calculate_matching_score(cv_path: str, jd_path: str) -> Dict[str, Any]:
     cv_data = load_json_file(cv_path)
     jd_data = load_json_file(jd_path)
     
-    print(f"✓ CV loaded: {cv_data.get('personal_info', {}).get('name', 'Unknown')}")
-    print(f"✓ JD loaded: {jd_data.get('job_title', 'Unknown')}")
+    print("✅ CV and JD files loaded successfully")
+    print(f"📊 CV data: {cv_data}")
+    print(f"📊 JD data: {jd_data}")
     
+    return calculate_matching_score_from_payload(cv_data, jd_data)
+
+
+def calculate_matching_score_from_payload(cv_data: Dict[str, Any], jd_data: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Main function: call Gemini matching using parsed CV/JD dictionaries.
+    """
     # Build prompt
     prompt = build_matching_prompt(cv_data, jd_data)
-    
     print("🤖 Calling Gemini model for analysis...")
-    
-    # Call Gemini API
-    model = genai.GenerativeModel(MODEL_NAME)
-    response = model.generate_content(prompt)
-    
+
+    # Call Gemini model
+    raw = generate_content(prompt=prompt, step="llm_match_score")
     print("✓ Received response from model")
     
     # Parse response
-    analysis = parse_model_response(response.text)
+    analysis = parser_model_response(raw)
     
     # Validate response structure
     required_fields = [
@@ -199,7 +197,11 @@ def calculate_matching_score(cv_path: str, jd_path: str) -> Dict[str, Any]:
     
     # Add metadata
     analysis['cv_candidate'] = cv_data.get('personal_info', {}).get('name', 'Unknown')
-    analysis['job_position'] = jd_data.get('job_title', 'Unknown')
+    analysis['job_position'] = (
+        jd_data.get('job_title')
+        or (jd_data.get("structured", {}) or {}).get("job_title")
+        or 'Unknown'
+    )
     analysis['matched_at'] = __import__('datetime').datetime.now().isoformat()
     
     return analysis

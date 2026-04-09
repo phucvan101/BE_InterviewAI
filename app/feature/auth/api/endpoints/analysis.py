@@ -6,17 +6,18 @@ import os
 import json
 import sys
 import tempfile
+import time
 from pathlib import Path
 from typing import Any, Dict
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
-from docx import Document as DocxDocument
-import pypdf
 
 from app.core.database import get_db
 from app.core.dependencies import get_current_active_user
 from ...models.user import User
+from app.feature.feature_up_cv.text_extract import extract_text_auto, UnsupportedFileTypeError
+from app.feature.feature_up_cv.parser_jd import llm_parser_jd
 
 
 # Pydantic model for analysis request
@@ -33,18 +34,28 @@ CV_UPLOAD_DIR = Path(tempfile.gettempdir()) / "interview_cv_uploads"
 JD_UPLOAD_DIR = Path(tempfile.gettempdir()) / "interview_jd_uploads"
 COMPANY_UPLOAD_DIR = Path(tempfile.gettempdir()) / "interview_company_uploads"
 
+
+def _log_parser_result(parser_name: str, started_at: float, success: bool, error: str | None = None) -> None:
+    elapsed_ms = (time.perf_counter() - started_at) * 1000
+    status = "SUCCESS" if success else "FAILED"
+    if success:
+        print(f"[PARSER] {parser_name}: {status} ({elapsed_ms:.1f} ms)")
+    else:
+        print(f"[PARSER] {parser_name}: {status} ({elapsed_ms:.1f} ms) - {error or 'unknown error'}")
+
 # Import utilities from feature_up_cv using absolute imports
 try:
-    from app.feature.feature_up_cv.score_matching import calculate_matching_score
-    from app.feature.feature_up_cv.extract_cv import extract_text, classify_pdf, robust_parse
-    from app.feature.feature_up_cv.extract_company import extract_company_info
+    from app.feature.feature_up_cv.score_matching import calculate_matching_score_from_payload
+    from app.feature.feature_up_cv.parser_cv import llm_parser_cv
+    from app.feature.feature_up_cv.parser_company import llm_parser_company
+    from app.feature.feature_up_cv.gemini_client import GeminiQuotaExceededError, GeminiRateLimitedError
 except ImportError as e:
     print(f"⚠️ Warning: Could not import from feature_up_cv: {e}")
-    calculate_matching_score = None
-    extract_text = None
-    classify_pdf = None
-    robust_parse = None
-    extract_company_info = None
+    calculate_matching_score_from_payload = None
+    llm_parser_cv = None
+    llm_parser_company = None
+    GeminiQuotaExceededError = None
+    GeminiRateLimitedError = None
 
 
 def calculate_company_cv_fit(cv_data: Dict, company_data: Dict) -> Dict:
@@ -116,29 +127,6 @@ def calculate_company_cv_fit(cv_data: Dict, company_data: Dict) -> Dict:
         }
 
 
-def extract_text_from_pdf(file_path: str) -> str:
-    """Extract text from PDF file"""
-    try:
-        with open(file_path, "rb") as f:
-            pdf_reader = pypdf.PdfReader(f)
-            text = ""
-            for page in pdf_reader.pages:
-                text += page.extract_text() + "\n"
-        return text.strip()
-    except Exception as e:
-        raise Exception(f"Lỗi khi đọc file PDF: {str(e)}")
-
-
-def extract_text_from_docx(file_path: str) -> str:
-    """Extract text from DOCX file"""
-    try:
-        doc = DocxDocument(file_path)
-        text = "\n".join(paragraph.text for paragraph in doc.paragraphs)
-        return text.strip()
-    except Exception as e:
-        raise Exception(f"Lỗi khi đọc file DOCX: {str(e)}")
-
-
 @router.post("/match-cv-jd", status_code=status.HTTP_200_OK)
 async def analyze_cv_jd_match(
     request_body: AnalysisCVJDRequest,
@@ -167,7 +155,7 @@ async def analyze_cv_jd_match(
     }
     """
     
-    if not calculate_matching_score:
+    if not calculate_matching_score_from_payload:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Score matching module not available"
@@ -198,12 +186,11 @@ async def analyze_cv_jd_match(
             detail=f"File Công ty không tìm thấy: {company_file_path}"
         )
     
-    temp_cv_json = None
-    temp_jd_json = None
-    
+    step = "init"
     try:
-        # ── Extract CV from PDF ────────────────────
-        cv_text = extract_text(str(cv_file_path))
+        # ── Text extract: CV ───────────────────────
+        step = "extract_cv_text"
+        cv_text = extract_text_auto(str(cv_file_path))
         
         if not cv_text or len(cv_text.strip()) == 0:
             raise HTTPException(
@@ -211,14 +198,19 @@ async def analyze_cv_jd_match(
                 detail="Không thể trích xuất văn bản từ file CV"
             )
         
-        # Parse CV using LLM
-        cv_data = robust_parse(cv_text)
-        
-        # ── Extract JD from DOCX/PDF ──────────────────
-        if str(jd_file_path).lower().endswith('.docx'):
-            jd_text = extract_text_from_docx(str(jd_file_path))
-        else:
-            jd_text = extract_text_from_pdf(str(jd_file_path))
+        # ── LLM parser CV ─────────────────────────────
+        step = "llm_parser_cv"
+        cv_started_at = time.perf_counter()
+        try:
+            cv_data = llm_parser_cv(cv_text)
+            _log_parser_result("CV", cv_started_at, True)
+        except Exception as e:
+            _log_parser_result("CV", cv_started_at, False, str(e))
+            raise
+
+        # ── Text extract: JD ───────────────────────
+        step = "extract_jd_text"
+        jd_text = extract_text_auto(str(jd_file_path))
         
         if not jd_text or len(jd_text.strip()) == 0:
             raise HTTPException(
@@ -226,43 +218,56 @@ async def analyze_cv_jd_match(
                 detail="Không thể trích xuất văn bản từ file JD"
             )
         
-        # Create JD data structure
-        jd_data = {
-            "job_title": "Job Description",
-            "content": jd_text,
-            "word_count": len(jd_text.split()),
-            "file_name": jd_file_path.name
-        }
+        # ── LLM parser JD ──────────
+        step = "llm_parser_jd"
+        jd_started_at = time.perf_counter()
+        try:
+            jd_data = llm_parser_jd(jd_text=jd_text)
+            _log_parser_result("JD", jd_started_at, True)
+        except Exception as e:
+            _log_parser_result("JD", jd_started_at, False, str(e))
+            raise
         
-        # ── Extract Company Research (optional) ─────────
+        # ── Extract Company Research (optional) ───────
+        step = "maybe_extract_company_info"
         company_data = None
         if company_file_path:
             try:
-                if extract_company_info:
-                    company_info = extract_company_info(str(company_file_path))
-                    if company_info.get("success"):
-                        company_data = company_info
-                        print(f"✅ Company info extracted: {company_data}")
-                    else:
-                        print(f"⚠️ Company extraction failed: {company_info.get('error')}")
+                step = "extract_company_text"
+                company_text = extract_text_auto(str(company_file_path))
+                if not company_text or len(company_text.strip()) == 0:
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail="Không thể trích xuất văn bản từ file Công ty"
+                    )
+
+                step = "llm_parser_company"
+                company_started_at = time.perf_counter()
+                company_info = llm_parser_company(company_text)
+                if company_info.get("success"):
+                    _log_parser_result("COMPANY", company_started_at, True)
+                    company_data = company_info
+                    print(f"parser company info success")
                 else:
-                    print(f"⚠️ extract_company_info function not available")
+                    _log_parser_result("COMPANY", company_started_at, False, company_info.get("error"))
+                    print(f"⚠️ Company extraction failed: {company_info.get('error')}")
             except Exception as e:
+                if "company_started_at" in locals():
+                    _log_parser_result("COMPANY", company_started_at, False, str(e))
                 print(f"⚠️ Company extraction error: {e}")
         
-        # ── Create temporary JSON files for score_matching ────
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False, encoding='utf-8') as cv_file:
-            temp_cv_json = cv_file.name
-            json.dump(cv_data, cv_file, ensure_ascii=False, indent=2)
-        
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False, encoding='utf-8') as jd_file:
-            temp_jd_json = jd_file.name
-            json.dump(jd_data, jd_file, ensure_ascii=False, indent=2)
-        
-        # ── Call score_matching ──────────────────────
-        analysis_result = calculate_matching_score(temp_cv_json, temp_jd_json)
+        # ── Call score_matching (LLM) ───────────────
+        step = "llm_match_score"
+        score_started_at = time.perf_counter()
+        try:
+            analysis_result = calculate_matching_score_from_payload(cv_data, jd_data)
+            _log_parser_result("MATCH_SCORE", score_started_at, True)
+        except Exception as e:
+            _log_parser_result("MATCH_SCORE", score_started_at, False, str(e))
+            raise
         
         # ── Build response ────────────────────────────
+        step = "build_response"
         response_data = {
             "overall_score": analysis_result.get("overall_score", 0),
             "score_rationale": analysis_result.get("score_rationale", ""),
@@ -312,25 +317,27 @@ async def analyze_cv_jd_match(
             detail=f"Invalid data: {str(e)}"
         )
     
+    except UnsupportedFileTypeError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"[step={step}] {str(e)}"
+        )
+    
     except Exception as e:
+        if GeminiQuotaExceededError and isinstance(e, GeminiQuotaExceededError):
+            raise HTTPException(
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                detail=f"[step={step}] Gemini quota exceeded: {str(e)}"
+            )
+        if GeminiRateLimitedError and isinstance(e, GeminiRateLimitedError):
+            raise HTTPException(
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                detail=f"[step={step}] Gemini rate limited: {str(e)}"
+            )
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Analysis error: {str(e)}"
+            detail=f"[step={step}] Analysis error: {str(e)}"
         )
     
     finally:
-        # Clean up temporary JSON files
-        if temp_cv_json and os.path.exists(temp_cv_json):
-            try:
-                os.remove(temp_cv_json)
-            except Exception:
-                pass
-        
-        if temp_jd_json and os.path.exists(temp_jd_json):
-            try:
-                os.remove(temp_jd_json)
-            except Exception:
-                pass
-            except Exception:
-                pass
-
+            pass
