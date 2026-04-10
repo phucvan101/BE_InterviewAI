@@ -93,6 +93,20 @@ class RefreshTokenRequest(BaseModel):
     refresh_token: str
 
 
+# ── Google OAuth schemas ──────────────────────────────────────────────────────
+
+class GoogleIdTokenRequest(BaseModel):
+    id_token: str = Field(..., min_length=10)
+
+
+class GoogleCodeRequest(BaseModel):
+    code: str = Field(..., min_length=5)
+
+
+class GoogleAuthUrlResponse(BaseModel):
+    url: str
+
+
 # ── Pagination wrapper ────────────────────────────────────────────────────────
 
 class PaginatedUsers(BaseModel):

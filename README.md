@@ -1,6 +1,6 @@
-# FastAPI Project Template
+# BE_InterviewAI
 
-Backend REST API với FastAPI, SQLAlchemy (async), JWT auth.
+Backend REST API cho InterviewAI với FastAPI, SQLAlchemy (async), JWT auth và Google OAuth.
 
 ## 🚀 Quick Start
 
@@ -13,8 +13,7 @@ source .venv/bin/activate        # Linux/Mac
 # 2. Cài dependencies
 pip install -r requirements.txt
 
-# 3. Cấu hình .env (copy từ .env.example nếu có)
-cp .env .env.local               # chỉnh sửa theo môi trường
+# 3. Tạo file .env theo mục "Cấu hình môi trường"
 
 # 4. Chạy server
 python run.py
@@ -29,7 +28,7 @@ Mở: http://localhost:8000/docs
 ## 📁 Cấu trúc
 
 ```
-fastapi-project/
+InterviewApi/
 ├── app/
 │   ├── main.py                  # App factory + lifespan
 │   ├── core/
@@ -37,19 +36,25 @@ fastapi-project/
 │   │   ├── database.py          # Async SQLAlchemy engine + session
 │   │   ├── security.py          # JWT + bcrypt
 │   │   └── dependencies.py      # Shared FastAPI deps (auth guards)
-│   ├── api/
-│   │   ├── router.py            # Master APIRouter
-│   │   └── endpoints/
-│   │       └── user.py          # User CRUD + auth endpoints
-│   ├── models/
-│   │   └── user.py              # SQLAlchemy ORM model
-│   ├── schemas/
-│   │   └── user.py              # Pydantic v2 request/response schemas
-│   └── services/
-│       └── user_service.py      # Business logic layer
-├── .env                         # Environment variables
+│   └── feature/
+│       └── auth/
+│           ├── api/
+│           │   ├── router.py    # Master APIRouter (auth)
+│           │   └── endpoints/
+│           │       ├── user.py  # User CRUD + auth endpoints
+│           │       └── google_oauth.py  # Google OAuth endpoints
+│           ├── models/
+│           │   └── user.py      # SQLAlchemy ORM model
+│           ├── schemas/
+│           │   └── user.py      # Pydantic v2 request/response schemas
+│           └── services/
+│               ├── user_service.py          # Business logic layer
+│               └── google_oauth_service.py  # Google OAuth helpers
 ├── requirements.txt
-└── run.py                       # Uvicorn entry point
+├── run.py                       # Uvicorn entry point
+├── db_schema_interviewai.csv    # Snapshot schema (tham khảo)
+└── logs/
+    └── backend-errors.log
 ```
 
 ---
@@ -70,38 +75,93 @@ fastapi-project/
 | PATCH | `/api/v1/users/{id}/deactivate` | 👑 Admin | Vô hiệu hoá user |
 | DELETE | `/api/v1/users/{id}` | 👑 Admin | Xoá user |
 | GET | `/health` | ❌ | Health check |
+| GET | `/api/v1/auth/google/login` | ❌ | Redirect tới Google OAuth |
+| GET | `/api/v1/auth/google/url` | ❌ | Lấy Google OAuth consent URL |
+| GET | `/api/v1/auth/google/callback` | ❌ | Callback exchange code → token + redirect FE |
+| POST | `/api/v1/auth/google/id-token` | ❌ | Login với Google ID token |
+| POST | `/api/v1/auth/google/code` | ❌ | Exchange Google auth code → token |
 
 ---
 
 ## 🗄️ Database
 
-- **Development:** SQLite (mặc định, không cần cài thêm)
-- **Production:** PostgreSQL (thay `DATABASE_URL` trong `.env`)
+- Mặc định dùng **PostgreSQL async** (`asyncpg`).
+- `DATABASE_URL` sẽ được tự động normalize từ `postgres://` hoặc `postgresql://`.
+- Khi chạy local, bạn cần có PostgreSQL hoặc thay `DATABASE_URL` về database phù hợp với async SQLAlchemy.
 
 ```env
-# SQLite
-DATABASE_URL=sqlite+aiosqlite:///./fastapi.db
-
-# PostgreSQL
-DATABASE_URL=postgresql+asyncpg://user:pass@localhost:5432/dbname
+DATABASE_URL=postgresql+asyncpg://postgres:123456@localhost:5432/postgres
 ```
 
----
-
-## 🏗️ Thêm module mới
-
-1. Tạo model: `app/models/interview.py`
-2. Tạo schema: `app/schemas/interview.py`
-3. Tạo service: `app/services/interview_service.py`
-4. Tạo endpoint: `app/api/endpoints/interview.py`
-5. Đăng ký router trong `app/api/router.py`
+Khi app start, `init_db()` sẽ `create_all` tự động. Dùng Alembic cho production.
 
 ---
+
+## ⚙️ Cấu hình môi trường (.env)
+
+Các biến quan trọng đang dùng trong code:
+
+- `APP_NAME`, `APP_VERSION`, `DEBUG`
+- `API_PREFIX`, `HOST`, `PORT`
+- `DATABASE_URL`
+- `SECRET_KEY`, `ALGORITHM`, `ACCESS_TOKEN_EXPIRE_MINUTES`, `REFRESH_TOKEN_EXPIRE_DAYS`
+- `ALLOWED_ORIGINS`, `FRONTEND_URL`
+- `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_REDIRECT_URI`
+- `GOOGLE_AUTH_URI`, `GOOGLE_TOKEN_URI`, `GOOGLE_TOKENINFO_URI`
+- `GOOGLE_ALLOWED_ISSUERS`, `GOOGLE_SCOPES`
+- `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASSWORD`, `SMTP_FROM_EMAIL`, `SMTP_FROM_NAME` (đã có cấu hình, chưa dùng trong code hiện tại)
+
+Ví dụ tối thiểu:
+
+```env
+APP_NAME=InterviewAI API
+APP_VERSION=1.0.0
+DEBUG=true
+API_PREFIX=/api/v1
+
+DATABASE_URL=postgresql+asyncpg://postgres:123456@localhost:5432/postgres
+
+SECRET_KEY=change-me-in-production
+ALGORITHM=HS256
+ACCESS_TOKEN_EXPIRE_MINUTES=30
+REFRESH_TOKEN_EXPIRE_DAYS=7
+
+ALLOWED_ORIGINS=http://localhost:3000,http://localhost:5173
+FRONTEND_URL=http://localhost:3000
+
+GOOGLE_CLIENT_ID=your-client-id
+GOOGLE_CLIENT_SECRET=your-client-secret
+GOOGLE_REDIRECT_URI=http://localhost:8000/api/v1/auth/google/callback
+```
 
 ## 🔒 Security
 
-- Password hash: **bcrypt** (passlib)
+- Password hash: **bcrypt** (tối đa 72 bytes UTF-8)
+- Password rule khi register: tối thiểu 8 ký tự, có ít nhất 1 chữ hoa, có ít nhất 1 chữ số
 - Token: **HS256 JWT** (python-jose)
 - Access token: 30 phút (configurable)
 - Refresh token: 7 ngày (configurable)
-# BE_InterviewAI
+
+## 🔑 Google OAuth Flow
+
+Có 2 cách đăng nhập Google:
+
+1. Browser redirect flow: gọi `GET /api/v1/auth/google/login` hoặc `/google/url` để lấy consent URL, Google redirect về `GOOGLE_REDIRECT_URI`, backend đổi code → JWT và redirect về `FRONTEND_URL/auth/callback` (query trả về `access_token` và `refresh_token`).
+2. Token-based flow: gọi `POST /api/v1/auth/google/id-token` (FE gửi `id_token`) hoặc `POST /api/v1/auth/google/code` (FE gửi `code`).
+
+## 🏗️ Thêm module mới
+
+1. Tạo model: `app/feature/<module>/models/*.py`
+2. Tạo schema: `app/feature/<module>/schemas/*.py`
+3. Tạo service: `app/feature/<module>/services/*.py`
+4. Tạo endpoint: `app/feature/<module>/api/endpoints/*.py`
+5. Đăng ký router trong `app/feature/<module>/api/router.py` và include vào `app/feature/auth/api/router.py` (hoặc router tổng khác nếu có)
+
+---
+
+## 🌐 CORS
+
+`ALLOWED_ORIGINS` mặc định cho phép:
+
+- `http://localhost:3000`
+- `http://localhost:5173`

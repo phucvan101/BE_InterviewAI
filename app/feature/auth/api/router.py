@@ -2,6 +2,7 @@
 from fastapi import APIRouter
 
 # ── Import routers ─────────────────────────
+from app.feature.auth.api.endpoints.google_oauth import router as google_oauth_router
 from app.feature.auth.api.endpoints.user import router as user_router
 from app.feature.auth.api.endpoints.cv_profile import router as cv_router
 from app.feature.auth.api.endpoints.upload_cv import router as upload_cv_router
@@ -25,3 +26,10 @@ api_router.include_router(question_router)
 api_router.include_router(interview_router)
 api_router.include_router(iq_router)
 api_router.include_router(analysis_router)
+api_router.include_router(google_oauth_router)
+
+# Example: add more routers as the project grows
+# from app.api.endpoints.auth import router as auth_router
+# from app.api.endpoints.interview import router as interview_router
+# api_router.include_router(auth_router)
+# api_router.include_router(interview_router)

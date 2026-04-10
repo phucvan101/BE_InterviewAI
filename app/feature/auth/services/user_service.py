@@ -1,3 +1,5 @@
+import re
+import secrets
 from fastapi import HTTPException, status
 from jose import JWTError
 from sqlalchemy import func, select
@@ -20,6 +22,7 @@ from ..schemas.user import (
     UserUpdate,
     UserUpdatePassword,
 )
+from app.feature.auth.services.google_oauth_service import GoogleOAuthService
 
 
 class UserService:
@@ -151,6 +154,61 @@ class UserService:
             refresh_token=create_refresh_token(user.id),
         )
 
+    async def login_with_google_id_token(self, id_token: str) -> TokenResponse:
+        payload = await GoogleOAuthService.verify_id_token(id_token)
+
+        email = payload.get("email")
+        email_verified = payload.get("email_verified")
+        google_sub = payload.get("sub")
+
+        if not email or not google_sub:
+            raise HTTPException(status_code=400, detail="Google token missing required fields")
+
+        if str(email_verified).lower() != "true":
+            raise HTTPException(status_code=400, detail="Google email is not verified")
+
+        user = await self.get_by_email(email)
+        if user:
+            if not user.is_active:
+                raise HTTPException(status_code=400, detail="Account is deactivated")
+            if not user.google_id:
+                user.google_id = google_sub
+                if not user.avatar_url:
+                    user.avatar_url = payload.get("picture")
+                if user.auth_provider != "google":
+                    user.auth_provider = "google"
+                await self.db.flush()
+        else:
+            username = await self._generate_unique_username(
+                base=(payload.get("given_name") or payload.get("name") or email.split("@")[0])
+            )
+            random_password = secrets.token_urlsafe(32)
+            user = User(
+                email=email,
+                username=username,
+                full_name=payload.get("name"),
+                hashed_password=hash_password(random_password),
+                auth_provider="google",
+                google_id=google_sub,
+                avatar_url=payload.get("picture"),
+                is_verified=True,
+            )
+            self.db.add(user)
+            await self.db.flush()
+            await self.db.refresh(user)
+
+        return TokenResponse(
+            access_token=create_access_token(user.id),
+            refresh_token=create_refresh_token(user.id),
+        )
+
+    async def login_with_google_code(self, code: str) -> TokenResponse:
+        tokens = await GoogleOAuthService.exchange_code_for_tokens(code)
+        id_token = tokens.get("id_token")
+        if not id_token:
+            raise HTTPException(status_code=400, detail="Google token exchange missing id_token")
+        return await self.login_with_google_id_token(id_token)
+
     # ── Private helpers ───────────────────────────────────────────────────────
 
     async def _get_or_404(self, user_id: int) -> User:
@@ -158,3 +216,19 @@ class UserService:
         if not user:
             raise HTTPException(status_code=404, detail="User not found")
         return user
+
+    async def _generate_unique_username(self, base: str) -> str:
+        base = self._normalize_username_base(base)
+        candidate = base
+        for _ in range(20):
+            if not await self.get_by_username(candidate):
+                return candidate
+            candidate = f"{base}{secrets.randbelow(10000)}"
+        raise HTTPException(status_code=500, detail="Failed to generate unique username")
+
+    @staticmethod
+    def _normalize_username_base(base: str) -> str:
+        cleaned = re.sub(r"[^a-zA-Z0-9_-]", "", base or "")
+        if len(cleaned) < 3:
+            cleaned = "user"
+        return cleaned[:50]
