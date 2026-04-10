@@ -16,8 +16,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.database import get_db
 from app.core.dependencies import get_current_active_user
 from ...models.user import User
-from app.feature.feature_up_cv.text_extract import extract_text_auto, UnsupportedFileTypeError
-from app.feature.feature_up_cv.parser_jd import llm_parser_jd
 
 
 # Pydantic model for analysis request
@@ -48,6 +46,8 @@ try:
     from app.feature.feature_up_cv.score_matching import calculate_matching_score_from_payload
     from app.feature.feature_up_cv.parser_cv import llm_parser_cv
     from app.feature.feature_up_cv.parser_company import llm_parser_company
+    from app.feature.feature_up_cv.text_extract import extract_text_auto, UnsupportedFileTypeError
+    from app.feature.feature_up_cv.parser_jd import llm_parser_jd, UnsupportedFileTypeError as UnsupportedFileTypeErrorJD
     from app.feature.feature_up_cv.gemini_client import GeminiQuotaExceededError, GeminiRateLimitedError
 except ImportError as e:
     print(f"⚠️ Warning: Could not import from feature_up_cv: {e}")
