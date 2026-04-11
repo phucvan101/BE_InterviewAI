@@ -24,8 +24,6 @@ env/
 *.db
 *.sqlite3
 
-# Alembic
-alembic/versions/*.py
 
 # IDE
 .vscode/
