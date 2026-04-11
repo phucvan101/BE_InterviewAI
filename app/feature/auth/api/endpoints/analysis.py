@@ -47,7 +47,7 @@ try:
     from app.feature.feature_up_cv.parser_cv import llm_parser_cv
     from app.feature.feature_up_cv.parser_company import llm_parser_company
     from app.feature.feature_up_cv.text_extract import extract_text_auto, UnsupportedFileTypeError
-    from app.feature.feature_up_cv.parser_jd import llm_parser_jd, UnsupportedFileTypeError as UnsupportedFileTypeErrorJD
+    from app.feature.feature_up_cv.parser_jd import llm_parser_jd
     from app.feature.feature_up_cv.gemini_client import GeminiQuotaExceededError, GeminiRateLimitedError
 except ImportError as e:
     print(f"⚠️ Warning: Could not import from feature_up_cv: {e}")

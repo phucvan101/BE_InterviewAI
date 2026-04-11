@@ -58,27 +58,27 @@ class Settings(BaseSettings):
     ALLOWED_ORIGINS: List[str] = ["http://localhost:3000", "http://localhost:5173"]
 
     # ── SMTP ─────────────────────────────────
-    smtp_host: Optional[str] = None
-    smtp_port: Optional[int] = None
-    smtp_user: Optional[str] = None
-    smtp_password: Optional[str] = None
-    smtp_from_email: Optional[str] = None
-    smtp_from_name: Optional[str] = None
+    SMTP_HOST: Optional[str] = None
+    SMTP_PORT: Optional[int] = None
+    SMTP_USER: Optional[str] = None
+    SMTP_PASSWORD: Optional[str] = None
+    SMTP_FROM_EMAIL: Optional[str] = None
+    SMTP_FROM_NAME: Optional[str] = None
 
     # ── Frontend ─────────────────────────────
-    frontend_url: Optional[str] = None
+    FRONTEND_URL: Optional[str] = None
 
     # ── Google OAuth ─────────────────────────
-    google_client_id: Optional[str] = None
-    google_client_secret: Optional[str] = None
-    google_redirect_uri: Optional[str] = None
+    GOOGLE_CLIENT_ID: Optional[str] = None
+    GOOGLE_CLIENT_SECRET: Optional[str] = None
+    GOOGLE_REDIRECT_URI: Optional[str] = None
 
     # ── AI / Speech ──────────────────────────
-    deepgram_api_key: Optional[str] = None
-    deepgram_model: str = "general"
+    DEEPGRAM_API_KEY: Optional[str] = None
+    DEEPGRAM_MODEL: str = "general"
 
-    gemini_api_key: Optional[str] = None
-    model_name: str = "models/gemini-2.5-flash"
+    GEMINI_API_KEY: Optional[str] = None
+    MODEL_NAME: str = "models/gemini-2.5-flash"
 
 
 # Singleton instance
