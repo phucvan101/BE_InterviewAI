@@ -32,13 +32,14 @@ def load_json_file(file_path: str) -> Dict[str, Any]:
         raise ValueError(f"Invalid JSON format: {file_path}")
 
 
-def build_matching_prompt(cv_data: Dict, jd_data: Dict) -> str:
+def build_matching_prompt(cv_data: Dict, jd_data: Dict, company_data: Dict = None) -> str:
     """
     Build a detailed prompt for Gemini to analyze CV-JD matching
     """
     
     cv_json = json.dumps(cv_data, ensure_ascii=False, indent=2)
     jd_json = json.dumps(jd_data, ensure_ascii=False, indent=2)
+    company_json = json.dumps(company_data, ensure_ascii=False, indent=2) if company_data else "Không có dữ liệu Company (Công ty). Điểm phần Company_fit_score sẽ là 0."
     
     # Prefer structured JD when available (for stability)
     jd_structured = jd_data.get("structured", None) if isinstance(jd_data, dict) else None
@@ -47,16 +48,17 @@ def build_matching_prompt(cv_data: Dict, jd_data: Dict) -> str:
     )
 
     prompt = f"""
-Bạn là chuyên gia tuyển dụng + phân tích năng lực. Nhiệm vụ: đánh giá mức độ phù hợp giữa CV ứng viên và JD.
-Bạn sẽ dựa trên:
-1) Kỹ năng bắt buộc / ưu tiên từ JD (ưu tiên dùng JD_STRUCTURED nếu có)
-2) Kinh nghiệm (năm, lĩnh vực, phạm vi công việc)
-3) Trách nhiệm chính và mức độ tương đồng
+Bạn là chuyên gia tuyển dụng + phân tích năng lực. Nhiệm vụ: đánh giá mức độ phù hợp giữa CV ứng viên, JD và mô tả công ty theo thang điểm 100.
+Bạn sẽ dựa trên các tiêu chí sau và phân bổ điểm:
+1) Kinh nghiệm làm việc (Tối đa 50 điểm): Sự phù hợp với JD, thành tích nổi bật, dự án cụ thể.
+2) Kỹ năng (Tối đa 30 điểm): Các kỹ năng của ứng viên phù hợp với trong JD.
+3) Học vấn & Bằng cấp (Tối đa 10 điểm): Chuyên ngành liên quan, chứng chỉ chuyên môn.
+4) Độ phù hợp công ty (Tối đa 10 điểm): CV phù hợp với thông tin và văn hoá công ty (VD: công ty mảng CNTT sẽ hợp với CV ngành CNTT). Nếu KHÔNG CÓ dữ liệu công ty, điểm này bắt buộc là 0.
 
 Ràng buộc bắt buộc:
 - CHỈ trả về 1 JSON object, KHÔNG có text/markdown nào khác.
 - KHÔNG giải thích dài dòng; chỉ điền vào các field theo schema.
-- Điểm là số nguyên 0-100.
+- Điểm là số nguyên. `overall_score` = tổng của 4 điểm thành phần. (Nếu không có Company data thì overall_score tối đa là 90).
 - `missing_skills` phải liệt kê đầy đủ kỹ năng quan trọng bị thiếu (ưu tiên skills_required).
 - `matched_skills` chỉ liệt kê các kỹ năng thực sự có trong CV (dựa vào CV.skills / work_experience highlights).
 - Nếu kỹ năng tương tự tên khác -> đưa vào `related_skills` (vd: "Postgres" ~ "PostgreSQL").
@@ -67,14 +69,23 @@ Input:
 CV_JSON:
 {cv_json}
 
-JD_JSON (raw):
+JD_JSON:
 {jd_json}
 
 JD_STRUCTURED (nếu có, dùng ưu tiên):
 {jd_structured_json}
 
+COMPANY_JSON:
+{company_json}
+
 Schema output:
 {{
+  "detailed_scores": {{
+    "experience_score": 0,
+    "skills_score": 0,
+    "education_score": 0,
+    "company_fit_score": 0
+  }},
   "overall_score": 0,
   "score_rationale": "",
   "matched_skills": [],
@@ -95,9 +106,16 @@ Schema output:
 Few-shot (format reference only):
 CV_EXAMPLE: {{"skills":["Python","FastAPI"]}}
 JD_EXAMPLE: {{"structured":{{"skills_required":["Python","FastAPI","PostgreSQL"]}}}}
+COMPANY_EXAMPLE: {{"company_name": "ABC Tech"}}
 OUTPUT_EXAMPLE:
 {{
-  "overall_score": 70,
+  "detailed_scores": {{
+    "experience_score": 40,
+    "skills_score": 20,
+    "education_score": 8,
+    "company_fit_score": 8
+  }},
+  "overall_score": 76,
   "score_rationale":"Ứng viên có kỹ năng chính nhưng thiếu một kỹ năng quan trọng trong yêu cầu.",
   "matched_skills":["Python","FastAPI"],
   "related_skills":[],
@@ -112,8 +130,9 @@ OUTPUT_EXAMPLE:
 
 Self-check:
 - Valid JSON only?
-- Contains all required keys?
+- Contains all required keys (bao gồm detailed_scores)?
 - No text outside JSON?
+- overall_score có bằng tổng 4 điểm trong detailed_scores không?
 """.strip()
     
     return prompt
@@ -168,12 +187,12 @@ def calculate_matching_score(cv_path: str, jd_path: str) -> Dict[str, Any]:
     return calculate_matching_score_from_payload(cv_data, jd_data)
 
 
-def calculate_matching_score_from_payload(cv_data: Dict[str, Any], jd_data: Dict[str, Any]) -> Dict[str, Any]:
+def calculate_matching_score_from_payload(cv_data: Dict[str, Any], jd_data: Dict[str, Any], company_data: Dict[str, Any] = None) -> Dict[str, Any]:
     """
     Main function: call Gemini matching using parsed CV/JD dictionaries.
     """
     # Build prompt
-    prompt = build_matching_prompt(cv_data, jd_data)
+    prompt = build_matching_prompt(cv_data, jd_data, company_data)
     print("🤖 Calling Gemini model for analysis...")
 
     # Call Gemini model

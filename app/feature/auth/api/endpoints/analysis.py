@@ -260,7 +260,7 @@ async def analyze_cv_jd_match(
         step = "llm_match_score"
         score_started_at = time.perf_counter()
         try:
-            analysis_result = calculate_matching_score_from_payload(cv_data, jd_data)
+            analysis_result = calculate_matching_score_from_payload(cv_data, jd_data, company_data)
             _log_parser_result("MATCH_SCORE", score_started_at, True)
         except Exception as e:
             _log_parser_result("MATCH_SCORE", score_started_at, False, str(e))
@@ -270,6 +270,7 @@ async def analyze_cv_jd_match(
         step = "build_response"
         response_data = {
             "overall_score": analysis_result.get("overall_score", 0),
+            "detailed_scores": analysis_result.get("detailed_scores", {}),
             "score_rationale": analysis_result.get("score_rationale", ""),
             "matched_skills": analysis_result.get("matched_skills", []),
             "related_skills": analysis_result.get("related_skills", []),
