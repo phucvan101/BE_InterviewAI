@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
@@ -6,7 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import JSONResponse
 
-from app.feature.auth.api.router import api_router
+from .api.router import api_router
 from app.core.config import settings
 from app.core.database import init_db
 
@@ -17,7 +16,7 @@ from app.core.database import init_db
 async def lifespan(app: FastAPI):
     # ── Startup ──
     print(f"🚀  Starting {settings.APP_NAME} v{settings.APP_VERSION}")
-    await init_db()          # create tables + apply Alembic migrations
+    await init_db()          # create tables (use Alembic in production)
     yield
     # ── Shutdown ──
     print("👋  Shutting down...")
