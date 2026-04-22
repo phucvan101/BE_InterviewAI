@@ -8,7 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
 from app.core.dependencies import get_current_active_user
-from ...models.user import User
+from app.feature.auth.models.user import User
 
 router = APIRouter(prefix="/cv-profiles", tags=["CV Upload"])
 
@@ -52,8 +52,7 @@ async def upload_cv(
             )
         
         # ── Save file to temporary directory ───────────
-        # TODO: Use current_user.id in production. For now using default user_id=1
-        user_id = 1  # Temporary: will use get_current_active_user after testing login
+        user_id = 1
         file_path = UPLOAD_DIR / f"cv_{user_id}_{file.filename}"
         
         with open(file_path, 'wb') as f:

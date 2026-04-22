@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import io
+import re
 from pathlib import Path
 
 import pypdf
@@ -37,17 +38,47 @@ def extract_text_from_docx(file_path: str) -> str:
     return "\n".join(parts).strip()
 
 
+def clean_text_for_llm(text: str) -> str:
+    """
+    Remove emojis, icons, and non-standard characters from text.
+    Keeps ASCII, Vietnamese characters, and common punctuation.
+    """
+    if not text:
+        return text
+    
+    # Keep characters in range:
+    # \u0000-\u1EFF : Basic Latin, Latin-1, Latin Extended (including Vietnamese)
+    # \u2000-\u206F : General Punctuation (bullets, en-dash, em-dash, quotes)
+    # \u20A0-\u20CF : Currency Symbols (₫, €, etc.)
+    # \u2100-\u214F : Letterlike Symbols
+    # \u25A0-\u25FF : Geometric Shapes (■, □, ▪, ▫)
+    # \u2713\u2714 : Check marks (✓, ✔)
+    cleaned = re.sub(r'[^\u0000-\u1EFF\u2000-\u206F\u20A0-\u20CF\u2100-\u214F\u25A0-\u25FF\u2713\u2714\n\r\t]', '', text)
+    
+    # Remove multiple spaces
+    cleaned = re.sub(r'[ \t]+', ' ', cleaned)
+    # Remove multiple blank lines
+    cleaned = re.sub(r'\n\s*\n', '\n\n', cleaned)
+    
+    return cleaned.strip()
+
+
 def extract_text_auto(file_path: str) -> str:
     """
     Extract text from .pdf, .docx, or .txt based on file suffix.
     """
     path = Path(file_path)
     suffix = path.suffix.lower()
+    
+    text = ""
     if suffix == ".pdf":
-        return extract_text_from_pdf(file_path)
-    if suffix == ".docx":
-        return extract_text_from_docx(file_path)
-    if suffix == ".txt":
-        return path.read_text(encoding="utf-8").strip()
-    raise UnsupportedFileTypeError(f"Unsupported file type: {suffix}")
+        text = extract_text_from_pdf(file_path)
+    elif suffix == ".docx":
+        text = extract_text_from_docx(file_path)
+    elif suffix == ".txt":
+        text = path.read_text(encoding="utf-8").strip()
+    else:
+        raise UnsupportedFileTypeError(f"Unsupported file type: {suffix}")
+        
+    return clean_text_for_llm(text)
 

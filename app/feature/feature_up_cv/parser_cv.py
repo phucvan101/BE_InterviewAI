@@ -33,6 +33,7 @@ Hard rules:
 - If unsure, leave "" or [] (do not invent).
 - Normalize skills to short keywords (e.g., "Python", "FastAPI", "SQL", "Docker", "AWS").
 - Remove duplicates from lists.
+- Always keep in mind that the current year is 2026, and perform the necessary calculations to determine the number of years.
 
 Schema (keep keys & types exactly):
 {{
@@ -47,6 +48,7 @@ Schema (keep keys & types exactly):
   "objective": "",
   "education": [{{"school":"", "degree":"", "major":"", "start":"", "end":""}}],
   "work_experience": [{{"company":"", "title":"", "start":"", "end":"", "highlights":[]}}],
+  "projects": [{{"name":"", "role":"", "start":"", "end":"", "description":"", "technologies":[]}}],
   "skills": [],
   "evidence": {{
     "name": "",
@@ -62,7 +64,7 @@ CV_TEXT (may be truncated):
 
 
 def _validate_json(data: Dict[str, Any]) -> bool:
-    required = ["personal_info", "education", "work_experience", "skills"]
+    required = ["personal_info", "education", "work_experience", "projects", "skills"]
     return isinstance(data, dict) and all(k in data for k in required)
 
 
@@ -72,6 +74,7 @@ def _fallback() -> Dict[str, Any]:
         "objective": "",
         "education": [],
         "work_experience": [],
+        "projects": [],
         "skills": [],
         "evidence": {"name": "", "email": "", "phone": "", "skills": []},
     }
