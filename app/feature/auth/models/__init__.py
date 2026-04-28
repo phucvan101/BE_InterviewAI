@@ -1,3 +1,5 @@
-from app.feature.auth.models.user import User
+from .user import User
 
-__all__ = ["User"]
+__all__ = [
+    "User",
+]

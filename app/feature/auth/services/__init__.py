@@ -1,3 +1,5 @@
-from app.feature.auth.services.user_service import UserService
+from .user_service import UserService
 
-__all__ = ["UserService"]
+__all__ = [
+    "UserService",
+]

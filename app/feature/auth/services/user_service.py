@@ -12,8 +12,8 @@ from app.core.security import (
     hash_password,
     verify_password,
 )
-from app.feature.auth.models.user import User
-from app.feature.auth.schemas.user import (
+from ..models.user import User
+from ..schemas.user import (
     PaginatedUsers,
     RefreshTokenRequest,
     TokenResponse,

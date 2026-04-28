@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
@@ -6,6 +7,7 @@ from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import JSONResponse
 
 from app.feature.auth.api.router import api_router
+from app.feature.feature_up_cv.auth.api.router import router as cv_router
 from app.core.config import settings
 from app.core.database import init_db
 
@@ -46,6 +48,7 @@ def create_app() -> FastAPI:
 
     # ── Routes ───────────────────────────────
     app.include_router(api_router, prefix=settings.API_PREFIX)
+    app.include_router(cv_router, prefix=settings.API_PREFIX)
 
     # ── Health check ─────────────────────────
     @app.get("/health", tags=["Health"])

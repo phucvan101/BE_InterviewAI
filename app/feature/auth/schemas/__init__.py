@@ -1,4 +1,4 @@
-from app.feature.auth.schemas.user import (
+from .user import (
     UserCreate, UserUpdate, UserUpdatePassword,
     UserLogin, UserResponse, UserPublic,
     TokenResponse, RefreshTokenRequest, PaginatedUsers,

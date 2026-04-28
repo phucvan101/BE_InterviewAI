@@ -1,11 +1,14 @@
+# -*- coding: utf-8 -*-
 from fastapi import APIRouter
 
+# ── Import routers ─────────────────────────
 from app.feature.auth.api.endpoints.google_oauth import router as google_oauth_router
 from app.feature.auth.api.endpoints.user import router as user_router
 
+# ── Main API router ────────────────────────
 api_router = APIRouter()
 
-# Register all endpoint routers here
+# ── Register all endpoint routers ──────────
 api_router.include_router(user_router)
 api_router.include_router(google_oauth_router)
 
