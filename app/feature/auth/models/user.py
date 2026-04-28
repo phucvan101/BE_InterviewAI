@@ -40,8 +40,6 @@ class User(Base):
     )
 
     # ── ORM Relationships ────────────────────
-    cv_profiles = relationship("CVProfile", back_populates="user")
-    interview_sessions = relationship("InterviewSession", back_populates="user")
 
     def __repr__(self) -> str:
         return f"<User id={self.id} email={self.email!r}>"

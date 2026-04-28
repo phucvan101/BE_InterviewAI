@@ -15,7 +15,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
 from app.core.dependencies import get_current_active_user
-from ...models.user import User
+from app.feature.auth.models.user import User
 
 
 # Pydantic model for analysis request
@@ -132,6 +132,8 @@ async def analyze_cv_jd_match(
     request_body: AnalysisCVJDRequest,
     db: AsyncSession = Depends(get_db),
 ):
+    print("\n--------------------new session------------------------")
+    session_start_time = time.perf_counter()
     """
     Analyze CV and JD match - Extract từ file và thực hiện matching
     Optional: include company research for additional matching context
@@ -341,4 +343,6 @@ async def analyze_cv_jd_match(
         )
     
     finally:
-            pass
+        if 'session_start_time' in locals():
+            session_elapsed_ms = (time.perf_counter() - session_start_time) * 1000
+            print(f"[SESSION_END] Total time: {session_elapsed_ms:.1f} ms\n")

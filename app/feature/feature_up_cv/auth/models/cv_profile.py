@@ -32,7 +32,7 @@ class CVProfile(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
 
     # ── ORM Relationships ────────────────────
-    user = relationship("User", back_populates="cv_profiles")
+    # user = relationship("User", back_populates="cv_profiles")  # Cross-feature relationship
 
     def __repr__(self) -> str:
         return f"<CVProfile id={self.id} user_id={self.user_id}>"
