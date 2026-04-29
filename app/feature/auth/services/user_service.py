@@ -109,7 +109,8 @@ class UserService:
 
     async def delete(self, user_id: int) -> None:
         user = await self._get_or_404(user_id)
-        await self.db.delete(user)
+        user.is_deleted = True
+        user.is_active = False
         await self.db.flush()
 
     async def deactivate(self, user_id: int) -> User:
@@ -126,10 +127,12 @@ class UserService:
         if not user or not verify_password(data.password, user.hashed_password):
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Incorrect email or password",
+                detail="Sai email hoặc mật khẩu",
             )
+        if user.is_deleted:
+            raise HTTPException(status_code=400, detail="Tài khoản đã bị xóa")
         if not user.is_active:
-            raise HTTPException(status_code=400, detail="Account is deactivated")
+            raise HTTPException(status_code=400, detail="Tài khoản đã bị khóa")
 
         return TokenResponse(
             access_token=create_access_token(user.id),
@@ -146,8 +149,10 @@ class UserService:
             raise HTTPException(status_code=401, detail="Invalid refresh token")
 
         user = await self._get_or_404(user_id)
+        if user.is_deleted:
+            raise HTTPException(status_code=400, detail="Tài khoản đã bị xóa")
         if not user.is_active:
-            raise HTTPException(status_code=400, detail="Account is deactivated")
+            raise HTTPException(status_code=400, detail="Tài khoản đã bị khóa")
 
         return TokenResponse(
             access_token=create_access_token(user.id),
@@ -169,8 +174,10 @@ class UserService:
 
         user = await self.get_by_email(email)
         if user:
+            if user.is_deleted:
+                raise HTTPException(status_code=400, detail="Tài khoản đã bị xóa")
             if not user.is_active:
-                raise HTTPException(status_code=400, detail="Account is deactivated")
+                raise HTTPException(status_code=400, detail="Tài khoản đã bị khóa")
             if not user.google_id:
                 user.google_id = google_sub
                 if not user.avatar_url:
