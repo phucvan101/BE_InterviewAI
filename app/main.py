@@ -12,6 +12,9 @@ from app.feature.feature_up_cv.auth.api.router import router as cv_router
 from app.core.config import settings
 from app.core.database import init_db
 
+import logging
+logging.basicConfig(level=logging.DEBUG)
+
 
 # ── Lifespan (startup / shutdown) ─────────────────────────────────────────────
 

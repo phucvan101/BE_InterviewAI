@@ -5,6 +5,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.feature.admin.users.models.user import User
 from app.feature.admin.users.schemas.user import AdminPaginatedUsers, AdminUserUpdate
 
+import logging
+logger = logging.getLogger(__name__)
+
 
 class AdminUserService:
     def __init__(self, db: AsyncSession) -> None:
@@ -23,6 +26,10 @@ class AdminUserService:
         return result.scalar_one_or_none()
 
     async def get_all(self, page: int = 1, page_size: int = 20, username: str | None = None, email: str | None = None, is_active: bool | None = None, auth_provider: str | None = None) -> AdminPaginatedUsers:
+        # ✅ Log params nhận được
+        logger.debug(f"get_all params: page={page}, page_size={page_size}, username={repr(username)}, email={repr(email)}, is_active={is_active}, auth_provider={auth_provider}")
+
+        
         offset = (page - 1) * page_size
 
         stmt = select(User)
@@ -42,6 +49,9 @@ class AdminUserService:
             filters.append(User.auth_provider == auth_provider)
         if filters:
             stmt = stmt.where(*filters)
+        
+        # ✅ Log câu SQL thực tế
+        logger.debug(f"SQL: {stmt.compile(compile_kwargs={'literal_binds': True})}")
 
         # ✅ Đếm đúng theo filter
         count_stmt = select(func.count()).select_from(stmt.subquery())
