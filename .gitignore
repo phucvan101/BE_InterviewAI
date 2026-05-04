@@ -39,3 +39,11 @@ Thumbs.db
 .pytest_cache/
 .coverage
 htmlcov/
+
+# Uploads (keep directory structure, exclude actual files)
+app/feature/feature_up_cv/uploads/raw_file/*
+app/feature/feature_up_cv/uploads/parser_file/*
+app/feature/feature_up_cv/uploads/result_analysis_file/*
+!app/feature/feature_up_cv/uploads/raw_file/.gitkeep
+!app/feature/feature_up_cv/uploads/parser_file/.gitkeep
+!app/feature/feature_up_cv/uploads/result_analysis_file/.gitkeep

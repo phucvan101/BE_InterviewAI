@@ -6,45 +6,49 @@ from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
+from app.core.dependencies import get_current_active_user
+from app.feature.auth.models.user import User
+from app.feature.feature_up_cv.file_storage import (
+    save_raw_file,
+    compute_text_hash,
+    delete_file,
+    FILE_TYPE_CI,
+)
+from app.feature.feature_up_cv.text_extract import extract_text_auto
+from app.feature.feature_up_cv.auth.services.company_info_service import CompanyInfoService
+from app.feature.feature_up_cv.auth.schemas.company_info import CompanyInfoCreate
 
 router = APIRouter(prefix="/company-research", tags=["Company Research"])
-
-# Directory to store uploaded company research files
-UPLOAD_DIR = Path(tempfile.gettempdir()) / "interview_company_uploads"
-UPLOAD_DIR.mkdir(exist_ok=True)
 
 
 class CompanyResearchTextUploadRequest(BaseModel):
     text: str
     file_name: str | None = None
 
+
 @router.post("/upload", status_code=status.HTTP_200_OK)
 async def upload_company_research(
     file: UploadFile = File(...),
+    current_user: User = Depends(get_current_active_user),
     db: AsyncSession = Depends(get_db),
 ):
     """
-    Upload file nghiên cứu công ty (DOCX, PDF) - chỉ lưu file, không extract
-    Extract sẽ được thực hiện khi phân tích
-    
-    Returns:
-    {
-        "success": true,
-        "file_name": "company.pdf",
-        "file_path": "/path/to/company.pdf",
-        "file_type": "pdf"
-    }
+    Upload file nghiên cứu công ty (DOCX, PDF).
+    - Sử dụng UPSERT: nếu user đã có record thì update, chưa có thì tạo mới
+    - Giữ nguyên id_ci khi re-upload (tránh id tăng vô nghĩa)
+    - Nếu nội dung file không đổi (cùng hash) → giữ nguyên parser cache
+    - Nếu nội dung thay đổi → xóa parser cache cũ, đợi analysis tạo lại
     """
-    
+
     # ── Validate file type ─────────────────────────
     if not file.filename:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Tên file không hợp lệ"
         )
-    
+
     filename_lower = file.filename.lower()
-    
+
     if filename_lower.endswith('.docx'):
         file_type = 'docx'
     elif filename_lower.endswith('.pdf'):
@@ -54,38 +58,104 @@ async def upload_company_research(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Chỉ chấp nhận file DOCX hoặc PDF"
         )
-    
+
     try:
-        # ── Read and save file ────────────────────────
+        # ── Read file content ────────────────────────
         content = await file.read()
-        
+
         if not content:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="File rỗng"
             )
-        
-        # ── Save file to temporary directory ───────────
-        # TODO: Use current_user.id in production. For now using default user_id=1
-        user_id = 1  # Temporary: will use get_current_active_user after testing login
-        file_path = UPLOAD_DIR / f"company_{user_id}_{file.filename}"
-        
-        with open(file_path, 'wb') as f:
-            f.write(content)
-        
+
+        user_id = current_user.id
+        ci_service = CompanyInfoService(db)
+
+        # ── Extract text & compute hash FIRST ────────
+        extension = Path(file.filename).suffix
+        temp_path = save_raw_file(
+            content=content,
+            file_type=FILE_TYPE_CI,
+            user_id=user_id,
+            record_id=0,
+            extension=extension,
+        )
+
+        extracted_text = extract_text_auto(str(temp_path))
+        text_hash = compute_text_hash(extracted_text) if extracted_text else None
+
+        # ── UPSERT logic ─────────────────────────────
+        existing_cis = await ci_service.get_by_user(user_id)
+        cache_preserved = False
+
+        ci_record = next((ci for ci in existing_cis if ci.text_hashed == text_hash and text_hash is not None), None)
+
+        if ci_record:
+            cache_preserved = True
+            print(f"[UPLOAD] CI same content detected (hash match), preserving cache for id_ci={ci_record.id_ci}")
+            
+            from sqlalchemy import func
+            ci_record.created_at = func.now()
+            
+            final_path = Path(ci_record.raw_file_url) if ci_record.raw_file_url else temp_path
+            if ci_record.raw_file_url:
+                delete_file(temp_path)
+            else:
+                final_path = save_raw_file(
+                    content=content,
+                    file_type=FILE_TYPE_CI,
+                    user_id=user_id,
+                    record_id=ci_record.id_ci,
+                    extension=extension,
+                )
+                ci_record.raw_file_url = str(final_path)
+                delete_file(temp_path)
+
+            await db.flush()
+            await db.refresh(ci_record)
+
+        else:
+            # ── No existing record → create new ──────
+            ci_record = await ci_service.create(
+                user_id=user_id,
+                data=CompanyInfoCreate(),
+            )
+            await db.flush()
+
+            final_path = save_raw_file(
+                content=content,
+                file_type=FILE_TYPE_CI,
+                user_id=user_id,
+                record_id=ci_record.id_ci,
+                extension=extension,
+            )
+            delete_file(temp_path)
+
+            ci_record.raw_file_url = str(final_path)
+            ci_record.text_hashed = text_hash
+            await db.flush()
+            await db.refresh(ci_record)
+            print(f"[UPLOAD] CI new record created: id_ci={ci_record.id_ci}, user={user_id}")
+
+        print(f"[UPLOAD] CI uploaded: id_ci={ci_record.id_ci}, user={user_id}, cache_preserved={cache_preserved}")
+
         # ── Return file info ──────────────────────────
         return {
             "success": True,
             "message": "Upload file thành công",
             "file_name": file.filename,
-            "file_path": str(file_path),
+            "file_path": str(final_path),
             "file_type": file_type,
             "file_size": len(content),
+            "id_ci": ci_record.id_ci,
+            "text_hashed": text_hash,
+            "cache_preserved": cache_preserved,
         }
-    
+
     except HTTPException:
         raise
-    
+
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -96,8 +166,15 @@ async def upload_company_research(
 @router.post("/upload-text", status_code=status.HTTP_200_OK)
 async def upload_company_research_text(
     request_body: CompanyResearchTextUploadRequest,
+    current_user: User = Depends(get_current_active_user),
     db: AsyncSession = Depends(get_db),
 ):
+    """
+    Upload company research dưới dạng text.
+    - Sử dụng UPSERT: nếu user đã có record thì update, chưa có thì tạo mới
+    - Giữ nguyên id_ci khi re-upload (tránh id tăng vô nghĩa)
+    - Nếu nội dung text không đổi (cùng hash) → giữ nguyên parser cache
+    """
     text_content = (request_body.text or "").strip()
     if not text_content:
         raise HTTPException(
@@ -105,23 +182,79 @@ async def upload_company_research_text(
             detail="Nội dung nghiên cứu công ty không được để trống",
         )
 
-    safe_name = (request_body.file_name or "company_research").strip() or "company_research"
-    safe_name = safe_name.replace("/", "_").replace("\\", "_").replace(" ", "_")
-
     try:
-        user_id = 1
-        file_path = UPLOAD_DIR / f"company_{user_id}_{safe_name}.txt"
-        with open(file_path, "w", encoding="utf-8") as f:
-            f.write(text_content)
+        user_id = current_user.id
+        ci_service = CompanyInfoService(db)
+
+        # ── Compute hash FIRST ───────────────────────
+        text_hash = compute_text_hash(text_content)
+
+        # ── UPSERT logic ─────────────────────────────
+        existing_cis = await ci_service.get_by_user(user_id)
+        cache_preserved = False
+
+        ci_record = next((ci for ci in existing_cis if ci.text_hashed == text_hash and text_hash is not None), None)
+
+        if ci_record:
+            cache_preserved = True
+            print(f"[UPLOAD] CI text same content detected (hash match), preserving cache for id_ci={ci_record.id_ci}")
+            
+            from sqlalchemy import func
+            ci_record.created_at = func.now()
+            
+            raw_path = Path(ci_record.raw_file_url) if ci_record.raw_file_url else None
+            if not raw_path:
+                raw_path = save_raw_file(
+                    content=text_content.encode("utf-8"),
+                    file_type=FILE_TYPE_CI,
+                    user_id=user_id,
+                    record_id=ci_record.id_ci,
+                    extension="txt",
+                )
+                ci_record.raw_file_url = str(raw_path)
+
+            await db.flush()
+            await db.refresh(ci_record)
+
+        else:
+            # ── No existing record → create new ──────
+            ci_record = await ci_service.create(
+                user_id=user_id,
+                data=CompanyInfoCreate(),
+            )
+            await db.flush()
+
+            raw_path = save_raw_file(
+                content=text_content.encode("utf-8"),
+                file_type=FILE_TYPE_CI,
+                user_id=user_id,
+                record_id=ci_record.id_ci,
+                extension="txt",
+            )
+
+            ci_record.raw_file_url = str(raw_path)
+            ci_record.text_hashed = text_hash
+            await db.flush()
+            await db.refresh(ci_record)
+            print(f"[UPLOAD] CI text new record created: id_ci={ci_record.id_ci}, user={user_id}")
+
+        safe_name = (request_body.file_name or "company_research").strip() or "company_research"
+
+        print(f"[UPLOAD] CI text uploaded: id_ci={ci_record.id_ci}, user={user_id}, cache_preserved={cache_preserved}")
 
         return {
             "success": True,
             "message": "Lưu nội dung nghiên cứu công ty thành công",
             "file_name": f"{safe_name}.txt",
-            "file_path": str(file_path),
+            "file_path": str(raw_path),
             "file_type": "txt",
             "file_size": len(text_content.encode("utf-8")),
+            "id_ci": ci_record.id_ci,
+            "text_hashed": text_hash,
+            "cache_preserved": cache_preserved,
         }
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,

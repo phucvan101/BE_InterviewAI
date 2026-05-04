@@ -6,12 +6,20 @@ from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
+from app.core.dependencies import get_current_active_user
+from app.feature.auth.models.user import User
+from app.feature.feature_up_cv.file_storage import (
+    save_raw_file,
+    compute_text_hash,
+    delete_file,
+    FILE_TYPE_JD,
+    RAW_FILE_DIR,
+)
+from app.feature.feature_up_cv.text_extract import extract_text_auto
+from app.feature.feature_up_cv.auth.services.job_description_service import JobDescriptionService
+from app.feature.feature_up_cv.auth.schemas.job_description import JobDescriptionCreate
 
 router = APIRouter(prefix="/job-description", tags=["Job Description"])
-
-# Directory to store uploaded JD files temporarily
-UPLOAD_DIR = Path(tempfile.gettempdir()) / "interview_jd_uploads"
-UPLOAD_DIR.mkdir(exist_ok=True)
 
 
 class JobDescriptionTextUploadRequest(BaseModel):
@@ -22,30 +30,26 @@ class JobDescriptionTextUploadRequest(BaseModel):
 @router.post("/upload", status_code=status.HTTP_200_OK)
 async def upload_job_description(
     file: UploadFile = File(...),
+    current_user: User = Depends(get_current_active_user),
     db: AsyncSession = Depends(get_db),
 ):
     """
-    Upload file mô tả công việc (DOCX, PDF) - chỉ lưu file, không extract
-    Extract sẽ được thực hiện khi phân tích
-    
-    Returns:
-    {
-        "success": true,
-        "file_name": "jd.pdf",
-        "file_path": "/path/to/jd.pdf",
-        "file_type": "pdf"
-    }
+    Upload file mô tả công việc (DOCX, PDF).
+    - Sử dụng UPSERT: nếu user đã có record thì update, chưa có thì tạo mới
+    - Giữ nguyên id_jd khi re-upload (tránh id tăng vô nghĩa)
+    - Nếu nội dung file không đổi (cùng hash) → giữ nguyên parser cache
+    - Nếu nội dung thay đổi → xóa parser cache cũ, đợi analysis tạo lại
     """
-    
+
     # ── Validate file type ─────────────────────────
     if not file.filename:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Tên file không hợp lệ"
         )
-    
+
     filename_lower = file.filename.lower()
-    
+
     if filename_lower.endswith('.docx'):
         file_type = 'docx'
     elif filename_lower.endswith('.pdf'):
@@ -55,38 +59,104 @@ async def upload_job_description(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Chỉ chấp nhận file DOCX hoặc PDF"
         )
-    
+
     try:
-        # ── Read and save file ────────────────────────
+        # ── Read file content ────────────────────────
         content = await file.read()
-        
+
         if not content:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="File rỗng"
             )
-        
-        # ── Save file to temporary directory ───────────
-        # TODO: Use current_user.id in production. For now using default user_id=1
-        user_id = 1  # Temporary: will use get_current_active_user after testing login
-        file_path = UPLOAD_DIR / f"jd_{user_id}_{file.filename}"
-        
-        with open(file_path, 'wb') as f:
-            f.write(content)
-        
+
+        user_id = current_user.id
+        jd_service = JobDescriptionService(db)
+
+        # ── Extract text & compute hash FIRST ────────
+        extension = Path(file.filename).suffix
+        temp_path = save_raw_file(
+            content=content,
+            file_type=FILE_TYPE_JD,
+            user_id=user_id,
+            record_id=0,
+            extension=extension,
+        )
+
+        extracted_text = extract_text_auto(str(temp_path))
+        text_hash = compute_text_hash(extracted_text) if extracted_text else None
+
+        # ── UPSERT logic ─────────────────────────────
+        existing_jds = await jd_service.get_by_user(user_id)
+        cache_preserved = False
+
+        jd_record = next((jd for jd in existing_jds if jd.text_hashed == text_hash and text_hash is not None), None)
+
+        if jd_record:
+            cache_preserved = True
+            print(f"[UPLOAD] JD same content detected (hash match), preserving cache for id_jd={jd_record.id_jd}")
+            
+            from sqlalchemy import func
+            jd_record.created_at = func.now()
+            
+            final_path = Path(jd_record.raw_file_url) if jd_record.raw_file_url else temp_path
+            if jd_record.raw_file_url:
+                delete_file(temp_path)
+            else:
+                final_path = save_raw_file(
+                    content=content,
+                    file_type=FILE_TYPE_JD,
+                    user_id=user_id,
+                    record_id=jd_record.id_jd,
+                    extension=extension,
+                )
+                jd_record.raw_file_url = str(final_path)
+                delete_file(temp_path)
+
+            await db.flush()
+            await db.refresh(jd_record)
+
+        else:
+            # ── No existing record → create new ──────
+            jd_record = await jd_service.create(
+                user_id=user_id,
+                data=JobDescriptionCreate(),
+            )
+            await db.flush()
+
+            final_path = save_raw_file(
+                content=content,
+                file_type=FILE_TYPE_JD,
+                user_id=user_id,
+                record_id=jd_record.id_jd,
+                extension=extension,
+            )
+            delete_file(temp_path)
+
+            jd_record.raw_file_url = str(final_path)
+            jd_record.text_hashed = text_hash
+            await db.flush()
+            await db.refresh(jd_record)
+            print(f"[UPLOAD] JD new record created: id_jd={jd_record.id_jd}, user={user_id}")
+
+        print(f"[UPLOAD] JD uploaded: id_jd={jd_record.id_jd}, user={user_id}, cache_preserved={cache_preserved}")
+
         # ── Return file info ──────────────────────────
         return {
             "success": True,
             "message": "Upload file thành công",
             "file_name": file.filename,
-            "file_path": str(file_path),
+            "file_path": str(final_path),
             "file_type": file_type,
-            "file_size": len(content)
+            "file_size": len(content),
+            "id_jd": jd_record.id_jd,
+            "text_hashed": text_hash,
+            "cache_preserved": cache_preserved,
         }
-    
+
     except HTTPException:
         raise
-    
+
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -97,8 +167,15 @@ async def upload_job_description(
 @router.post("/upload-text", status_code=status.HTTP_200_OK)
 async def upload_job_description_text(
     request_body: JobDescriptionTextUploadRequest,
+    current_user: User = Depends(get_current_active_user),
     db: AsyncSession = Depends(get_db),
 ):
+    """
+    Upload JD dưới dạng text.
+    - Sử dụng UPSERT: nếu user đã có record thì update, chưa có thì tạo mới
+    - Giữ nguyên id_jd khi re-upload (tránh id tăng vô nghĩa)
+    - Nếu nội dung text không đổi (cùng hash) → giữ nguyên parser cache
+    """
     text_content = (request_body.text or "").strip()
     if not text_content:
         raise HTTPException(
@@ -106,23 +183,79 @@ async def upload_job_description_text(
             detail="Nội dung mô tả công việc không được để trống",
         )
 
-    safe_name = (request_body.file_name or "job_description").strip() or "job_description"
-    safe_name = safe_name.replace("/", "_").replace("\\", "_").replace(" ", "_")
-
     try:
-        user_id = 1
-        file_path = UPLOAD_DIR / f"jd_{user_id}_{safe_name}.txt"
-        with open(file_path, "w", encoding="utf-8") as f:
-            f.write(text_content)
+        user_id = current_user.id
+        jd_service = JobDescriptionService(db)
+
+        # ── Compute hash FIRST ───────────────────────
+        text_hash = compute_text_hash(text_content)
+
+        # ── UPSERT logic ─────────────────────────────
+        existing_jds = await jd_service.get_by_user(user_id)
+        cache_preserved = False
+
+        jd_record = next((jd for jd in existing_jds if jd.text_hashed == text_hash and text_hash is not None), None)
+
+        if jd_record:
+            cache_preserved = True
+            print(f"[UPLOAD] JD text same content detected (hash match), preserving cache for id_jd={jd_record.id_jd}")
+            
+            from sqlalchemy import func
+            jd_record.created_at = func.now()
+            
+            raw_path = Path(jd_record.raw_file_url) if jd_record.raw_file_url else None
+            if not raw_path:
+                raw_path = save_raw_file(
+                    content=text_content.encode("utf-8"),
+                    file_type=FILE_TYPE_JD,
+                    user_id=user_id,
+                    record_id=jd_record.id_jd,
+                    extension="txt",
+                )
+                jd_record.raw_file_url = str(raw_path)
+
+            await db.flush()
+            await db.refresh(jd_record)
+
+        else:
+            # ── No existing record → create new ──────
+            jd_record = await jd_service.create(
+                user_id=user_id,
+                data=JobDescriptionCreate(),
+            )
+            await db.flush()
+
+            raw_path = save_raw_file(
+                content=text_content.encode("utf-8"),
+                file_type=FILE_TYPE_JD,
+                user_id=user_id,
+                record_id=jd_record.id_jd,
+                extension="txt",
+            )
+
+            jd_record.raw_file_url = str(raw_path)
+            jd_record.text_hashed = text_hash
+            await db.flush()
+            await db.refresh(jd_record)
+            print(f"[UPLOAD] JD text new record created: id_jd={jd_record.id_jd}, user={user_id}")
+
+        safe_name = (request_body.file_name or "job_description").strip() or "job_description"
+
+        print(f"[UPLOAD] JD text uploaded: id_jd={jd_record.id_jd}, user={user_id}, cache_preserved={cache_preserved}")
 
         return {
             "success": True,
             "message": "Lưu nội dung JD thành công",
             "file_name": f"{safe_name}.txt",
-            "file_path": str(file_path),
+            "file_path": str(raw_path),
             "file_type": "txt",
             "file_size": len(text_content.encode("utf-8")),
+            "id_jd": jd_record.id_jd,
+            "text_hashed": text_hash,
+            "cache_preserved": cache_preserved,
         }
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
