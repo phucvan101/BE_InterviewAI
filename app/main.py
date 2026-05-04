@@ -12,15 +12,12 @@ from app.feature.feature_up_cv.auth.api.router import router as cv_router
 from app.core.config import settings
 from app.core.database import init_db
 
-<<<<<<< HEAD
 import logging
 logging.basicConfig(level=logging.DEBUG)
-=======
 # Ensure all ORM models are registered with Base.metadata before init_db()
 import app.feature.auth.models  # noqa: F401
 import app.feature.feature_up_cv.auth.models  # noqa: F401
 
->>>>>>> 0fb9eed (feat: thêm bảng + insert data vào db)
 
 
 # ── Lifespan (startup / shutdown) ─────────────────────────────────────────────
