@@ -9,6 +9,7 @@ Flow:
 4. If no cache hit → call LLM parser, save parsed JSON to uploads/parser_file/
 5. Run score matching and return results
 """
+import os
 import time
 from pathlib import Path
 from typing import Any, Dict
@@ -33,7 +34,7 @@ from app.feature.feature_up_cv.auth.services.cv_profile_service import CVProfile
 from app.feature.feature_up_cv.auth.services.job_description_service import JobDescriptionService
 from app.feature.feature_up_cv.auth.services.company_info_service import CompanyInfoService
 from app.feature.feature_up_cv.auth.services.analysis_session_service import AnalysisSessionService
-from app.feature.feature_up_cv.auth.schemas.analysis_session import AnalysisSessionCreate
+from app.feature.feature_up_cv.auth.schemas.analysis_session import AnalysisSessionCreate, AnalysisSessionUpdate
 
 
 # Pydantic model for analysis request
@@ -466,18 +467,26 @@ async def analyze_cv_jd_match(
         
         all_cache_hits = cv_cache_hit and jd_cache_hit and ci_cache_hit
         
-        if all_cache_hits and existing_session and existing_session.result_analysis_file_url:
-            cached_result = load_result_analysis(existing_session.result_analysis_file_url)
-            if cached_result:
-                print(f"[CACHE HIT] MATCH_SCORE - using cached result from session={existing_session.id_session}")
-                return {
-                    "success": True,
-                    "message": "Analysis completed successfully (from cache)",
-                    "data": cached_result
-                }
+        if existing_session and existing_session.result_analysis_file_url:
+            if os.path.exists(existing_session.result_analysis_file_url):
+                cached_result = load_result_analysis(existing_session.result_analysis_file_url)
+                if cached_result and all_cache_hits:
+                    print(f"[CACHE HIT] MATCH_SCORE - using cached result from session={existing_session.id_session}")
+                    return {
+                        "success": True,
+                        "message": "Analysis completed successfully (from cache)",
+                        "data": cached_result
+                    }
+                else:
+                    if not all_cache_hits:
+                        print(f"[CACHE MISS] MATCH_SCORE - underlying files were re-parsed, ignoring existing result for session={existing_session.id_session}")
+                    else:
+                        print(f"[CACHE MISS] MATCH_SCORE - physical file exists but could not be loaded for session={existing_session.id_session}")
+            else:
+                print(f"[CACHE MISS] MATCH_SCORE - physical file missing for session={existing_session.id_session}")
         else:
             if existing_session:
-                print(f"[CACHE MISS] MATCH_SCORE - files changed, skipping existing session={existing_session.id_session}")
+                print(f"[CACHE MISS] MATCH_SCORE - no result url, skipping existing session={existing_session.id_session}")
             else:
                 print(f"[CACHE MISS] MATCH_SCORE - no existing session found")
         
@@ -536,22 +545,36 @@ async def analyze_cv_jd_match(
             education_score = float(detailed_scores.get("education_score", 0) if isinstance(detailed_scores, dict) else 0)
             company_fit_score = float(detailed_scores.get("company_fit_score", 0) if isinstance(detailed_scores, dict) else 0)
             
-            await session_service.create(
-                user_id=user_id,
-                data=AnalysisSessionCreate(
-                    id_cv=id_cv,
-                    id_jd=id_jd,
-                    id_ci=id_ci,
-                    score=score,
-                    experience_score=experience_score,
-                    skills_score=skills_score,
-                    education_score=education_score,
-                    companyfit_score=company_fit_score,
-                    result_analysis_file_url=str(result_file_path),
+            if existing_session:
+                await session_service.update(
+                    id_session=existing_session.id_session,
+                    data=AnalysisSessionUpdate(
+                        score=score,
+                        experience_score=experience_score,
+                        skills_score=skills_score,
+                        education_score=education_score,
+                        companyfit_score=company_fit_score,
+                        result_analysis_file_url=str(result_file_path),
+                    )
                 )
-            )
+                print(f"[CACHE SAVED] Analysis session updated (id={existing_session.id_session}) and result saved")
+            else:
+                await session_service.create(
+                    user_id=user_id,
+                    data=AnalysisSessionCreate(
+                        id_cv=id_cv,
+                        id_jd=id_jd,
+                        id_ci=id_ci,
+                        score=score,
+                        experience_score=experience_score,
+                        skills_score=skills_score,
+                        education_score=education_score,
+                        companyfit_score=company_fit_score,
+                        result_analysis_file_url=str(result_file_path),
+                    )
+                )
+                print("[CACHE SAVED] Analysis session created and result saved")
             await db.commit()
-            print("[CACHE SAVED] Analysis session and result saved")
         except Exception as e:
             print(f"⚠️ Error saving analysis session: {e}")
         
