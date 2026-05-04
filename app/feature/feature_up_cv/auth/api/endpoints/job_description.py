@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+import os
 import tempfile
 from pathlib import Path
 from fastapi import APIRouter, File, UploadFile, Depends, HTTPException, status
@@ -93,16 +94,24 @@ async def upload_job_description(
         jd_record = next((jd for jd in existing_jds if jd.text_hashed == text_hash and text_hash is not None), None)
 
         if jd_record:
-            cache_preserved = True
-            print(f"[UPLOAD] JD same content detected (hash match), preserving cache for id_jd={jd_record.id_jd}")
-            
+            # ── Check if physical files exist ────────
+            raw_exists = bool(jd_record.raw_file_url and os.path.exists(jd_record.raw_file_url))
+            parser_exists = bool(not jd_record.parser_file_url or os.path.exists(jd_record.parser_file_url))
+
             from sqlalchemy import func
             jd_record.created_at = func.now()
-            
-            final_path = Path(jd_record.raw_file_url) if jd_record.raw_file_url else temp_path
-            if jd_record.raw_file_url:
+
+            if raw_exists and parser_exists:
+                # ── Same content & files exist → reuse existing record ──
+                cache_preserved = True
+                print(f"[UPLOAD] JD same content detected (hash match) and files exist, preserving cache for id_jd={jd_record.id_jd}")
+                final_path = Path(jd_record.raw_file_url)
                 delete_file(temp_path)
             else:
+                # ── Hash matched but files missing → replace files ──
+                cache_preserved = False
+                print(f"[UPLOAD] JD hash matched but physical files missing. Re-saving for id_jd={jd_record.id_jd}")
+                
                 final_path = save_raw_file(
                     content=content,
                     file_type=FILE_TYPE_JD,
@@ -111,6 +120,9 @@ async def upload_job_description(
                     extension=extension,
                 )
                 jd_record.raw_file_url = str(final_path)
+                if not parser_exists:
+                    jd_record.parser_file_url = None
+                
                 delete_file(temp_path)
 
             await db.flush()
@@ -197,14 +209,23 @@ async def upload_job_description_text(
         jd_record = next((jd for jd in existing_jds if jd.text_hashed == text_hash and text_hash is not None), None)
 
         if jd_record:
-            cache_preserved = True
-            print(f"[UPLOAD] JD text same content detected (hash match), preserving cache for id_jd={jd_record.id_jd}")
-            
+            # ── Check if physical files exist ────────
+            raw_exists = bool(jd_record.raw_file_url and os.path.exists(jd_record.raw_file_url))
+            parser_exists = bool(not jd_record.parser_file_url or os.path.exists(jd_record.parser_file_url))
+
             from sqlalchemy import func
             jd_record.created_at = func.now()
-            
-            raw_path = Path(jd_record.raw_file_url) if jd_record.raw_file_url else None
-            if not raw_path:
+
+            if raw_exists and parser_exists:
+                # ── Same content & files exist → reuse existing record ──
+                cache_preserved = True
+                print(f"[UPLOAD] JD text same content detected (hash match) and files exist, preserving cache for id_jd={jd_record.id_jd}")
+                raw_path = Path(jd_record.raw_file_url)
+            else:
+                # ── Hash matched but files missing → replace files ──
+                cache_preserved = False
+                print(f"[UPLOAD] JD text hash matched but physical files missing. Re-saving for id_jd={jd_record.id_jd}")
+                
                 raw_path = save_raw_file(
                     content=text_content.encode("utf-8"),
                     file_type=FILE_TYPE_JD,
@@ -213,6 +234,8 @@ async def upload_job_description_text(
                     extension="txt",
                 )
                 jd_record.raw_file_url = str(raw_path)
+                if not parser_exists:
+                    jd_record.parser_file_url = None
 
             await db.flush()
             await db.refresh(jd_record)

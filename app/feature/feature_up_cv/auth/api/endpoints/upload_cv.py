@@ -87,19 +87,24 @@ async def upload_cv(
         cv_record = next((cv for cv in existing_cvs if cv.text_hashed == text_hash and text_hash is not None), None)
 
         if cv_record:
-            # ── Same content → reuse existing record ──
-            cache_preserved = True
-            print(f"[UPLOAD] CV same content detected (hash match), preserving cache for id_cv={cv_record.id_cv}")
-            
-            # Update created_at to now
+            # ── Check if physical files exist ────────
+            raw_exists = bool(cv_record.raw_file_url and os.path.exists(cv_record.raw_file_url))
+            parser_exists = bool(not cv_record.parser_file_url or os.path.exists(cv_record.parser_file_url))
+
             from sqlalchemy import func
             cv_record.created_at = func.now()
-            
-            final_path = Path(cv_record.raw_file_url) if cv_record.raw_file_url else temp_path
-            if cv_record.raw_file_url:
+
+            if raw_exists and parser_exists:
+                # ── Same content & files exist → reuse existing record ──
+                cache_preserved = True
+                print(f"[UPLOAD] CV same content detected (hash match) and files exist, preserving cache for id_cv={cv_record.id_cv}")
+                final_path = Path(cv_record.raw_file_url)
                 delete_file(temp_path)  # we don't need the new file, reuse old
             else:
-                # Edge case where raw_file_url was somehow missing
+                # ── Hash matched but files missing → replace files ──
+                cache_preserved = False
+                print(f"[UPLOAD] CV hash matched but physical files missing. Re-saving for id_cv={cv_record.id_cv}")
+                
                 final_path = save_raw_file(
                     content=content,
                     file_type=FILE_TYPE_CV,
@@ -108,6 +113,9 @@ async def upload_cv(
                     extension=extension,
                 )
                 cv_record.raw_file_url = str(final_path)
+                if not parser_exists:
+                    cv_record.parser_file_url = None
+                
                 delete_file(temp_path)
 
             await db.flush()

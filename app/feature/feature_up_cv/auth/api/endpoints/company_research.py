@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+import os
 import tempfile
 from pathlib import Path
 from fastapi import APIRouter, File, UploadFile, Depends, HTTPException, status
@@ -92,16 +93,24 @@ async def upload_company_research(
         ci_record = next((ci for ci in existing_cis if ci.text_hashed == text_hash and text_hash is not None), None)
 
         if ci_record:
-            cache_preserved = True
-            print(f"[UPLOAD] CI same content detected (hash match), preserving cache for id_ci={ci_record.id_ci}")
-            
+            # ── Check if physical files exist ────────
+            raw_exists = bool(ci_record.raw_file_url and os.path.exists(ci_record.raw_file_url))
+            parser_exists = bool(not ci_record.parser_file_url or os.path.exists(ci_record.parser_file_url))
+
             from sqlalchemy import func
             ci_record.created_at = func.now()
-            
-            final_path = Path(ci_record.raw_file_url) if ci_record.raw_file_url else temp_path
-            if ci_record.raw_file_url:
+
+            if raw_exists and parser_exists:
+                # ── Same content & files exist → reuse existing record ──
+                cache_preserved = True
+                print(f"[UPLOAD] CI same content detected (hash match) and files exist, preserving cache for id_ci={ci_record.id_ci}")
+                final_path = Path(ci_record.raw_file_url)
                 delete_file(temp_path)
             else:
+                # ── Hash matched but files missing → replace files ──
+                cache_preserved = False
+                print(f"[UPLOAD] CI hash matched but physical files missing. Re-saving for id_ci={ci_record.id_ci}")
+                
                 final_path = save_raw_file(
                     content=content,
                     file_type=FILE_TYPE_CI,
@@ -110,6 +119,9 @@ async def upload_company_research(
                     extension=extension,
                 )
                 ci_record.raw_file_url = str(final_path)
+                if not parser_exists:
+                    ci_record.parser_file_url = None
+                
                 delete_file(temp_path)
 
             await db.flush()
@@ -196,14 +208,23 @@ async def upload_company_research_text(
         ci_record = next((ci for ci in existing_cis if ci.text_hashed == text_hash and text_hash is not None), None)
 
         if ci_record:
-            cache_preserved = True
-            print(f"[UPLOAD] CI text same content detected (hash match), preserving cache for id_ci={ci_record.id_ci}")
-            
+            # ── Check if physical files exist ────────
+            raw_exists = bool(ci_record.raw_file_url and os.path.exists(ci_record.raw_file_url))
+            parser_exists = bool(not ci_record.parser_file_url or os.path.exists(ci_record.parser_file_url))
+
             from sqlalchemy import func
             ci_record.created_at = func.now()
-            
-            raw_path = Path(ci_record.raw_file_url) if ci_record.raw_file_url else None
-            if not raw_path:
+
+            if raw_exists and parser_exists:
+                # ── Same content & files exist → reuse existing record ──
+                cache_preserved = True
+                print(f"[UPLOAD] CI text same content detected (hash match) and files exist, preserving cache for id_ci={ci_record.id_ci}")
+                raw_path = Path(ci_record.raw_file_url)
+            else:
+                # ── Hash matched but files missing → replace files ──
+                cache_preserved = False
+                print(f"[UPLOAD] CI text hash matched but physical files missing. Re-saving for id_ci={ci_record.id_ci}")
+                
                 raw_path = save_raw_file(
                     content=text_content.encode("utf-8"),
                     file_type=FILE_TYPE_CI,
@@ -212,6 +233,8 @@ async def upload_company_research_text(
                     extension="txt",
                 )
                 ci_record.raw_file_url = str(raw_path)
+                if not parser_exists:
+                    ci_record.parser_file_url = None
 
             await db.flush()
             await db.refresh(ci_record)
