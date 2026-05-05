@@ -39,3 +39,6 @@ Thumbs.db
 .pytest_cache/
 .coverage
 htmlcov/
+
+# Uploads
+app/feature/feature_up_cv/uploads/

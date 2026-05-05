@@ -133,8 +133,8 @@ def generate_content(
                 raise GeminiQuotaExceededError("quota exceed (429)") from e
 
             if kind == "service_unavailable":
-                print(f"❌ [step={step}] Model high demand (503) - Stop immediately.")
-                raise Exception("model high demand (503)") from e
+                print(f"❌ [step={step}] Server high demand (503) - Stop immediately.")
+                raise Exception("Server high demand (503)") from e
 
             if kind == "rate_limited":
                 if len(api_keys) > 1:

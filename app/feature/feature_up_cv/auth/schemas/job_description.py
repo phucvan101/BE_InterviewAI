@@ -4,7 +4,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 # ── Base ─────────────────────────────────────────
 
-class CVProfileBase(BaseModel):
+class JobDescriptionBase(BaseModel):
     parser_file_url: str | None = None
     raw_file_url: str | None = None
     text_hashed: str | None = None
@@ -12,11 +12,11 @@ class CVProfileBase(BaseModel):
 
 # ── Request ──────────────────────────────────────
 
-class CVProfileCreate(CVProfileBase):
+class JobDescriptionCreate(JobDescriptionBase):
     pass
 
 
-class CVProfileUpdate(BaseModel):
+class JobDescriptionUpdate(BaseModel):
     parser_file_url: str | None = None
     raw_file_url: str | None = None
     text_hashed: str | None = None
@@ -24,9 +24,9 @@ class CVProfileUpdate(BaseModel):
 
 # ── Response ─────────────────────────────────────
 
-class CVProfileResponse(CVProfileBase):
+class JobDescriptionResponse(JobDescriptionBase):
     model_config = ConfigDict(from_attributes=True)
 
-    id_cv: int
+    id_jd: int
     user_id: int
-    created_at: datetime
+    upload_at: datetime

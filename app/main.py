@@ -17,6 +17,10 @@ from app.scripts.ensure_admin import ensure_admin
 
 import logging
 logging.basicConfig(level=logging.DEBUG)
+# Ensure all ORM models are registered with Base.metadata before init_db()
+import app.feature.auth.models  # noqa: F401
+import app.feature.feature_up_cv.auth.models  # noqa: F401
+
 
 
 # ── Lifespan (startup / shutdown) ─────────────────────────────────────────────

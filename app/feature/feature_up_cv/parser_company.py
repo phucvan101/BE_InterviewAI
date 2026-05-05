@@ -11,9 +11,7 @@ Extract company research information from documents
 
 import json
 import re
-from pathlib import Path
 from app.feature.feature_up_cv.gemini_client import generate_content
-from app.feature.feature_up_cv.text_extract import extract_text_auto, UnsupportedFileTypeError
 
 def _build_company_prompt(text: str) -> str:
     return f"""
