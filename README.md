@@ -105,6 +105,7 @@ Các biến quan trọng đang dùng trong code:
 - `API_PREFIX`, `HOST`, `PORT`
 - `DATABASE_URL`
 - `SECRET_KEY`, `ALGORITHM`, `ACCESS_TOKEN_EXPIRE_MINUTES`, `REFRESH_TOKEN_EXPIRE_DAYS`
+- `DEFAULT_ADMIN_EMAIL`, `DEFAULT_ADMIN_USERNAME`, `DEFAULT_ADMIN_PASSWORD`, `DEFAULT_ADMIN_FULL_NAME`
 - `ALLOWED_ORIGINS`, `FRONTEND_URL`
 - `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_REDIRECT_URI`
 - `GOOGLE_AUTH_URI`, `GOOGLE_TOKEN_URI`, `GOOGLE_TOKENINFO_URI`
@@ -129,10 +130,23 @@ REFRESH_TOKEN_EXPIRE_DAYS=7
 ALLOWED_ORIGINS=http://localhost:3000,http://localhost:5173
 FRONTEND_URL=http://localhost:3000
 
+DEFAULT_ADMIN_EMAIL=admin2@example.com
+DEFAULT_ADMIN_USERNAME=admin2
+DEFAULT_ADMIN_PASSWORD=admin123
+DEFAULT_ADMIN_FULL_NAME=Admin 2
+
 GOOGLE_CLIENT_ID=your-client-id
 GOOGLE_CLIENT_SECRET=your-client-secret
 GOOGLE_REDIRECT_URI=http://localhost:8000/api/v1/auth/google/callback
 ```
+
+Tạo hoặc khôi phục tài khoản admin từ cấu hình `.env`:
+
+```bash
+python -m app.scripts.ensure_admin
+```
+
+Script này dùng bcrypt giống hệ thống đăng nhập. Nếu admin đã tồn tại, script sẽ cập nhật mật khẩu và bật lại các cờ `is_active`, `is_verified`, `is_superuser`.
 
 ## 🔒 Security
 
