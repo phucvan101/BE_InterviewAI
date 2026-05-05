@@ -19,6 +19,7 @@ async def ensure_admin() -> User:
             select(User).where(User.username == settings.DEFAULT_ADMIN_USERNAME)
         )
         user_by_username = username_result.scalar_one_or_none()
+        print('here!!1')
 
         if (
             user_by_email is not None
@@ -64,7 +65,7 @@ async def ensure_admin() -> User:
             f"{action}: id={user.id}, email={user.email}, "
             f"username={user.username}, is_superuser={user.is_superuser}"
         )
-        return user
+        return user 
 
 
 async def main() -> None:

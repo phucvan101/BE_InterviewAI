@@ -12,6 +12,9 @@ from app.feature.feature_up_cv.auth.api.router import router as cv_router
 from app.core.config import settings
 from app.core.database import init_db
 
+from app.scripts.ensure_admin import ensure_admin
+
+
 import logging
 logging.basicConfig(level=logging.DEBUG)
 
@@ -23,6 +26,7 @@ async def lifespan(app: FastAPI):
     # ── Startup ──
     print(f"🚀  Starting {settings.APP_NAME} v{settings.APP_VERSION}")
     await init_db()          # create tables + apply Alembic migrations
+    await ensure_admin()
     yield
     # ── Shutdown ──
     print("👋  Shutting down...")
