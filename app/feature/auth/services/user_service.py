@@ -14,6 +14,7 @@ from app.core.security import (
 )
 from ..models.user import User
 from ..schemas.user import (
+    AuthUserResponse,
     PaginatedUsers,
     RefreshTokenRequest,
     TokenResponse,
@@ -23,6 +24,7 @@ from ..schemas.user import (
     UserUpdatePassword,
 )
 from app.feature.auth.services.google_oauth_service import GoogleOAuthService
+from app.feature.admin.roles.models.role import Permission, Role, role_permissions, user_roles
 
 
 class UserService:
@@ -137,6 +139,7 @@ class UserService:
         return TokenResponse(
             access_token=create_access_token(user.id),
             refresh_token=create_refresh_token(user.id),
+            user=await self.build_auth_user_response(user),
         )
 
     async def refresh_token(self, data: RefreshTokenRequest) -> TokenResponse:
@@ -157,6 +160,7 @@ class UserService:
         return TokenResponse(
             access_token=create_access_token(user.id),
             refresh_token=create_refresh_token(user.id),
+            user=await self.build_auth_user_response(user),
         )
 
     async def login_with_google_id_token(self, id_token: str) -> TokenResponse:
@@ -207,6 +211,7 @@ class UserService:
         return TokenResponse(
             access_token=create_access_token(user.id),
             refresh_token=create_refresh_token(user.id),
+            user=await self.build_auth_user_response(user),
         )
 
     async def login_with_google_code(self, code: str) -> TokenResponse:
@@ -223,6 +228,32 @@ class UserService:
         if not user:
             raise HTTPException(status_code=404, detail="User not found")
         return user
+
+    async def build_auth_user_response(self, user: User) -> AuthUserResponse:
+        roles_result = await self.db.execute(
+            select(Role.name)
+            .join(user_roles, user_roles.c.role_id == Role.id)
+            .where(user_roles.c.user_id == user.id)
+            .order_by(Role.name)
+        )
+        permissions_result = await self.db.execute(
+            select(Permission.code)
+            .join(role_permissions, Permission.id == role_permissions.c.permission_id)
+            .join(user_roles, user_roles.c.role_id == role_permissions.c.role_id)
+            .where(user_roles.c.user_id == user.id)
+            .order_by(Permission.code)
+        )
+        roles = list(roles_result.scalars().all()) # scalars() lấy trực tiếp giá trị thay vì tuple.
+        permissions = list(permissions_result.scalars().unique().all()) # gộp các quyền bị trùng nhau 
+        can_access_admin = user.is_superuser or bool(permissions)
+
+        return AuthUserResponse.model_validate(user).model_copy(
+            update={
+                "roles": roles,
+                "permissions": permissions,
+                "can_access_admin": can_access_admin,
+            }
+        )
 
     async def _generate_unique_username(self, base: str) -> str:
         base = self._normalize_username_base(base)

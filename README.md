@@ -61,25 +61,25 @@ InterviewApi/
 
 ## 🔑 API Endpoints
 
-| Method | URL | Auth | Mô tả |
-|--------|-----|------|-------|
-| POST | `/api/v1/users/register` | ❌ | Đăng ký tài khoản |
-| POST | `/api/v1/users/login` | ❌ | Đăng nhập → JWT |
-| POST | `/api/v1/users/refresh` | ❌ | Làm mới access token |
-| GET | `/api/v1/users/me` | ✅ | Thông tin user hiện tại |
-| PATCH | `/api/v1/users/me` | ✅ | Cập nhật profile |
-| PATCH | `/api/v1/users/me/password` | ✅ | Đổi mật khẩu |
-| GET | `/api/v1/users/` | 👑 Admin | Danh sách users (phân trang) |
-| GET | `/api/v1/users/{id}` | 👑 Admin | Chi tiết user |
-| PATCH | `/api/v1/users/{id}` | 👑 Admin | Cập nhật user |
-| PATCH | `/api/v1/users/{id}/deactivate` | 👑 Admin | Vô hiệu hoá user |
-| DELETE | `/api/v1/users/{id}` | 👑 Admin | Xoá user |
-| GET | `/health` | ❌ | Health check |
-| GET | `/api/v1/auth/google/login` | ❌ | Redirect tới Google OAuth |
-| GET | `/api/v1/auth/google/url` | ❌ | Lấy Google OAuth consent URL |
-| GET | `/api/v1/auth/google/callback` | ❌ | Callback exchange code → token + redirect FE |
-| POST | `/api/v1/auth/google/id-token` | ❌ | Login với Google ID token |
-| POST | `/api/v1/auth/google/code` | ❌ | Exchange Google auth code → token |
+| Method | URL                             | Auth     | Mô tả                                        |
+| ------ | ------------------------------- | -------- | -------------------------------------------- |
+| POST   | `/api/v1/users/register`        | ❌       | Đăng ký tài khoản                            |
+| POST   | `/api/v1/users/login`           | ❌       | Đăng nhập → JWT                              |
+| POST   | `/api/v1/users/refresh`         | ❌       | Làm mới access token                         |
+| GET    | `/api/v1/users/me`              | ✅       | Thông tin user hiện tại                      |
+| PATCH  | `/api/v1/users/me`              | ✅       | Cập nhật profile                             |
+| PATCH  | `/api/v1/users/me/password`     | ✅       | Đổi mật khẩu                                 |
+| GET    | `/api/v1/users/`                | 👑 Admin | Danh sách users (phân trang)                 |
+| GET    | `/api/v1/users/{id}`            | 👑 Admin | Chi tiết user                                |
+| PATCH  | `/api/v1/users/{id}`            | 👑 Admin | Cập nhật user                                |
+| PATCH  | `/api/v1/users/{id}/deactivate` | 👑 Admin | Vô hiệu hoá user                             |
+| DELETE | `/api/v1/users/{id}`            | 👑 Admin | Xoá user                                     |
+| GET    | `/health`                       | ❌       | Health check                                 |
+| GET    | `/api/v1/auth/google/login`     | ❌       | Redirect tới Google OAuth                    |
+| GET    | `/api/v1/auth/google/url`       | ❌       | Lấy Google OAuth consent URL                 |
+| GET    | `/api/v1/auth/google/callback`  | ❌       | Callback exchange code → token + redirect FE |
+| POST   | `/api/v1/auth/google/id-token`  | ❌       | Login với Google ID token                    |
+| POST   | `/api/v1/auth/google/code`      | ❌       | Exchange Google auth code → token            |
 
 ---
 

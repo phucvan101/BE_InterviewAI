@@ -67,6 +67,12 @@ class UserResponse(UserBase):
     updated_at: datetime
 
 
+class AuthUserResponse(UserResponse):
+    roles: list[str] = Field(default_factory=list)
+    permissions: list[str] = Field(default_factory=list)
+    can_access_admin: bool = False
+
+
 class UserPublic(BaseModel):
     """Minimal public-safe user info."""
     model_config = ConfigDict(from_attributes=True)
@@ -82,6 +88,7 @@ class TokenResponse(BaseModel):
     access_token: str
     refresh_token: str
     token_type: str = "bearer"
+    user: AuthUserResponse | None = None
 
 
 class TokenPayload(BaseModel):

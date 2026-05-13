@@ -2,11 +2,15 @@ from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
-from app.core.dependencies import get_current_superuser
+from app.core.dependencies import get_current_superuser, require_permission
+from app.feature.admin.roles.services.role_service import RoleService
 from app.feature.admin.users.models.user import User
+from app.feature.admin.roles.schemas.role import RoleResponse
+from app.feature.admin.users.schemas.user import AdminUserCreate
 from app.feature.admin.users.schemas.user import (
     AdminPaginatedUsers,
     AdminUserResponse,
+    AdminUserRolesUpdate,
     AdminUserUpdate,
 )
 from app.feature.admin.users.services.user_service import AdminUserService
@@ -26,10 +30,24 @@ async def list_users(
     email: str | None = None, 
     is_active: bool | None = None,
     auth_provider: str | None = None,
-    _: User = Depends(get_current_superuser),
+    _: User = Depends(require_permission("users.read")),
     db: AsyncSession = Depends(get_db),
 ) -> AdminPaginatedUsers:
     return await AdminUserService(db).get_all(page=page, page_size=page_size, username=username, email=email, is_active=is_active, auth_provider=auth_provider)
+
+
+@router.post(
+    "/",
+    response_model=AdminUserResponse,
+    status_code=status.HTTP_201_CREATED,
+    summary="[Admin] Create user",
+)
+async def create_user(
+    data: AdminUserCreate,
+    _: User = Depends(get_current_superuser),
+    db: AsyncSession = Depends(get_db),
+) -> AdminUserResponse:
+    return await AdminUserService(db).create(data)
 
 
 @router.get(
@@ -39,10 +57,23 @@ async def list_users(
 )
 async def get_user(
     user_id: int,
-    _: User = Depends(get_current_superuser),
+    _: User = Depends(require_permission("users.read")),
     db: AsyncSession = Depends(get_db),
 ) -> AdminUserResponse:
     return await AdminUserService(db)._get_or_404(user_id)
+
+
+@router.get(
+    "/{user_id}/roles",
+    response_model=list[RoleResponse],
+    summary="[Admin] Get user roles",
+)
+async def get_user_roles(
+    user_id: int,
+    _: User = Depends(get_current_superuser),
+    db: AsyncSession = Depends(get_db),
+) -> list[RoleResponse]:
+    return await RoleService(db).get_user_roles(user_id)
 
 
 @router.patch(
@@ -53,10 +84,24 @@ async def get_user(
 async def update_user(
     user_id: int,
     data: AdminUserUpdate,
-    _: User = Depends(get_current_superuser),
+    _: User = Depends(require_permission("users.update")),
     db: AsyncSession = Depends(get_db),
 ) -> AdminUserResponse:
     return await AdminUserService(db).update(user_id, data)
+
+
+@router.patch(
+    "/{user_id}/roles",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="[Admin] Assign roles to user",
+)
+async def update_user_roles(
+    user_id: int,
+    data: AdminUserRolesUpdate,
+    _: User = Depends(get_current_superuser),
+    db: AsyncSession = Depends(get_db),
+) -> None:
+    await RoleService(db).set_user_roles(user_id, data.role_ids)
 
 
 @router.patch(
@@ -66,7 +111,7 @@ async def update_user(
 )
 async def deactivate_user(
     user_id: int,
-    _: User = Depends(get_current_superuser),
+    _: User = Depends(require_permission("users.deactivate")),
     db: AsyncSession = Depends(get_db),
 ) -> AdminUserResponse:
     return await AdminUserService(db).deactivate(user_id)
@@ -79,7 +124,7 @@ async def deactivate_user(
 )
 async def delete_user(
     user_id: int,
-    _: User = Depends(get_current_superuser),
+    _: User = Depends(require_permission("users.delete")),
     db: AsyncSession = Depends(get_db),
 ) -> None:
     await AdminUserService(db).delete(user_id)

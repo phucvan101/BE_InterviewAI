@@ -1,4 +1,5 @@
 from .user import (
+    AuthUserResponse,
     UserCreate, UserUpdate, UserUpdatePassword,
     UserLogin, UserResponse, UserPublic,
     TokenResponse, RefreshTokenRequest, PaginatedUsers,
@@ -6,6 +7,7 @@ from .user import (
 )
 
 __all__ = [
+    "AuthUserResponse",
     "UserCreate", "UserUpdate", "UserUpdatePassword",
     "UserLogin", "UserResponse", "UserPublic",
     "TokenResponse", "RefreshTokenRequest", "PaginatedUsers",
