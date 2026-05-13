@@ -15,6 +15,7 @@ if str(PROJECT_ROOT) not in sys.path:
 from app.core.config import settings  # noqa: E402
 from app.core.database import Base  # noqa: E402
 from app.feature.auth import models as _auth_models  # noqa: F401,E402
+from app.feature.admin.roles import models as _role_models  # noqa: F401,E402
 from app.feature.feature_up_cv.auth import models as _cv_models  # noqa: F401,E402
 
 config = context.config

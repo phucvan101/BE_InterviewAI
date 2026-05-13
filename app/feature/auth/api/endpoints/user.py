@@ -5,6 +5,7 @@ from app.core.database import get_db
 from app.core.dependencies import get_current_active_user, get_current_superuser
 from ...models.user import User
 from ...schemas.user import (
+    AuthUserResponse,
     PaginatedUsers,
     RefreshTokenRequest,
     TokenResponse,
@@ -62,13 +63,14 @@ async def refresh_token(
 
 @router.get(
     "/me",
-    response_model=UserResponse,
+    response_model=AuthUserResponse,
     summary="Get current authenticated user",
 )
 async def get_me(
     current_user: User = Depends(get_current_active_user),
-) -> UserResponse:
-    return current_user
+    db: AsyncSession = Depends(get_db),
+) -> AuthUserResponse:
+    return await UserService(db).build_auth_user_response(current_user)
 
 
 @router.patch(
