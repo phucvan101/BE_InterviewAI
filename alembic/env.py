@@ -18,6 +18,8 @@ from app.feature.auth import models as _auth_models  # noqa: F401,E402
 from app.feature.admin.roles import models as _role_models  # noqa: F401,E402
 from app.feature.feature_up_cv.auth import models as _cv_models  # noqa: F401,E402
 
+from datetime import datetime
+
 config = context.config
 
 if config.config_file_name is not None:
@@ -26,6 +28,8 @@ if config.config_file_name is not None:
 # This sets the target metadata for 'autogenerate'
 target_metadata = Base.metadata
 
+def generate_revision_id():
+    return datetime.now().strftime("%Y%m%d%H%M%S")
 
 def run_migrations_offline() -> None:
     url = settings.DATABASE_URL
@@ -46,11 +50,16 @@ def do_run_migrations(connection) -> None:
         connection=connection,
         target_metadata=target_metadata,
         compare_type=True,
+        process_revision_directives=process_revision_directives,
     )
 
     with context.begin_transaction():
         context.run_migrations()
 
+def process_revision_directives(context, revision, directives):
+    if getattr(config.cmd_opts, "autogenerate", False):
+        script = directives[0]
+        script.rev_id = generate_revision_id()
 
 async def run_migrations_online() -> None:
     configuration = config.get_section(config.config_ini_section) or {}
