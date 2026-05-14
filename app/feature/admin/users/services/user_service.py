@@ -3,7 +3,8 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.feature.admin.users.models.user import User
-from app.feature.admin.users.schemas.user import AdminPaginatedUsers, AdminUserUpdate
+from app.feature.admin.users.schemas.user import AdminPaginatedUsers, AdminUserUpdate, AdminUserCreate
+from app.core.security import hash_password
 
 import logging
 logger = logging.getLogger(__name__)
@@ -66,9 +67,52 @@ class AdminUserService:
 
         return AdminPaginatedUsers(total=total, page=page, page_size=page_size, items=users)
     
+    
+    async def create(self, data: AdminUserCreate) -> User:
+
+        # check username
+        if await self.get_by_username(data.username):
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Username already exists",
+            )
+
+        # check email
+        if await self.get_by_email(data.email):
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Email already exists",
+            )
+
+        user = User(
+            username=data.username,
+            email=data.email,
+            hashed_password=hash_password(data.password),
+            full_name=data.full_name,
+            is_active=data.is_active,
+            is_verified=data.is_verified,
+            auth_provider=data.auth_provider,
+            is_deleted=False,
+            is_superuser=False,
+        )
+
+        self.db.add(user)
+
+        await self.db.commit()
+        await self.db.refresh(user)
+
+        return user
+    
+    
     async def update(self, user_id: int, data: AdminUserUpdate) -> User:
         user = await self._get_or_404(user_id)
         update_data = data.model_dump(exclude_unset=True)
+        forbidden_fields = {"is_superuser"}
+        if forbidden_fields.intersection(update_data):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Cannot update protected user fields",
+            )
 
         if "email" in update_data and update_data["email"] != user.email:
             if await self.get_by_email(update_data["email"]):
@@ -78,9 +122,12 @@ class AdminUserService:
             if await self.get_by_username(update_data["username"]):
                 raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Username already in use")
 
+        if "password" in update_data:
+            update_data["hashed_password"] = hash_password(update_data.pop("password"))
+
         for field, value in update_data.items():
             setattr(user, field, value)
-
+            
         await self.db.flush()
         await self.db.refresh(user)
         return user
