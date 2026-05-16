@@ -19,6 +19,10 @@ pip install -r requirements.txt
 python run.py
 # hoặc:
 uvicorn app.main:app --reload
+
+# tạo file alembic
+alembic revision --autogenerate -m "create_users_table"
+
 ```
 
 Mở: http://localhost:8000/docs
