@@ -2,7 +2,9 @@ from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
-from app.core.dependencies import get_current_superuser, require_permission
+from app.core.dependencies import require_permission
+from app.feature.audit.schemas import PaginatedAuditLogs
+from app.feature.audit.services import AuditLogService
 from app.feature.admin.roles.schemas.role import (
     PaginatedRoles,
     PermissionResponse,
@@ -50,10 +52,10 @@ async def list_roles(
 )
 async def create_role(
     data: RoleCreate,
-    _: User = Depends(require_permission("roles.create")),
+    current_user: User = Depends(require_permission("roles.create")),
     db: AsyncSession = Depends(get_db),
 ) -> RoleResponse:
-    return await RoleService(db).create(data)
+    return await RoleService(db).create(data, actor=current_user)
 
 
 @router.get(
@@ -77,10 +79,10 @@ async def get_role(
 async def update_role(
     role_id: int,
     data: RoleUpdate,
-    _: User = Depends(require_permission("roles.update")),
+    current_user: User = Depends(require_permission("roles.update")),
     db: AsyncSession = Depends(get_db),
 ) -> RoleResponse:
-    return await RoleService(db).update(role_id, data)
+    return await RoleService(db).update(role_id, data, actor=current_user)
 
 
 @router.delete(
@@ -90,7 +92,28 @@ async def update_role(
 )
 async def delete_role(
     role_id: int,
-    _: User = Depends(require_permission("roles.delete")),
+    current_user: User = Depends(require_permission("roles.delete")),
     db: AsyncSession = Depends(get_db),
 ) -> None:
-    await RoleService(db).delete(role_id)
+    await RoleService(db).delete(role_id, actor=current_user)
+
+
+@router.get(
+    "/{role_id}/audit-logs",
+    response_model=PaginatedAuditLogs,
+    summary="[Admin] Get role audit logs",
+)
+async def get_role_audit_logs(
+    role_id: int,
+    page: int = Query(1, ge=1),
+    page_size: int = Query(20, ge=1, le=100),
+    _: User = Depends(require_permission("roles.read")),
+    db: AsyncSession = Depends(get_db),
+) -> PaginatedAuditLogs:
+    await RoleService(db)._get_or_404(role_id)
+    return await AuditLogService(db).list_by_entity(
+        entity_type="role",
+        entity_id=role_id,
+        page=page,
+        page_size=page_size,
+    )
