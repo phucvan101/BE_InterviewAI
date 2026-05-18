@@ -101,6 +101,12 @@ class Settings(BaseSettings):
     SENDGRID_API_KEY: Optional[str] = Field(None, env="SENDGRID_API_KEY")
 
 
+    # ── Embedding / Vector Search ─────────────
+    EMBEDDING_MODEL_NAME: str = "sentence-transformers/all-MiniLM-L6-v2"
+    EMBEDDING_DIM: int = 384
+    FAISS_INDEX_DIR: Optional[str] = None
+    EMBEDDING_CACHE_DIR: Optional[str] = None
+
 
 # Singleton instance
 settings = Settings()
