@@ -2,6 +2,7 @@ from fastapi import HTTPException, status
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.feature.audit.services import AuditLogService, diff_dicts
 from app.feature.admin.users.models.user import User
 from app.feature.admin.users.schemas.user import AdminPaginatedUsers, AdminUserUpdate, AdminUserCreate
 from app.core.security import hash_password
@@ -13,6 +14,7 @@ logger = logging.getLogger(__name__)
 class AdminUserService:
     def __init__(self, db: AsyncSession) -> None:
         self.db = db
+        self.audit_service = AuditLogService(db)
 
     async def get_by_id(self, user_id: int) -> User | None:
         result = await self.db.execute(select(User).where(User.id == user_id))
@@ -68,7 +70,7 @@ class AdminUserService:
         return AdminPaginatedUsers(total=total, page=page, page_size=page_size, items=users)
     
     
-    async def create(self, data: AdminUserCreate) -> User:
+    async def create(self, data: AdminUserCreate, actor: User | None = None) -> User:
 
         # check username
         if await self.get_by_username(data.username):
@@ -98,14 +100,22 @@ class AdminUserService:
 
         self.db.add(user)
 
-        await self.db.commit()
+        await self.db.flush()
         await self.db.refresh(user)
+        await self.audit_service.log_change(
+            actor=actor,
+            entity_type="user",
+            entity_id=user.id,
+            action="create",
+            new_data=self._serialize_user(user),
+        )
 
         return user
     
     
-    async def update(self, user_id: int, data: AdminUserUpdate) -> User:
+    async def update(self, user_id: int, data: AdminUserUpdate, actor: User | None = None) -> User:
         user = await self._get_or_404(user_id)
+        before_state = self._serialize_user(user)
         update_data = data.model_dump(exclude_unset=True)
         forbidden_fields = {"is_superuser"}
         if forbidden_fields.intersection(update_data):
@@ -127,26 +137,80 @@ class AdminUserService:
 
         for field, value in update_data.items():
             setattr(user, field, value)
-            
+
         await self.db.flush()
         await self.db.refresh(user)
+        after_state = self._serialize_user(user)
+        old_data, new_data = diff_dicts(before_state, after_state)
+        if new_data:
+            await self.audit_service.log_change(
+                actor=actor,
+                entity_type="user",
+                entity_id=user.id,
+                action="update",
+                old_data=old_data,
+                new_data=new_data,
+            )
         return user
 
-    async def deactivate(self, user_id: int) -> User:
+    async def deactivate(self, user_id: int, actor: User | None = None) -> User:
         user = await self._get_or_404(user_id)
+        before_state = self._serialize_user(user)
         user.is_active = False
         await self.db.flush()
         await self.db.refresh(user)
+        after_state = self._serialize_user(user)
+        old_data, new_data = diff_dicts(before_state, after_state)
+        if new_data:
+            await self.audit_service.log_change(
+                actor=actor,
+                entity_type="user",
+                entity_id=user.id,
+                action="deactivate",
+                old_data=old_data,
+                new_data=new_data,
+            )
         return user
 
-    async def delete(self, user_id: int) -> None:
+    async def delete(self, user_id: int, actor: User | None = None) -> None:
         user = await self._get_or_404(user_id)
+        before_state = self._serialize_user(user)
         user.is_deleted = True
         user.is_active = False
         await self.db.flush()
+        await self.db.refresh(user)
+        after_state = self._serialize_user(user)
+        old_data, new_data = diff_dicts(before_state, after_state)
+        if new_data:
+            await self.audit_service.log_change(
+                actor=actor,
+                entity_type="user",
+                entity_id=user.id,
+                action="delete",
+                old_data=old_data,
+                new_data=new_data,
+            )
 
     async def _get_or_404(self, user_id: int) -> User:
         user = await self.get_by_id(user_id)
         if not user:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
         return user
+
+    @staticmethod
+    def _serialize_user(user: User) -> dict[str, object]:
+        return {
+            "id": user.id,
+            "email": user.email,
+            "username": user.username,
+            "full_name": user.full_name,
+            "auth_provider": user.auth_provider,
+            "avatar_url": user.avatar_url,
+            "is_active": user.is_active,
+            "is_deleted": user.is_deleted,
+            "is_superuser": user.is_superuser,
+            "is_verified": user.is_verified,
+            "google_id": user.google_id,
+            "created_at": user.created_at,
+            "updated_at": user.updated_at,
+        }
