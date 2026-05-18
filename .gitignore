@@ -41,6 +41,6 @@ Thumbs.db
 htmlcov/
 
 # Uploads
-app/feature/feature_up_cv/uploads/
+app/feature/feature_up_cv/storage/
 
 .AGENTS.md

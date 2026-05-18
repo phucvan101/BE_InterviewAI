@@ -1,41 +1,117 @@
 # -*- coding: utf-8 -*-
 """
-Extract company research information from documents
-- Industry/Field
-- Company Mission
-- Values
-- Culture
-- Key achievements
-- Skills/Technologies used
+Enhanced Company Parser - Tech stack and culture focused extraction.
+
+Key improvements:
+- Tech stack extraction from all text (not just explicit "tech" section)
+- Industry classification with nuance (e.g., "AI/ML", "Fintech", "E-commerce")
+- Company culture and values normalization
+- Products/services keywords for domain matching
+- Size and growth signals
+- Self-validation with schema checking
 """
+
+from __future__ import annotations
 
 import json
 import re
+from typing import Any, Dict
+
 from app.feature.feature_up_cv.gemini_client import generate_content
+
+
+def _extract_first_json(text: str) -> str | None:
+    """Extract the first balanced JSON object from a string."""
+    stack = 0
+    start = None
+    for i, c in enumerate(text):
+        if c == "{":
+            if stack == 0:
+                start = i
+            stack += 1
+        elif c == "}":
+            stack -= 1
+            if stack == 0 and start is not None:
+                return text[start : i + 1]
+    return None
+
 
 def _build_company_prompt(text: str) -> str:
     return f"""
-Bạn là hệ thống trích xuất thông tin công ty từ tài liệu (company research / brochure / profile).
-Mục tiêu: tạo JSON cấu trúc để dùng làm ngữ cảnh cho phân tích phù hợp CV–JD.
+Bạn là chuyên gia nghiên cứu doanh nghiệp.
+Mục tiêu: trích xuất thông tin công ty thành JSON cấu trúc để phục vụ phân tích CV-JD-Company matching.
 
-Ràng buộc bắt buộc:
-- CHỈ trả về 1 JSON object, KHÔNG có text/markdown nào khác.
-- KHÔNG giải thích, KHÔNG nêu suy luận.
-- Nếu không có thông tin -> "" hoặc [] (không bịa).
-- Danh sách kỹ năng/công nghệ phải là keyword ngắn gọn, không trùng lặp.
-- Ngôn ngữ: Tiếng Việt (trừ keyword công nghệ).
+QUAN TRỌNG - Phương pháp trích xuất:
 
-Schema:
+1. Đọc TOÀN BỘ tài liệu (không chỉ phần "Công nghệ")
+2. Trích xuất TECH STACK từ MỌI nơi:
+   - Trong mô tả sản phẩm/dịch vụ
+   - Trong job postings hoặc hiring info
+   - Trong case studies / achievements
+   - Trong "about us" / company description
+   - Trong technical blog posts
+3. PHÂN LOẠI tech stack:
+   - PRIMARY_LANGUAGES: ngôn ngữ lập trình chính
+   - FRAMEWORKS: web/mobile frameworks
+   - DATABASES: database systems
+   - INFRASTRUCTURE: cloud, devops, infrastructure tools
+   - AI/ML: nếu công ty làm AI/ML
+   - SPECIALIZED: domain-specific tools (Fintech tools, design tools, etc.)
+4. INDUSTRY CLASSIFICATION:
+   - Primary industry (e.g., "AI/ML", "Fintech", "E-commerce", "SaaS", "Gaming")
+   - Sub-industry nếu có
+   - Business model: B2B, B2C, B2B2C, Marketplace
+5. CULTURE & VALUES:
+   - Work style: Remote-first, Hybrid, Onsite, Flexible
+   - Tech culture: Startup, Enterprise, Research-focused
+   - Engineering values: CI/CD, Code review, Testing, Documentation
+
+6. VỀ TECH STACK - kỹ năng phải chuẩn VIẾT HOA:
+   - Languages: "Python", "JavaScript", "TypeScript", "Java", "Go", "Rust", "C++", "C#"
+   - Frameworks: "React", "Vue.js", "Angular", "Django", "FastAPI", "Spring Boot"
+   - Databases: "PostgreSQL", "MySQL", "MongoDB", "Redis", "Elasticsearch"
+   - Cloud: "AWS", "GCP", "Azure", "Docker", "Kubernetes"
+   - AI/ML: "TensorFlow", "PyTorch", "Hugging Face", "OpenCV", "LangChain"
+   - Tools: "Git", "Kafka", "Airflow", "Terraform", "Prometheus"
+
+7. PRODUCTS/SERVICES:
+   - Tên sản phẩm chính
+   - Mô tả ngắn gọn
+   - Target customers
+   - Key features
+
+Ràng buộc:
+- CHỈ trả về 1 JSON object. KHÔNG text/markdown khác. KHÔNG giải thích.
+- Không có thông tin -> "" hoặc [] (không bịa).
+- Deduplicate trong list.
+- Ngôn ngữ: Tiếng Việt (trừ tech keywords).
+
+Schema output:
 {{
   "company_name": "",
   "industry": "",
+  "sub_industry": "",
+  "business_model": "",
   "description": "",
   "mission": "",
   "values": [],
+  "work_culture": "",
+  "tech_culture": "",
+  "remote_policy": "",
   "key_skills": [],
   "technologies": [],
+  "primary_languages": [],
+  "frameworks": [],
+  "databases": [],
+  "infrastructure": [],
+  "ai_ml_stack": [],
+  "products": [],
+  "target_customers": [],
+  "company_size": "",
+  "growth_stage": "",
   "company_culture": "",
   "key_achievements": [],
+  "engineering_practices": [],
   "evidence": {{
     "company_name": "",
     "industry": "",
@@ -44,40 +120,94 @@ Schema:
   }}
 }}
 
-Few-shot (format reference only):
-DOC_EXAMPLE:
-"ABC Tech - Lĩnh vực Fintech. Công nghệ: Java, Spring, Kafka. Giá trị: Minh bạch, Đổi mới."
-OUTPUT_EXAMPLE:
+Few-shot:
+INPUT: "FPT Software - IT outsourcing company. Java, .NET, Python. AWS, GCP. AI/ML solutions."
+OUTPUT:
 {{
-  "company_name":"ABC Tech",
-  "industry":"Fintech",
-  "description":"",
-  "mission":"",
-  "values":["Minh bạch","Đổi mới"],
-  "key_skills":[],
-  "technologies":["Java","Spring","Kafka"],
-  "company_culture":"",
-  "key_achievements":[],
-  "evidence":{{"company_name":"ABC Tech","industry":"Fintech","key_skills":[],"technologies":["Java","Spring","Kafka"]}}
+  "company_name": "FPT Software",
+  "industry": "IT Outsourcing",
+  "sub_industry": "Software Development",
+  "business_model": "B2B",
+  "description": "IT outsourcing company",
+  "mission": "",
+  "values": [],
+  "work_culture": "Offshore development",
+  "tech_culture": "Enterprise",
+  "remote_policy": "",
+  "key_skills": ["Java", ".NET", "Python", "AWS", "GCP", "AI/ML"],
+  "technologies": ["Java", ".NET", "Python", "AWS", "GCP"],
+  "primary_languages": ["Java", "Python", ".NET"],
+  "frameworks": [],
+  "databases": [],
+  "infrastructure": ["AWS", "GCP"],
+  "ai_ml_stack": ["AI/ML"],
+  "products": [],
+  "target_customers": ["International enterprises"],
+  "company_size": "",
+  "growth_stage": "",
+  "company_culture": "Offshore IT outsourcing",
+  "key_achievements": [],
+  "engineering_practices": [],
+  "evidence": {{"company_name":"FPT Software","industry":"IT Outsourcing","key_skills":["Java",".NET","Python","AWS","GCP"],"technologies":["Java",".NET","Python","AWS","GCP"]}}
 }}
 
 Self-check:
-- Valid JSON only?
-- Correct schema types?
-- No text outside JSON?
+- Đã đọc toàn bộ text chưa?
+- Tech stack có thiếu không?
+- Industry classification đúng chưa?
+- Spelling của tech keywords đúng chưa?
 
-DOCUMENT_TEXT (may be truncated):
+DOCUMENT_TEXT:
 {text[:7000]}
 """.strip()
 
 
-def llm_parser_company(text: str, max_retry: int = 2) -> dict:
+def _validate_company_schema(data: Dict) -> bool:
+    if not isinstance(data, dict):
+        return False
+    required = ["company_name", "industry", "key_skills", "technologies"]
+    return all(k in data for k in required)
+
+
+def _fallback() -> Dict[str, Any]:
+    return {
+        "success": False,
+        "error": "Failed to parse company JSON",
+        "company_name": "",
+        "industry": "",
+        "sub_industry": "",
+        "business_model": "",
+        "description": "",
+        "mission": "",
+        "values": [],
+        "work_culture": "",
+        "tech_culture": "",
+        "remote_policy": "",
+        "key_skills": [],
+        "technologies": [],
+        "primary_languages": [],
+        "frameworks": [],
+        "databases": [],
+        "infrastructure": [],
+        "ai_ml_stack": [],
+        "products": [],
+        "target_customers": [],
+        "company_size": "",
+        "growth_stage": "",
+        "company_culture": "",
+        "key_achievements": [],
+        "engineering_practices": [],
+    }
+
+
+def llm_parser_company(text: str) -> Dict[str, Any]:
     """
-    LLM parse company text -> structured company JSON.
-    Renamed from previous internal model call flow.
+    Enhanced company parser with tech stack and culture extraction.
+    Returns structured company JSON for CV-JD-Company matching.
     """
     prompt = _build_company_prompt(text)
-    for _ in range(max_retry):
+
+    for attempt in range(2):
         raw = generate_content(prompt=prompt, step="llm_parser_company")
         response_text = raw.strip()
         try:
@@ -87,24 +217,13 @@ def llm_parser_company(text: str, max_retry: int = 2) -> dict:
             else:
                 company_info = json.loads(response_text)
 
-            company_info["success"] = True
-            return company_info
+            if _validate_company_schema(company_info):
+                company_info["success"] = True
+                return company_info
         except Exception:
             continue
 
-    return {
-        "success": False,
-        "error": "Failed to parse company JSON",
-        "company_name": "",
-        "industry": "",
-        "description": "",
-        "mission": "",
-        "values": [],
-        "key_skills": [],
-        "technologies": [],
-        "company_culture": "",
-        "key_achievements": [],
-    }
-
-if __name__ == "__main__":
-    pass
+    result = _fallback()
+    result["success"] = False
+    result["error"] = "Failed to parse company JSON after retries"
+    return result

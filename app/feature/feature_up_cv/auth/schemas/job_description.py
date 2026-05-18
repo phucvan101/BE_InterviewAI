@@ -8,6 +8,7 @@ class JobDescriptionBase(BaseModel):
     parser_file_url: str | None = None
     raw_file_url: str | None = None
     text_hashed: str | None = None
+    embedding_vector_url: str | None = None
 
 
 # ── Request ──────────────────────────────────────
@@ -20,6 +21,7 @@ class JobDescriptionUpdate(BaseModel):
     parser_file_url: str | None = None
     raw_file_url: str | None = None
     text_hashed: str | None = None
+    embedding_vector_url: str | None = None
 
 
 # ── Response ─────────────────────────────────────

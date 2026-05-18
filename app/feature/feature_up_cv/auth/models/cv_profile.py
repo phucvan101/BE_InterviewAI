@@ -25,6 +25,7 @@ class CVProfile(Base):
     
     # ── Content ──────────────────────────────
     text_hashed: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    embedding_vector_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
 
     # ── Timestamps ───────────────────────────
     created_at: Mapped[datetime] = mapped_column(
