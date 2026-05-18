@@ -42,3 +42,4 @@ htmlcov/
 
 # Uploads
 app/feature/feature_up_cv/uploads/
+uploads/

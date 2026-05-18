@@ -26,3 +26,7 @@ google-generativeai==0.8.6
 google-genai==1.47.0
 # google-genai==1.68.0
 openai==2.29.0
+# ── Embedding & Vector Search ─────────────
+sentence-transformers>=2.7.0
+faiss-cpu>=1.8.0
+numpy>=1.26.0

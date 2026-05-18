@@ -12,11 +12,12 @@ Flow:
 import os
 import time
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
+# Needed for type hints in async functions
 from app.core.database import get_db
 from app.core.dependencies import get_current_active_user
 from app.feature.auth.models.user import User
@@ -35,6 +36,12 @@ from app.feature.feature_up_cv.auth.services.job_description_service import JobD
 from app.feature.feature_up_cv.auth.services.company_info_service import CompanyInfoService
 from app.feature.feature_up_cv.auth.services.analysis_session_service import AnalysisSessionService
 from app.feature.feature_up_cv.auth.schemas.analysis_session import AnalysisSessionCreate, AnalysisSessionUpdate
+from app.core.database import engine
+
+try:
+    import numpy as np
+except ImportError:
+    np = None  # type: ignore
 
 
 # Pydantic model for analysis request
@@ -57,6 +64,9 @@ def _log_parser_result(parser_name: str, started_at: float, success: bool, error
 
 # Import utilities from feature_up_cv using absolute imports
 try:
+    from app.feature.feature_up_cv.hybrid_scoring import calculate_hybrid_score
+    from app.feature.feature_up_cv.embedding_service import get_embedding_service
+    from app.feature.feature_up_cv.faiss_index_manager import get_faiss_manager
     from app.feature.feature_up_cv.score_matching import calculate_matching_score_from_payload
     from app.feature.feature_up_cv.parser_cv import llm_parser_cv
     from app.feature.feature_up_cv.parser_company import llm_parser_company
@@ -65,11 +75,14 @@ try:
     from app.feature.feature_up_cv.gemini_client import GeminiQuotaExceededError, GeminiRateLimitedError
 except ImportError as e:
     print(f"⚠️ Warning: Could not import from feature_up_cv: {e}")
+    calculate_hybrid_score = None
     calculate_matching_score_from_payload = None
     llm_parser_cv = None
     llm_parser_company = None
     GeminiQuotaExceededError = None
     GeminiRateLimitedError = None
+    get_embedding_service = None
+    get_faiss_manager = None
 
 
 def calculate_company_cv_fit(cv_data: Dict, company_data: Dict) -> Dict:
@@ -139,6 +152,80 @@ def calculate_company_cv_fit(cv_data: Dict, company_data: Dict) -> Dict:
             "culture_fit": "Medium",
             "assessment": "Unable to calculate fit at this time"
         }
+
+
+async def _compute_and_cache_embeddings(
+    cv_data: Dict[str, Any],
+    cv_record,
+    jd_data: Dict[str, Any],
+    jd_record,
+    user_id: int,
+    db: AsyncSession,
+) -> tuple:
+    """
+    Compute and cache embeddings for CV and JD using sentence-transformers.
+    Also adds entries to FAISS index for semantic search.
+
+    Returns (cv_embedding, jd_embedding, cv_cache_hit, jd_cache_hit)
+    """
+    if get_embedding_service is None or get_faiss_manager is None or np is None:
+        return None, None, False, False
+
+    embedder = get_embedding_service()
+    faiss_mgr = get_faiss_manager()
+
+    # ── CV Embedding ──────────────────────────────────
+    cv_embedding = None
+    cv_cache_hit = False
+
+    if cv_record.embedding_vector_url:
+        existing = embedder.load_vector(cv_record.embedding_vector_url)
+        if existing is not None:
+            print(f"[EMBEDDING] CV cache hit for id_cv={cv_record.id_cv}")
+            cv_embedding = existing
+            cv_cache_hit = True
+
+    if cv_embedding is None:
+        print(f"[EMBEDDING] Computing CV embedding for id_cv={cv_record.id_cv}")
+        cv_text = embedder.encode_structured_cv(cv_data)
+        cv_embedding = embedder.encode(cv_text)
+        vector_path = embedder.save_vector(cv_embedding, cv_record.id_cv, FILE_TYPE_CV)
+        cv_record.embedding_vector_url = str(vector_path)
+        await db.flush()
+
+        faiss_mgr.add_cv(cv_record.id_cv, cv_embedding, {
+            "user_id": user_id,
+            "name": cv_data.get("personal_info", {}).get("name", ""),
+            "skills": cv_data.get("skills", []),
+        })
+
+    # ── JD Embedding ──────────────────────────────────
+    jd_embedding = None
+    jd_cache_hit = False
+
+    if jd_record.embedding_vector_url:
+        existing = embedder.load_vector(jd_record.embedding_vector_url)
+        if existing is not None:
+            print(f"[EMBEDDING] JD cache hit for id_jd={jd_record.id_jd}")
+            jd_embedding = existing
+            jd_cache_hit = True
+
+    if jd_embedding is None:
+        print(f"[EMBEDDING] Computing JD embedding for id_jd={jd_record.id_jd}")
+        jd_text = embedder.encode_structured_jd(jd_data)
+        jd_embedding = embedder.encode(jd_text)
+        vector_path = embedder.save_vector(jd_embedding, jd_record.id_jd, FILE_TYPE_JD)
+        jd_record.embedding_vector_url = str(vector_path)
+        await db.flush()
+
+        jd_struct = jd_data.get("structured", jd_data)
+        faiss_mgr.add_jd(jd_record.id_jd, jd_embedding, {
+            "user_id": user_id,
+            "job_title": jd_struct.get("job_title", ""),
+            "skills_required": jd_struct.get("skills_required", []),
+        })
+
+    return cv_embedding, jd_embedding, cv_cache_hit, jd_cache_hit
 
 
 async def _parse_cv_with_cache(
@@ -339,8 +426,6 @@ async def analyze_cv_jd_match(
     current_user: User = Depends(get_current_active_user),
     db: AsyncSession = Depends(get_db),
 ):
-    from app.core.database import engine
-    
     # Suppress SQLAlchemy Engine INFO logs temporarily
     original_echo = engine.echo
     engine.echo = False
@@ -350,25 +435,40 @@ async def analyze_cv_jd_match(
     """
     Analyze CV and JD match - Extract từ file và thực hiện matching
     Optional: include company research for additional matching context
-    
+
+    Scoring Strategy (Hybrid):
+    1. Compute embeddings for CV and JD using sentence-transformers (all-MiniLM-L6-v2)
+    2. Compute cosine similarity via FAISS for semantic matching
+    3. Apply formula-based scoring:
+       - Experience (0-50): years match + seniority level
+       - Skills Keyword (0-30): normalized skill overlap (exact match)
+       - Skills Embedding (0-30): embedding similarity boost
+       - Education (0-10): degree level + certifications
+       - Company Fit (0-10): industry/skills alignment
+    4. Fallback to LLM scoring if embeddings unavailable
+
     Hệ thống cache:
     - Sau khi extract text, tính SHA-256 hash
     - Tra cứu DB xem đã có bản ghi nào cùng hash chưa
     - Nếu có và đã có parser_file_url → đọc file parsed từ cache, skip LLM
     - Nếu không → gọi LLM parser, lưu kết quả vào uploads/parser_file/
-    
+    - Embeddings được compute và cache trên disk (uploads/embeddings_cache/)
+    - FAISS index được persist trên disk (uploads/faiss_indexes/)
+
     Request body:
     {
         "cv_file_path": "/path/to/cv.pdf",
         "jd_file_path": "/path/to/jd.pdf",
         "company_file_path": "/path/to/company.pdf"  # Optional
     }
-    
+
     Returns:
     {
         "success": true,
         "data": {
             "overall_score": 85,
+            "detailed_scores": {...},
+            "embedding_similarity": 0.82,
             "matched_skills": [...],
             "company_match": {...}  # Only if company_file_path provided
             ...
@@ -490,21 +590,59 @@ async def analyze_cv_jd_match(
             else:
                 print(f"[CACHE MISS] MATCH_SCORE - no existing session found")
         
-        # ── Call score_matching (LLM) ───────────────
-        step = "llm_match_score"
+        # ── Get CV and JD records for embedding cache ───
+        from app.feature.feature_up_cv.auth.services.cv_profile_service import CVProfileService
+        from app.feature.feature_up_cv.auth.services.job_description_service import JobDescriptionService
+        cv_svc = CVProfileService(db)
+        jd_svc = JobDescriptionService(db)
+        cv_records = await cv_svc.get_by_user(user_id)
+        jd_records = await jd_svc.get_by_user(user_id)
+        cv_record = next((r for r in cv_records if r.id_cv == id_cv), None)
+        jd_record = next((r for r in jd_records if r.id_jd == id_jd), None)
+
+        # ── Compute embeddings (with caching) ───────────
+        cv_embedding = None
+        jd_embedding = None
+        if cv_record and jd_record and get_embedding_service is not None and np is not None:
+            cv_embedding, jd_embedding, _, _ = await _compute_and_cache_embeddings(
+                cv_data, cv_record, jd_data, jd_record, user_id, db
+            )
+            await db.commit()
+
+        # ── Call hybrid scoring (embedding + formula) ───
+        step = "hybrid_score"
         score_started_at = time.perf_counter()
         try:
-            analysis_result = calculate_matching_score_from_payload(cv_data, jd_data, company_data)
-            _log_parser_result("MATCH_SCORE", score_started_at, True)
+            if cv_embedding is not None and jd_embedding is not None:
+                print(f"[SCORING] Using hybrid scoring with embeddings")
+                analysis_result = calculate_hybrid_score(
+                    cv_data, jd_data, company_data,
+                    cv_embedding=cv_embedding, jd_embedding=jd_embedding
+                )
+            else:
+                print(f"[SCORING] Falling back to LLM scoring (embeddings unavailable)")
+                analysis_result = calculate_matching_score_from_payload(cv_data, jd_data, company_data)
+            _log_parser_result("SCORE", score_started_at, True)
         except Exception as e:
-            _log_parser_result("MATCH_SCORE", score_started_at, False, str(e))
-            raise
-        
+            _log_parser_result("SCORE", score_started_at, False, str(e))
+            # Fallback to LLM if hybrid fails
+            print(f"[SCORING] Hybrid scoring failed ({e}), falling back to LLM")
+            analysis_result = calculate_matching_score_from_payload(cv_data, jd_data, company_data)
+
         # ── Build response ────────────────────────────
         step = "build_response"
+        detailed_scores = analysis_result.get("detailed_scores", {})
         response_data = {
             "overall_score": analysis_result.get("overall_score", 0),
-            "detailed_scores": analysis_result.get("detailed_scores", {}),
+            "detailed_scores": {
+                "experience_score": detailed_scores.get("experience_score", 0),
+                "skills_keyword_score": detailed_scores.get("skills_keyword_score", detailed_scores.get("skills_score", 0)),
+                "skills_embedding_score": detailed_scores.get("skills_embedding_score", 0),
+                "skills_total_score": detailed_scores.get("skills_total_score", detailed_scores.get("skills_score", 0)),
+                "education_score": detailed_scores.get("education_score", 0),
+                "company_fit_score": detailed_scores.get("company_fit_score", 0),
+            },
+            "embedding_similarity": analysis_result.get("embedding_similarity", None),
             "score_rationale": analysis_result.get("score_rationale", ""),
             "matched_skills": analysis_result.get("matched_skills", []),
             "related_skills": analysis_result.get("related_skills", []),
@@ -537,11 +675,11 @@ async def analyze_cv_jd_match(
         # ── Save Result and Session ───────────────────
         try:
             result_file_path = save_result_analysis(response_data, user_id, id_cv, id_jd)
-            
+
             detailed_scores = response_data.get("detailed_scores", {})
             score = float(response_data.get("overall_score", 0))
             experience_score = float(detailed_scores.get("experience_score", 0) if isinstance(detailed_scores, dict) else 0)
-            skills_score = float(detailed_scores.get("skills_score", 0) if isinstance(detailed_scores, dict) else 0)
+            skills_score = float(detailed_scores.get("skills_total_score", detailed_scores.get("skills_score", 0) if isinstance(detailed_scores, dict) else 0))
             education_score = float(detailed_scores.get("education_score", 0) if isinstance(detailed_scores, dict) else 0)
             company_fit_score = float(detailed_scores.get("company_fit_score", 0) if isinstance(detailed_scores, dict) else 0)
             
