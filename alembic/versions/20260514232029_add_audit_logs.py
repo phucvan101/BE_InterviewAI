@@ -11,7 +11,6 @@ from alembic import op
 import sqlalchemy as sa
 from sqlalchemy import text
 
-
 # revision identifiers, used by Alembic.
 revision: str = '20260514232029'
 down_revision: Union[str, None] = 'c3df8fb7bbef'
@@ -44,9 +43,10 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
-    op.drop_index(op.f("ix_audit_logs_id"), table_name="audit_logs")
-    op.drop_index(op.f("ix_audit_logs_entity_type"), table_name="audit_logs")
-    op.drop_index(op.f("ix_audit_logs_entity_id"), table_name="audit_logs")
-    op.drop_index(op.f("ix_audit_logs_actor_user_id"), table_name="audit_logs")
-    op.drop_index(op.f("ix_audit_logs_action"), table_name="audit_logs")
-    op.drop_table("audit_logs")
+    # Dùng raw SQL với IF EXISTS thay vì op.drop_index() để tránh lỗi
+    op.execute(text("DROP INDEX IF EXISTS ix_audit_logs_id"))
+    op.execute(text("DROP INDEX IF EXISTS ix_audit_logs_entity_type"))
+    op.execute(text("DROP INDEX IF EXISTS ix_audit_logs_entity_id"))
+    op.execute(text("DROP INDEX IF EXISTS ix_audit_logs_actor_user_id"))
+    op.execute(text("DROP INDEX IF EXISTS ix_audit_logs_action"))
+    op.execute(text("DROP TABLE IF EXISTS audit_logs"))

@@ -42,6 +42,7 @@ class AnalysisSession(Base):
     experience_score: Mapped[float | None] = mapped_column(Numeric(5, 2), nullable=True)
     skills_score: Mapped[float | None] = mapped_column(Numeric(5, 2), nullable=True)
     education_score: Mapped[float | None] = mapped_column(Numeric(5, 2), nullable=True)
+    career_objectives_score: Mapped[float | None] = mapped_column(Numeric(5, 2), nullable=True)
     companyfit_score: Mapped[float | None] = mapped_column(Numeric(5, 2), nullable=True)
     result_analysis_file_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
 

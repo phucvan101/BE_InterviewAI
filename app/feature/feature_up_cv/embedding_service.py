@@ -12,6 +12,8 @@ from typing import List, Optional
 
 import numpy as np
 
+from app.feature.feature_up_cv.file_storage import EMBEDDINGS_CACHE_DIR as _EMBEDDINGS_CACHE_DIR
+
 # Lazy-load model to avoid heavy import at startup
 _model = None
 _model_name = "sentence-transformers/all-MiniLM-L6-v2"
@@ -20,12 +22,8 @@ _cache_dir: Optional[Path] = None
 
 
 def _get_cache_dir() -> Path:
-    global _cache_dir
-    if _cache_dir is None:
-        base = Path(__file__).parent.parent.parent.parent
-        _cache_dir = base / "uploads" / "embeddings_cache"
-        _cache_dir.mkdir(parents=True, exist_ok=True)
-    return _cache_dir
+    # Directory is guaranteed to exist: file_storage creates it at import time.
+    return _EMBEDDINGS_CACHE_DIR
 
 
 def _load_model():
@@ -111,6 +109,9 @@ class EmbeddingService:
         if objective := cv_data.get("objective"):
             parts.append(f"Mục tiêu: {objective}")
 
+        if career_obj := cv_data.get("career_objectives"):
+            parts.append(f"Mục tiêu nghề nghiệp: {career_obj}")
+
         if skills := cv_data.get("skills"):
             parts.append(f"Kỹ năng: {' '.join(skills)}")
 
@@ -163,6 +164,9 @@ class EmbeddingService:
 
         if benefits := jd_struct.get("benefits"):
             parts.append(f"Phúc lợi: {' '.join(benefits)}")
+
+        if career_exp := jd_struct.get("career_expectations"):
+            parts.append(f"Định hướng nghề nghiệp: {career_exp}")
 
         if keywords := jd_struct.get("keywords"):
             parts.append(f"Từ khóa: {' '.join(keywords)}")

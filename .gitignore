@@ -41,5 +41,4 @@ Thumbs.db
 htmlcov/
 
 # Uploads
-app/feature/feature_up_cv/uploads/
-uploads/
+app/feature/feature_up_cv/storage/

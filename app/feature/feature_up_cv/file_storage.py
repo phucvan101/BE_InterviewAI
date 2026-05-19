@@ -3,8 +3,8 @@
 File storage utilities for upload & parser cache system.
 
 Handles:
-- Saving raw uploaded files to uploads/raw_file/
-- Saving parsed JSON results to uploads/parser_file/
+- Saving raw uploaded files to storage/raw_file/
+- Saving parsed JSON results to storage/parser_file/
 - Generating standardized file names: {type}_{timestamp}_{user_id}_{record_id}.{ext}
 - Computing SHA-256 hash of extracted text for dedup/cache
 """
@@ -16,16 +16,18 @@ import json
 from datetime import datetime, timezone
 from pathlib import Path
 
-# ── Base upload directory (relative to feature_up_cv) ─────────────────────────
-_BASE_DIR = Path(__file__).resolve().parent / "uploads"
-RAW_FILE_DIR = _BASE_DIR / "raw_file"
-PARSER_FILE_DIR = _BASE_DIR / "parser_file"
-RESULT_FILE_DIR = _BASE_DIR / "result_analysis_file"
+# ── Base storage directory (relative to feature_up_cv) ─────────────────────────
+_BASE_DIR = Path(__file__).resolve().parent / "storage"
+RAW_FILE_DIR        = _BASE_DIR / "raw_file"
+PARSER_FILE_DIR     = _BASE_DIR / "parser_file"
+RESULT_FILE_DIR     = _BASE_DIR / "result_analysis_file"
+EMBEDDINGS_CACHE_DIR = _BASE_DIR / "embeddings_cache"
+FAISS_INDEX_DIR     = _BASE_DIR / "faiss_indexes"
 
-# Ensure directories exist at import time
-RAW_FILE_DIR.mkdir(parents=True, exist_ok=True)
-PARSER_FILE_DIR.mkdir(parents=True, exist_ok=True)
-RESULT_FILE_DIR.mkdir(parents=True, exist_ok=True)
+# ── Ensure ALL storage sub-directories exist at import time ───────────────────
+# This guarantees teammates can run the project without creating folders manually.
+for _d in (RAW_FILE_DIR, PARSER_FILE_DIR, RESULT_FILE_DIR, EMBEDDINGS_CACHE_DIR, FAISS_INDEX_DIR):
+    _d.mkdir(parents=True, exist_ok=True)
 
 
 # ── File type prefixes ────────────────────────────────────────────────────────
@@ -66,7 +68,7 @@ def save_raw_file(
     extension: str,
 ) -> Path:
     """
-    Save a raw uploaded file to uploads/raw_file/ with standard naming.
+    Save a raw uploaded file to storage/raw_file/ with standard naming.
 
     Returns the absolute path of the saved file.
     """
@@ -83,7 +85,7 @@ def save_parser_result(
     record_id: int,
 ) -> Path:
     """
-    Save a parsed JSON result to uploads/parser_file/ with standard naming.
+    Save a parsed JSON result to storage/parser_file/ with standard naming.
 
     Returns the absolute path of the saved file.
     """
@@ -116,7 +118,7 @@ def save_result_analysis(
     id_jd: int,
 ) -> Path:
     """
-    Save an analysis result JSON file to uploads/result_analysis_file/.
+    Save an analysis result JSON file to storage/result_analysis_file/.
     """
     ts = _timestamp_str()
     filename = f"result_{ts}_{user_id}_cv{id_cv}_jd{id_jd}.json"
