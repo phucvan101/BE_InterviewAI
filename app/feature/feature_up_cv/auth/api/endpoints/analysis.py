@@ -6,7 +6,7 @@ Flow:
 1. Extract text from uploaded files (CV, JD, optionally Company)
 2. Compute SHA-256 hash of extracted text
 3. Check DB for existing record with same hash → if found, load cached parser result
-4. If no cache hit → call LLM parser, save parsed JSON to uploads/parser_file/
+4. If no cache hit → call LLM parser, save parsed JSON to storage/parser_file/
 5. Run score matching and return results
 """
 import os
@@ -470,9 +470,9 @@ async def analyze_cv_jd_match(
     - Sau khi extract text, tính SHA-256 hash
     - Tra cứu DB xem đã có bản ghi nào cùng hash chưa
     - Nếu có và đã có parser_file_url → đọc file parsed từ cache, skip LLM
-    - Nếu không → gọi LLM parser, lưu kết quả vào uploads/parser_file/
-    - Embeddings được compute và cache trên disk (uploads/embeddings_cache/)
-    - FAISS index được persist trên disk (uploads/faiss_indexes/)
+    - Nếu không → gọi LLM parser, lưu kết quả vào storage/parser_file/
+    - Embeddings được compute và cache trên disk (storage/)
+    - FAISS index được persist trên disk (storage/faiss_indexes/)
 
     Request body:
     {
@@ -668,10 +668,13 @@ async def analyze_cv_jd_match(
                 "skills_embedding_score": detailed_scores.get("skills_embedding_score", 0),
                 "skills_total_score": detailed_scores.get("skills_total_score", detailed_scores.get("skills_score", 0)),
                 "education_score": detailed_scores.get("education_score", 0),
+                "career_objectives_score": detailed_scores.get("career_objectives_score", 0),
                 "company_fit_score": detailed_scores.get("company_fit_score", 0),
             },
             "embedding_similarity": analysis_result.get("embedding_similarity", None),
             "score_rationale": analysis_result.get("score_rationale", ""),
+            "career_objectives_rationale": analysis_result.get("career_objectives_rationale", "Đánh giá dựa trên LLM fallback."),
+            "company_fit_rationale": analysis_result.get("company_fit_rationale", ""),
             "matched_skills": analysis_result.get("matched_skills", []),
             "related_skills": analysis_result.get("related_skills", []),
             "missing_skills": analysis_result.get("missing_skills", []),
@@ -710,6 +713,7 @@ async def analyze_cv_jd_match(
             experience_score = float(detailed_scores.get("experience_score", 0) if isinstance(detailed_scores, dict) else 0)
             skills_score = float(detailed_scores.get("skills_total_score", detailed_scores.get("skills_score", 0) if isinstance(detailed_scores, dict) else 0))
             education_score = float(detailed_scores.get("education_score", 0) if isinstance(detailed_scores, dict) else 0)
+            career_objectives_score = float(detailed_scores.get("career_objectives_score", 0) if isinstance(detailed_scores, dict) else 0)
             company_fit_score = float(detailed_scores.get("company_fit_score", 0) if isinstance(detailed_scores, dict) else 0)
             
             if existing_session:
@@ -722,6 +726,7 @@ async def analyze_cv_jd_match(
                         experience_score=experience_score,
                         skills_score=skills_score,
                         education_score=education_score,
+                        career_objectives_score=career_objectives_score,
                         companyfit_score=company_fit_score,
                         result_analysis_file_url=str(result_file_path),
                     )
@@ -740,6 +745,7 @@ async def analyze_cv_jd_match(
                         experience_score=experience_score,
                         skills_score=skills_score,
                         education_score=education_score,
+                        career_objectives_score=career_objectives_score,
                         companyfit_score=company_fit_score,
                         result_analysis_file_url=str(result_file_path),
                     )

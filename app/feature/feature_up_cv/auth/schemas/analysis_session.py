@@ -16,6 +16,7 @@ class AnalysisSessionBase(BaseModel):
     experience_score: Optional[float] = None
     skills_score: Optional[float] = None
     education_score: Optional[float] = None
+    career_objectives_score: Optional[float] = None
     companyfit_score: Optional[float] = None
     result_analysis_file_url: Optional[str] = None
 
@@ -34,6 +35,7 @@ class AnalysisSessionUpdate(BaseModel):
     experience_score: Optional[float] = None
     skills_score: Optional[float] = None
     education_score: Optional[float] = None
+    career_objectives_score: Optional[float] = None
     companyfit_score: Optional[float] = None
     result_analysis_file_url: Optional[str] = None
     id_ci: Optional[int] = None
