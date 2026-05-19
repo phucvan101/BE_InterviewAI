@@ -85,73 +85,7 @@ except ImportError as e:
     get_faiss_manager = None
 
 
-def calculate_company_cv_fit(cv_data: Dict, company_data: Dict) -> Dict:
-    """
-    Calculate CV fit with company based on:
-    - Industry/skills match
-    - Values alignment
-    - Company culture preferences
-    
-    Returns:
-    {
-        "score": 0-100,
-        "industry_match": 0-100,
-        "skills_match": 0-100,
-        "culture_fit": "High/Medium/Low",
-        "assessment": "..."
-    }
-    """
-    
-    try:
-        # Extract CV data
-        cv_skills = set()
-        if isinstance(cv_data, dict):
-            if "skills" in cv_data:
-                cv_skills = set(s.lower() for s in cv_data.get("skills", []))
-            elif "technical_skills" in cv_data:
-                cv_skills = set(s.lower() for s in cv_data.get("technical_skills", []))
-        
-        # Extract company requirements
-        company_skills = set(s.lower() for s in company_data.get("key_skills", []))
-        company_techs = set(s.lower() for s in company_data.get("technologies", []))
-        all_company_requirements = company_skills | company_techs
-        
-        # Calculate skill match
-        if all_company_requirements:
-            skill_overlap = cv_skills & all_company_requirements
-            skills_match_score = int((len(skill_overlap) / len(all_company_requirements)) * 100)
-        else:
-            skills_match_score = 50  # Default if no company skills listed
-        
-        # Overall fit = 60% skills + 40% culture guess
-        overall_score = int(skills_match_score * 0.6 + 50 * 0.4)  # Culture guess = 50
-        
-        # Culture assessment
-        if overall_score >= 75:
-            culture_fit = "High"
-        elif overall_score >= 60:
-            culture_fit = "Medium"
-        else:
-            culture_fit = "Low"
-        
-        return {
-            "score": overall_score,
-            "industry_match": 70,  # Placeholder
-            "skills_match": skills_match_score,
-            "culture_fit": culture_fit,
-            "matched_company_skills": list(skill_overlap if all_company_requirements else []),
-            "assessment": f"CV has {len(skill_overlap)}/{len(all_company_requirements)} required skills for this company"
-        }
-    
-    except Exception as e:
-        print(f"⚠️ Company fit calculation error: {e}")
-        return {
-            "score": 50,
-            "industry_match": 50,
-            "skills_match": 50,
-            "culture_fit": "Medium",
-            "assessment": "Unable to calculate fit at this time"
-        }
+# calculate_company_cv_fit removed — now handled by hybrid_scoring._score_company_fit (4 dimensions)
 
 
 async def _compute_and_cache_embeddings(
@@ -632,6 +566,10 @@ async def analyze_cv_jd_match(
         # ── Build response ────────────────────────────
         step = "build_response"
         detailed_scores = analysis_result.get("detailed_scores", {})
+        # company_fit_score & rationale come from hybrid_scoring._score_company_fit (4 dimensions)
+        _company_fit_score = detailed_scores.get("company_fit_score", 0)
+        _company_fit_rationale = analysis_result.get("company_fit_rationale", "")
+
         response_data = {
             "overall_score": analysis_result.get("overall_score", 0),
             "detailed_scores": {
@@ -641,12 +579,12 @@ async def analyze_cv_jd_match(
                 "skills_total_score": detailed_scores.get("skills_total_score", detailed_scores.get("skills_score", 0)),
                 "education_score": detailed_scores.get("education_score", 0),
                 "career_objectives_score": detailed_scores.get("career_objectives_score", 0),
-                "company_fit_score": detailed_scores.get("company_fit_score", 0),
+                "company_fit_score": _company_fit_score,
             },
             "embedding_similarity": analysis_result.get("embedding_similarity", None),
             "score_rationale": analysis_result.get("score_rationale", ""),
-            "career_objectives_rationale": analysis_result.get("career_objectives_rationale", "Đánh giá dựa trên LLM fallback."),
-            "company_fit_rationale": analysis_result.get("company_fit_rationale", ""),
+            "career_objectives_rationale": analysis_result.get("career_objectives_rationale", ""),
+            "company_fit_rationale": _company_fit_rationale,
             "matched_skills": analysis_result.get("matched_skills", []),
             "related_skills": analysis_result.get("related_skills", []),
             "missing_skills": analysis_result.get("missing_skills", []),
@@ -661,23 +599,38 @@ async def analyze_cv_jd_match(
         
         # ── Add company matching if available ──────────
         if company_data and company_data.get("success"):
+            # Build culture_fit label from company_fit_score (0-10)
+            _cfs = _company_fit_score
+            _culture_label = "High" if _cfs >= 7 else ("Medium" if _cfs >= 4 else "Low")
             response_data["company_match"] = {
                 "company_name": company_data.get("company_name", ""),
                 "industry": company_data.get("industry", ""),
+                "sub_industry": company_data.get("sub_industry", ""),
+                "business_model": company_data.get("business_model", ""),
                 "company_description": company_data.get("description", ""),
                 "mission": company_data.get("mission", ""),
                 "values": company_data.get("values", []),
                 "company_culture": company_data.get("company_culture", ""),
+                "work_culture": company_data.get("work_culture", ""),
+                "remote_policy": company_data.get("remote_policy", ""),
                 "key_skills_needed": company_data.get("key_skills", []),
                 "technologies_used": company_data.get("technologies", []),
+                "primary_languages": company_data.get("primary_languages", []),
+                "frameworks": company_data.get("frameworks", []),
                 "company_achievements": company_data.get("key_achievements", []),
-                # Add company-CV alignment score
-                "company_cv_fit": calculate_company_cv_fit(cv_data, company_data)
+                "engineering_practices": company_data.get("engineering_practices", []),
+                # company_cv_fit now powered by hybrid_scoring._score_company_fit (4 dimensions)
+                "company_cv_fit": {
+                    "score": round(_cfs * 10),  # convert 0-10 -> 0-100 for FE consistency
+                    "score_raw": _cfs,           # 0-10 raw
+                    "culture_fit": _culture_label,
+                    "assessment": _company_fit_rationale,
+                },
             }
             
         # ── Save Result and Session ───────────────────
         try:
-            result_file_path = save_result_analysis(response_data, user_id, id_cv, id_jd)
+            result_file_path = save_result_analysis(response_data, user_id, id_cv, id_jd, id_ci=id_ci if id_ci else None)
 
             detailed_scores = response_data.get("detailed_scores", {})
             score = float(response_data.get("overall_score", 0))
