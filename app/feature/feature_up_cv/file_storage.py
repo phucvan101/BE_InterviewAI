@@ -116,12 +116,18 @@ def save_result_analysis(
     user_id: int,
     id_cv: int,
     id_jd: int,
+    id_ci: int | None = None,
 ) -> Path:
     """
     Save an analysis result JSON file to storage/result_analysis_file/.
+
+    Filename format:
+        Without CI: result_{ts}_{user_id}_cv{id_cv}_jd{id_jd}.json
+        With    CI: result_{ts}_{user_id}_cv{id_cv}_jd{id_jd}_ci{id_ci}.json
     """
     ts = _timestamp_str()
-    filename = f"result_{ts}_{user_id}_cv{id_cv}_jd{id_jd}.json"
+    ci_part = f"_ci{id_ci}" if id_ci is not None else ""
+    filename = f"result_{ts}_{user_id}_cv{id_cv}_jd{id_jd}{ci_part}.json"
     dest = RESULT_FILE_DIR / filename
     dest.write_text(
         json.dumps(parsed_data, ensure_ascii=False, indent=2),

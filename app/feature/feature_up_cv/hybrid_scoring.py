@@ -1789,42 +1789,205 @@ def _score_career_objectives(
     return round(min(score, 10.0), 2), rationale
 
 
-# ── Company Fit Scoring (0-10) ────────────────────────────────────────────────
+# ── Company Fit Scoring (0-10) ────────────────────────────────────────────
 def _score_company_fit(
     cv_data: dict,
     company_data: dict,
     embedder: EmbeddingService,
 ) -> Tuple[float, str]:
-    if not company_data:
-        return 0.0, "Không có dữ liệu công ty."
+    """
+    Cham diem do phu hop giua CV va Company Info (CI).
 
-    cv_skills = cv_data.get("skills", [])
-    company_skills = company_data.get("key_skills", []) + company_data.get("technologies", [])
-    cv_groups = _build_skill_groups(cv_skills)
-    comp_groups = _build_skill_groups(company_skills)
-    matched, _ = _skill_group_match(cv_groups, comp_groups)
+    Thang diem 0-10 (KHONG tinh vao tong 100):
+        [A] Tech Stack Match  : 0-4.0  -- CV skills vs tech stack chi tiet cua cong ty
+        [B] Domain / Industry : 0-3.0  -- CV domain vs company industry + sub_industry
+        [C] Culture Fit       : 0-2.0  -- CV objective vs company culture + values (embedding)
+        [D] Engineering Bonus : 0-1.0  -- CV co CI/CD, Agile... matches engineering_practices
 
-    overlap_ratio = len(matched) / max(len(comp_groups), 1)
-    skills_score = min(overlap_ratio * 6.0, 6.0)
+    Schema CI (tu parser_company):
+        key_skills, technologies, primary_languages, frameworks,
+        databases, infrastructure, ai_ml_stack,
+        industry, sub_industry, business_model,
+        company_culture, work_culture, tech_culture, remote_policy,
+        values, mission, description, engineering_practices
+    """
+    if not company_data or not company_data.get("success"):
+        return 0.0, "Khong co du lieu cong ty."
 
-    semantic_bonus = 0.0
-    try:
-        cv_emb = embedder.encode(embedder.encode_structured_cv(cv_data))
-        company_text = " ".join(filter(None, [
-            company_data.get("description", ""),
-            company_data.get("mission", ""),
-            company_data.get("company_culture", ""),
-        ]))
-        if company_text.strip():
-            comp_emb = embedder.encode(company_text)
-            sim = float(np.clip(np.dot(cv_emb, comp_emb), 0.0, 1.0))
-            semantic_bonus = min(sim * 4.0, 4.0)
-    except Exception as e:
-        logger.warning(f"Embedding failed in company fit: {e}")
+    rationale_parts: List[str] = []
 
-    score = min(skills_score + semantic_bonus, 10.0)
-    rationale = f"Kỹ năng trùng công ty: {len(matched)}/{len(comp_groups)} nhóm."
-    return round(score, 2), rationale
+    # -- [A] Tech Stack Match (0-4.0) -----------------------------------------
+    # Gom toan bo tech stack tu CI
+    ci_tech: List[str] = []
+    for field in ("key_skills", "technologies", "primary_languages",
+                  "frameworks", "databases", "infrastructure", "ai_ml_stack"):
+        ci_tech.extend(company_data.get(field, []))
+
+    # Gom skills day du tu CV
+    cv_skill_pool: List[str] = []
+    for field in ("skills", "technical_skills", "domain_skills"):
+        cv_skill_pool.extend(cv_data.get(field, []))
+    for proj in cv_data.get("projects", []):
+        cv_skill_pool.extend(_coerce_string_list(proj.get("technologies", [])))
+
+    cv_groups   = _build_skill_groups(cv_skill_pool)
+    comp_groups = _build_skill_groups(ci_tech)
+
+    if comp_groups:
+        matched_tech, _ = _skill_group_match(cv_groups, comp_groups)
+        # F1-style: ca coverage tu phia cong ty VA tu phia CV
+        precision = len(matched_tech) / max(len(cv_groups), 1)
+        recall    = len(matched_tech) / max(len(comp_groups), 1)
+        f1 = 2 * precision * recall / max(precision + recall, 1e-6)
+        tech_score = round(min(f1 * 4.0, 4.0), 2)
+        rationale_parts.append(
+            f"[Tech] {len(matched_tech)}/{len(comp_groups)} nhom ky nang (F1={f1:.0%}) -> {tech_score}/4"
+        )
+    else:
+        tech_score = 2.0
+        matched_tech = []
+        rationale_parts.append("[Tech] CI khong co du lieu tech stack -> mac dinh 2/4")
+
+    # -- [B] Domain / Industry Fit (0-3.0) ------------------------------------
+    ci_industry_text = " ".join(filter(None, [
+        str(company_data.get("industry", "")),
+        str(company_data.get("sub_industry", "")),
+        str(company_data.get("business_model", "")),
+        " ".join(str(x) for x in company_data.get("ai_ml_stack", []) if x),
+        str(company_data.get("tech_culture", "")),
+    ])).lower()
+
+    cv_text_for_domain = _build_cv_text(cv_data)
+    cv_domain = _semantic_domain_detection(cv_text_for_domain, embedder, threshold=0.38)
+
+    _DOMAIN_CI_SIGNALS: Dict[str, List[str]] = {
+        "tech_ai":       ["ai", "ml", "machine learning", "deep learning", "data science",
+                          "computer vision", "nlp", "llm", "neural", "artificial intelligence"],
+        "tech_software": ["software", "saas", "platform", "backend", "frontend", "cloud",
+                          "microservice", "api", "devops", "it services", "outsourcing"],
+        "tech_data":     ["data", "analytics", "bi", "warehouse", "etl", "big data", "spark"],
+        "sales":         ["sales", "retail", "e-commerce", "marketplace", "ban le", "kinh doanh"],
+        "marketing":     ["marketing", "advertising", "media", "content", "brand"],
+        "finance":       ["fintech", "finance", "banking", "insurance", "investment", "fund"],
+        "hr":            ["hr", "human resource", "recruitment", "talent", "nhan su"],
+        "operations":    ["logistics", "supply chain", "manufacturing", "van hanh", "warehouse"],
+    }
+
+    domain_score = 0.0
+    domain_rationale = ""
+    if ci_industry_text.strip():
+        ci_signals = _DOMAIN_CI_SIGNALS.get(cv_domain, [])
+        if ci_signals:
+            hit_count = sum(1 for sig in ci_signals if sig in ci_industry_text)
+            hit_ratio = hit_count / len(ci_signals)
+            if hit_ratio >= 0.4:
+                domain_score, domain_rationale = 3.0, f"CV domain ({cv_domain}) phu hop tot voi nganh cong ty"
+            elif hit_ratio >= 0.2:
+                domain_score, domain_rationale = 2.0, f"CV domain ({cv_domain}) phu hop mot phan"
+            else:
+                domain_score, domain_rationale = 0.5, f"CV domain ({cv_domain}) khac biet voi nganh cong ty"
+        else:
+            try:
+                cv_dom_emb = embedder.encode(cv_text_for_domain[:600], normalize=True)
+                ci_dom_emb = embedder.encode(ci_industry_text[:400], normalize=True)
+                dom_sim = float(np.clip(np.dot(cv_dom_emb, ci_dom_emb), 0.0, 1.0))
+                domain_score = round(min(dom_sim * 3.0, 3.0), 2)
+                domain_rationale = f"Domain unknown, embedding sim={dom_sim:.0%}"
+            except Exception:
+                domain_score, domain_rationale = 1.5, "Khong xac dinh duoc domain"
+    else:
+        domain_score, domain_rationale = 1.5, "CI khong co thong tin industry"
+
+    domain_score = round(min(domain_score, 3.0), 2)
+    rationale_parts.append(f"[Domain] {domain_rationale} -> {domain_score}/3")
+
+    # -- [C] Culture Fit -- Embedding (0-2.0) ----------------------------------
+    ci_culture_text = " ".join(filter(None, [
+        str(company_data.get("company_culture", "")),
+        str(company_data.get("work_culture", "")),
+        str(company_data.get("tech_culture", "")),
+        str(company_data.get("remote_policy", "")),
+        str(company_data.get("mission", "")),
+        " ".join(str(x) for x in company_data.get("values", []) if x),
+        " ".join(str(x) for x in company_data.get("products", []) if x),
+        " ".join(str(x) for x in company_data.get("target_customers", []) if x),
+    ]))
+
+    cv_objective = (
+        cv_data.get("career_objectives") or cv_data.get("objective") or ""
+    ).strip()
+    if not cv_objective:
+        proxy_pool = (
+            cv_data.get("skills", [])[:10]
+            + [e.get("title", "") for e in cv_data.get("work_experience", [])[:3] if e.get("title")]
+        )
+        cv_objective = " ".join(str(x) for x in proxy_pool if x)
+
+    culture_score = 0.0
+    if ci_culture_text.strip() and cv_objective:
+        try:
+            SIM_MIN, SIM_MAX = _get_sim_calibration(embedder)
+            cv_cul_emb = embedder.encode(cv_objective[:600], normalize=True)
+            ci_cul_emb = embedder.encode(ci_culture_text[:600], normalize=True)
+            cul_sim = float(np.clip(np.dot(cv_cul_emb, ci_cul_emb), 0.0, 1.0))
+            cul_scaled = float(np.clip(
+                (cul_sim - SIM_MIN) / max(SIM_MAX - SIM_MIN, 0.1), 0.0, 1.0
+            ))
+            culture_score = round(min(cul_scaled * 2.0, 2.0), 2)
+            rationale_parts.append(
+                f"[Culture] sim={cul_sim:.0%} (scaled={cul_scaled:.0%}) -> {culture_score}/2"
+            )
+        except Exception as e:
+            logger.warning(f"Embedding failed in culture fit: {e}")
+            culture_score = 1.0
+            rationale_parts.append("[Culture] Loi embedding -> mac dinh 1/2")
+    else:
+        culture_score = 1.0
+        rationale_parts.append("[Culture] Thieu thong tin van hoa cong ty -> mac dinh 1/2")
+
+    # -- [D] Engineering Practices Bonus (0-1.0) -------------------------------
+    _PRACTICE_KW: Dict[str, List[str]] = {
+        "cicd":          ["ci/cd", "cicd", "github actions", "jenkins", "gitlab ci", "devops", "pipeline"],
+        "testing":       ["testing", "unit test", "tdd", "pytest", "jest", "qa", "quality assurance"],
+        "code_review":   ["code review", "pull request", "pair programming", "peer review"],
+        "agile":         ["agile", "scrum", "kanban", "sprint", "jira"],
+        "documentation": ["documentation", "swagger", "openapi", "technical writing"],
+    }
+
+    ci_eng_practices: List[str] = company_data.get("engineering_practices", [])
+    eng_bonus = 0.0
+    if ci_eng_practices:
+        cv_evidence_text = " ".join(filter(None, [
+            " ".join(str(x) for x in cv_data.get("skills", []) if x),
+            " ".join(str(x) for x in cv_data.get("technical_skills", []) if x),
+            " ".join(
+                hl
+                for exp in cv_data.get("work_experience", [])
+                for hl in _coerce_string_list(exp.get("highlights", []))
+            ),
+        ])).lower()
+        ci_practices_text = " ".join(str(x) for x in ci_eng_practices if x).lower()
+
+        match_count = 0
+        for practice_kws in _PRACTICE_KW.values():
+            ci_has = any(kw in ci_practices_text for kw in practice_kws)
+            cv_has = any(kw in cv_evidence_text   for kw in practice_kws)
+            if ci_has and cv_has:
+                match_count += 1
+
+        eng_bonus = round(min(match_count * 0.25, 1.0), 2)
+        rationale_parts.append(f"[Engineering] {match_count} practice match -> +{eng_bonus}/1")
+    else:
+        rationale_parts.append("[Engineering] CI khong co engineering_practices -> +0")
+
+    # -- Tong hop --------------------------------------------------------------
+    total = round(min(tech_score + domain_score + culture_score + eng_bonus, 10.0), 2)
+    summary = (
+        f"Tech: {tech_score}/4 | Domain: {domain_score}/3 | "
+        f"Culture: {culture_score}/2 | Engineering: {eng_bonus}/1 -> Tong: {total}/10"
+    )
+    rationale_parts.insert(0, summary)
+    return total, " | ".join(rationale_parts)
 
 
 # ── Main Entry Point ──────────────────────────────────────────────────────────
@@ -1906,7 +2069,12 @@ def calculate_hybrid_score(
         career_obj_score, career_obj_rationale = _score_career_objectives(
             cv_data, jd_data, embedder
         )
-        company_score, company_rationale = _score_company_fit(cv_data, company_data, embedder)
+        try:
+            company_score, company_rationale = _score_company_fit(cv_data, company_data, embedder)
+        except Exception as _ce:
+            import logging as _lg
+            _lg.getLogger(__name__).error(f"[COMPANY_FIT] Isolated exception: {_ce}", exc_info=True)
+            company_score, company_rationale = 0.0, f"Loi tinh company fit: {_ce}"
 
         overall = round(min(exp_score + skills_score + edu_score + career_obj_score, 100.0))
 
