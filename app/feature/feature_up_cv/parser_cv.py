@@ -70,6 +70,7 @@ Schema (giữ đúng keys và types):
     "address": ""
   }},
   "objective": "",
+  "career_objectives": "",
   "education": [{{"school": "", "degree": "", "major": "", "start": "", "end": ""}}],
   "work_experience": [{{
     "company": "",
@@ -98,6 +99,8 @@ Schema (giữ đúng keys và types):
     "skills": []
   }}
 }}
+
+NOTE: career_objectives là mục tiêu nghề nghiệp dài hạn/công việc mong muốn (ví dụ: "Backend Engineer với 5 năm kinh nghiệm, mong muốn phát triển sâu hơn về AI/ML"). Trích xuất chính xác từ phần "Mục tiêu nghề nghiệp" hoặc "Career Objective" của CV. Nếu không có, để chuỗi rỗng "".
 
 Few-shot (FORMAT reference):
 INPUT: "Nguyễn Văn A. Backend Developer tại ABC Corp. 2020-2023. Python, FastAPI, PostgreSQL. Đạt KPI 120%. Giao tiếp tốt."
@@ -163,6 +166,7 @@ def _fallback() -> Dict[str, Any]:
             "name": "", "dob": "", "gender": "", "phone": "", "email": "", "address": ""
         },
         "objective": "",
+        "career_objectives": "",
         "education": [],
         "work_experience": [],
         "projects": [],
@@ -236,9 +240,12 @@ def llm_parser_cv(cv_text: str) -> Dict[str, Any]:
         result["skills"] = raw_skills
 
     # Ensure all required top-level keys exist
-    for key in ("objective", "education", "work_experience", "projects"):
+    for key in ("objective", "career_objectives"):
         if key not in result:
-            result[key] = [] if key != "objective" else ""
+            result[key] = ""
+    for key in ("education", "work_experience", "projects"):
+        if key not in result:
+            result[key] = []
     for key in ("technical_skills", "domain_skills", "soft_skills", "certifications"):
         if key not in result:
             result[key] = []

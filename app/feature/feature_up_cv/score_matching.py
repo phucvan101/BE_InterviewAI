@@ -53,12 +53,13 @@ Bạn sẽ dựa trên các tiêu chí sau và phân bổ điểm:
 1) Kinh nghiệm làm việc (Tối đa 50 điểm): Sự phù hợp với JD, thành tích nổi bật, dự án cụ thể.
 2) Kỹ năng (Tối đa 30 điểm): Các kỹ năng của ứng viên phù hợp với trong JD.
 3) Học vấn & Bằng cấp (Tối đa 10 điểm): Chuyên ngành liên quan, chứng chỉ chuyên môn.
-4) Độ phù hợp công ty (Tối đa 10 điểm): CV phù hợp với thông tin và văn hoá công ty (VD: công ty mảng CNTT sẽ hợp với CV ngành CNTT). Nếu KHÔNG CÓ dữ liệu công ty, điểm này bắt buộc là 0.
+4) Mục tiêu nghề nghiệp (Tối đa 10 điểm): Mục tiêu nghề nghiệp trong CV phù hợp với JD và định hướng công ty.
+5) Độ phù hợp công ty (Tối đa 10 điểm, KHÔNG tính vào tổng): CV phù hợp với thông tin và văn hoá công ty. Nếu KHÔNG CÓ dữ liệu công ty, điểm này bắt buộc là 0.
 
 Ràng buộc bắt buộc:
 - CHỈ trả về 1 JSON object, KHÔNG có text/markdown nào khác.
 - KHÔNG giải thích dài dòng; chỉ điền vào các field theo schema.
-- Điểm là số nguyên. `overall_score` = tổng của 4 điểm thành phần. (Nếu không có Company data thì overall_score tối đa là 90).
+- Điểm là số nguyên. `overall_score` = experience(50) + skills(30) + education(10) + career_objectives(10) = tối đa 100. KHÔNG bao gồm company_fit_score.
 - `missing_skills` phải liệt kê đầy đủ kỹ năng quan trọng bị thiếu (ưu tiên skills_required).
 - `matched_skills` chỉ liệt kê các kỹ năng thực sự có trong CV (dựa vào CV.skills / work_experience highlights).
 - Nếu kỹ năng tương tự tên khác -> đưa vào `related_skills` (vd: "Postgres" ~ "PostgreSQL").
@@ -84,6 +85,7 @@ Schema output:
     "experience_score": 0,
     "skills_score": 0,
     "education_score": 0,
+    "career_objectives_score": 0,
     "company_fit_score": 0
   }},
   "overall_score": 0,
@@ -113,9 +115,10 @@ OUTPUT_EXAMPLE:
     "experience_score": 40,
     "skills_score": 20,
     "education_score": 8,
+    "career_objectives_score": 7,
     "company_fit_score": 8
   }},
-  "overall_score": 76,
+  "overall_score": 75,
   "score_rationale":"Ứng viên có kỹ năng chính nhưng thiếu một kỹ năng quan trọng trong yêu cầu.",
   "matched_skills":["Python","FastAPI"],
   "related_skills":[],
@@ -132,7 +135,8 @@ Self-check:
 - Valid JSON only?
 - Contains all required keys (bao gồm detailed_scores)?
 - No text outside JSON?
-- overall_score có bằng tổng 4 điểm trong detailed_scores không?
+- overall_score có bằng experience(50) + skills(30) + education(10) + career_objectives(10) không? KHÔNG bao gồm company_fit_score.
+- career_objectives_score nằm trong detailed_scores chưa?
 """.strip()
     
     return prompt

@@ -36,11 +36,11 @@ class FAISSIndexManager:
         self.embedder = get_embedding_service()
 
         if index_dir is None:
-            base = Path(__file__).parent.parent.parent.parent
-            index_dir = base / "uploads" / "faiss_indexes"
+            from app.feature.feature_up_cv.file_storage import FAISS_INDEX_DIR
+            index_dir = FAISS_INDEX_DIR
 
         self.index_dir = Path(index_dir)
-        self.index_dir.mkdir(parents=True, exist_ok=True)
+        self.index_dir.mkdir(parents=True, exist_ok=True)  # safety net
 
         self._cv_index: Optional[object] = None
         self._jd_index: Optional[object] = None
