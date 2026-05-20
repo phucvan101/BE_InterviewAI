@@ -14,8 +14,8 @@ from app.feature.feature_up_cv.core.file_storage import EMBEDDINGS_CACHE_DIR as 
 
 # Lazy-load model to avoid heavy import at startup
 _model = None
-_model_name = "sentence-transformers/all-MiniLM-L6-v2"
-EMBEDDING_DIM = 384
+_model_name = "intfloat/multilingual-e5-base"
+EMBEDDING_DIM = 768
 
 
 def _get_cache_dir() -> Path:
@@ -90,7 +90,8 @@ class EmbeddingService:
         return (cache_dir / f"{file_type}_vector_{record_id}.npy").exists()
 
     def encode_skills_text(self, skills: List[str]) -> str:
-        return " ".join(skills) if skills else ""
+        text = " ".join(skills) if skills else ""
+        return f"passage: {text}" if text else ""
 
     def encode_structured_cv(self, cv_data: dict) -> str:
         parts = []
@@ -128,7 +129,7 @@ class EmbeddingService:
             if name or desc:
                 parts.append(f"Dự án: {name}. {desc} Công nghệ: {techs}")
 
-        return " . ".join(parts)
+        return "passage: " + " . ".join(parts)
 
     def encode_structured_jd(self, jd_data: dict) -> str:
         parts = []
@@ -163,7 +164,7 @@ class EmbeddingService:
         if keywords := jd_struct.get("keywords"):
             parts.append(f"Từ khóa: {' '.join(keywords)}")
 
-        return " . ".join(parts)
+        return "query: " + " . ".join(parts)
 
 
 _embedding_service: Optional[EmbeddingService] = None

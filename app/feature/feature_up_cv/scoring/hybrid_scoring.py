@@ -210,7 +210,40 @@ def _skill_group_match(cv_group: set, jd_group: set) -> Tuple[List[str], List[st
     return matched, missing
 
 
-# ── Domain detection ──────────────────────────────────────────────────────────
+# ── E5 prefix helpers ─────────────────────────────────────────────────────────
+# intfloat/multilingual-e5-base yêu cầu prefix để similarity hoạt động đúng:
+#   - Text dùng để SEARCH/QUERY → "query: " + text
+#   - Text dùng để MATCH AGAINST (corpus/passage) → "passage: " + text
+# Nếu không có prefix, model sẽ encode theo chế độ mặc định gây sim bị deflate.
+# Hàm này tự detect model qua model_name attribute, fallback safe nếu không phải e5.
+
+def _is_e5_model(embedder) -> bool:
+    """True nếu embedder đang dùng E5 family (cần query/passage prefix)."""
+    model_name = str(getattr(embedder, "model_name", "") or "").lower()
+    return "e5" in model_name
+
+def _qprefix(text: str, embedder) -> str:
+    """Query prefix cho E5 model."""
+    return f"query: {text}" if _is_e5_model(embedder) else text
+
+def _pprefix(text: str, embedder) -> str:
+    """Passage prefix cho E5 model."""
+    return f"passage: {text}" if _is_e5_model(embedder) else text
+
+def _qprefix_batch(texts: List[str], embedder) -> List[str]:
+    """Query prefix cho batch."""
+    if not _is_e5_model(embedder):
+        return texts
+    return [f"query: {t}" for t in texts]
+
+def _pprefix_batch(texts: List[str], embedder) -> List[str]:
+    """Passage prefix cho batch."""
+    if not _is_e5_model(embedder):
+        return texts
+    return [f"passage: {t}" for t in texts]
+
+
+# ── Domain detection ───────────────────────────────────────────────────────────
 def _detect_domain(text: str) -> str:
     """
     Phát hiện domain chính từ một đoạn text (CV hoặc JD).
@@ -875,7 +908,10 @@ def _match_criteria_to_cv(
     sim_matrix = None
     if cv_evidence and criterion_texts:
         try:
-            all_texts = cv_evidence + criterion_texts
+            # CV evidence là passage (corpus), criteria là query (tìm kiếm)
+            cv_prefixed   = _pprefix_batch(cv_evidence, embedder)
+            crit_prefixed = _qprefix_batch(criterion_texts, embedder)
+            all_texts = cv_prefixed + crit_prefixed
             embs = embedder.encode_batch(all_texts, normalize=True)
             cv_embs = embs[: len(cv_evidence)]
             criterion_embs = embs[len(cv_evidence):]
@@ -892,13 +928,22 @@ def _match_criteria_to_cv(
 
         if not status and sim_matrix is not None:
             best_idx = int(sim_matrix[:, j].argmax())
-            best_sim = float(np.clip(sim_matrix[best_idx, j], 0.0, 1.0))
+            raw_sim = float(np.clip(sim_matrix[best_idx, j], 0.0, 1.0))
+            
+            # Tự động scale dựa trên đặc tính phân bố của model (Dynamic Calibration)
+            SIM_MIN, SIM_MAX = _get_sim_calibration(embedder)
+            span = max(SIM_MAX - SIM_MIN, 0.05)
+            best_sim = float(np.clip((raw_sim - SIM_MIN) / span, 0.0, 1.0))
+
             evidence = cv_evidence[best_idx]
             category = str(criterion.get("category", "")).lower()
             source = str(criterion.get("source", "")).lower()
             is_atomic_skill = source.startswith("skills_") or category in {"skill", "technical_skill", "tool"}
-            match_threshold = 0.70 if is_atomic_skill else 0.66
-            related_threshold = 0.55 if is_atomic_skill else 0.50
+            
+            # Universal thresholds trên thang chuẩn hóa [0, 1]
+            match_threshold = 0.75 if is_atomic_skill else 0.65
+            related_threshold = 0.45 if is_atomic_skill else 0.35
+            
             if best_sim >= match_threshold:
                 status = "semantic_match"
             elif best_sim >= related_threshold:
@@ -937,7 +982,7 @@ def _compute_skill_overlap_ratio(
     cv_skills: List[str],
     jd_skills: List[str],
     embedder: EmbeddingService,
-    threshold: float = 0.72,
+    threshold: float = 0.70,  # Normalized threshold
 ) -> float:
     """Return proportion of JD skills that are truly covered, not mean raw similarity."""
     jd_skills = _dedupe_strings(jd_skills)
@@ -958,14 +1003,22 @@ def _compute_skill_overlap_ratio(
 
     if unmatched:
         try:
-            all_texts = cv_skills + unmatched
+            # CV skills là passage, JD unmatched skills là query
+            cv_prefixed  = _pprefix_batch(cv_skills, embedder)
+            jd_prefixed  = _qprefix_batch(unmatched, embedder)
+            all_texts = cv_prefixed + jd_prefixed
             embs = embedder.encode_batch(all_texts, normalize=True)
             cv_embs = embs[: len(cv_skills)]
             jd_embs = embs[len(cv_skills):]
             if cv_embs.size and jd_embs.size:
                 sim_matrix = np.dot(cv_embs, jd_embs.T)
                 max_sims = sim_matrix.max(axis=0)
-                matched += int(np.sum(max_sims >= threshold))
+                
+                SIM_MIN, SIM_MAX = _get_sim_calibration(embedder)
+                span = max(SIM_MAX - SIM_MIN, 0.05)
+                raw_threshold = SIM_MIN + threshold * span
+                
+                matched += int(np.sum(max_sims >= raw_threshold))
         except Exception as e:
             logger.warning(f"Skill overlap embedding failed: {e}")
 
@@ -1152,13 +1205,14 @@ _sim_calibration_cache: Dict[str, tuple] = {}
 
 
 def _ensure_anchor_embs(embedder: EmbeddingService) -> None:
-    """Pre-compute và cache domain/seniority anchor embeddings."""
+    """Pre-compute và cache domain/seniority anchor embeddings với đúng prefix."""
     if not _domain_anchors_embs:
         for key, desc in _DOMAIN_ANCHORS.items():
-            _domain_anchors_embs[key] = embedder.encode(desc, normalize=True)
+            # Anchor là passage (corpus), dùng passage prefix
+            _domain_anchors_embs[key] = embedder.encode(_pprefix(desc, embedder), normalize=True)
     if not _seniority_anchors_embs:
         for level, desc in _SENIORITY_ANCHORS.items():
-            _seniority_anchors_embs[level] = embedder.encode(desc, normalize=True)
+            _seniority_anchors_embs[level] = embedder.encode(_pprefix(desc, embedder), normalize=True)
 
 
 def _get_sim_calibration(embedder: EmbeddingService) -> tuple:
@@ -1172,18 +1226,22 @@ def _get_sim_calibration(embedder: EmbeddingService) -> tuple:
     SIM_MAX: similarity của 2 câu gần giống nhau (upper bound).
     Dùng để rescale raw cosine similarity → [0, 10] score.
     """
-    _SIM_MIN_DEFAULT = 0.25
-    _SIM_MAX_DEFAULT = 0.65
-    # Key cache: dùng model_name nếu có, fallback về id(embedder)
+    # Default cho multilingual-e5-base:
+    # - Unrelated pairs: ~0.45–0.55
+    # - Near-identical: ~0.92–0.97
+    # Dùng giá trị thực đo được thay vì hardcode 0.25/0.65
+    _SIM_MIN_DEFAULT = 0.45
+    _SIM_MAX_DEFAULT = 0.92
     cache_key = str(getattr(embedder, "model_name", None) or id(embedder))
     if cache_key in _sim_calibration_cache:
         return _sim_calibration_cache[cache_key]
     try:
-        _unrelated_a = embedder.encode("software engineer python backend", normalize=True)
-        _unrelated_b = embedder.encode("chef cooking restaurant food", normalize=True)
-        _identical_a = embedder.encode("machine learning engineer AI", normalize=True)
-        _identical_b = embedder.encode("machine learning engineer artificial intelligence", normalize=True)
-        sim_low = float(np.clip(np.dot(_unrelated_a, _unrelated_b), 0.0, 1.0))
+        # Dùng query prefix cho calibration text (đều là query role)
+        _unrelated_a = embedder.encode(_qprefix("software engineer python backend", embedder), normalize=True)
+        _unrelated_b = embedder.encode(_qprefix("chef cooking restaurant food", embedder), normalize=True)
+        _identical_a = embedder.encode(_qprefix("machine learning engineer AI", embedder), normalize=True)
+        _identical_b = embedder.encode(_qprefix("machine learning engineer artificial intelligence", embedder), normalize=True)
+        sim_low  = float(np.clip(np.dot(_unrelated_a, _unrelated_b), 0.0, 1.0))
         sim_high = float(np.clip(np.dot(_identical_a, _identical_b), 0.0, 1.0))
         if sim_high - sim_low > 0.1:
             result = (sim_low, sim_high)
@@ -1192,7 +1250,7 @@ def _get_sim_calibration(embedder: EmbeddingService) -> tuple:
     except Exception:
         result = (_SIM_MIN_DEFAULT, _SIM_MAX_DEFAULT)
     _sim_calibration_cache[cache_key] = result
-    logger.debug(f"SIM calibration cached for model '{cache_key}': min={result[0]:.3f}, max={result[1]:.3f}")
+    logger.debug(f"SIM calibration cached for '{cache_key}': min={result[0]:.3f}, max={result[1]:.3f}")
     return result
 
 
@@ -1201,29 +1259,41 @@ def _get_sim_calibration(embedder: EmbeddingService) -> tuple:
 def _semantic_domain_detection(
     text: str,
     embedder: EmbeddingService,
-    threshold: float = 0.40,
+    threshold: float = 0.40,  # Normalized threshold
 ) -> str:
     """
     Semantic domain detection: embed text rồi so sánh cosine với domain anchors.
     Falls back to keyword-based detection if semantic score is too low.
+
+    Threshold tuned cho multilingual-e5-base:
+    - Unrelated pairs: ~0.45–0.55
+    - Same domain: ~0.70–0.85
+    - Threshold 0.50 → phân biệt được rõ ràng
     """
     _ensure_anchor_embs(embedder)
     if not text.strip():
         return "unknown"
 
-    text_emb = embedder.encode(text, normalize=True)
-    scores: Dict[str, float] = {}
-    for key, anchor_emb in _domain_anchors_embs.items():
-        scores[key] = float(np.dot(text_emb, anchor_emb))
+    # Text cần detect → query role
+    text_emb = embedder.encode(_qprefix(text, embedder), normalize=True)
+    scores: Dict[str, float] = {
+        key: float(np.dot(text_emb, anchor_emb))
+        for key, anchor_emb in _domain_anchors_embs.items()
+    }
 
     best_domain = max(scores, key=lambda d: scores[d])
     best_score = scores[best_domain]
+    second_best = sorted(scores.values(), reverse=True)[1] if len(scores) > 1 else 0.0
 
-    # Fallback: if semantic score too low, try keyword matching
-    if best_score < threshold:
-        keyword_domain = _detect_domain(text)
-        if keyword_domain != "unknown":
-            return keyword_domain
+    # Yêu cầu: best phải vượt threshold VÀ cách biệt second-best ít nhất 0.03
+    # Tránh case: 2 domain có sim gần bằng nhau → không rõ ràng
+    if best_score >= threshold and (best_score - second_best) >= 0.03:
+        return best_domain
+
+    # Fallback keyword
+    keyword_domain = _detect_domain(text)
+    if keyword_domain != "unknown":
+        return keyword_domain
 
     return best_domain if best_score >= threshold else "unknown"
 
@@ -1232,7 +1302,7 @@ def _semantic_project_relevance(
     projects: List[dict],
     jd_text: str,
     embedder: EmbeddingService,
-    threshold: float = 0.30,
+    threshold: float = 0.35,  # Normalized threshold
     default_duration: float = 0.25,
 ) -> Tuple[float, List[float], List[str]]:
     """
@@ -1245,7 +1315,6 @@ def _semantic_project_relevance(
     if not projects:
         return 0.0, [], []
 
-    # Parse durations
     durations: List[float] = []
     for proj in projects:
         dur_str = str(proj.get("duration", ""))
@@ -1257,7 +1326,45 @@ def _semantic_project_relevance(
             parsed_duration = _parse_years(proj.get("start", ""), proj.get("end", ""))
             durations.append(parsed_duration if parsed_duration > 0 else default_duration)
         else:
-            durations.append(default_duration)  # caller quyết định default
+            durations.append(default_duration)
+
+    proj_texts = []
+    for proj in projects:
+        parts = [proj.get("name", ""), proj.get("description", "")]
+        parts.extend(proj.get("technologies", []))
+        for hl in proj.get("highlights", []):
+            parts.append(str(hl))
+        proj_texts.append(" ".join(p for p in parts if p))
+
+    try:
+        # JD là query (tìm kiếm project phù hợp), project là passage (corpus)
+        jd_emb = embedder.encode(_qprefix(jd_text, embedder), normalize=True)
+        proj_prefixed = _pprefix_batch(proj_texts, embedder)
+        proj_embs = embedder.encode_batch(proj_prefixed, normalize=True)
+        sims = np.clip(proj_embs @ jd_emb, 0.0, 1.0)
+    except Exception as e:
+        logger.warning(f"_semantic_project_relevance embedding failed: {e}")
+        return 0.0, [], proj_texts
+
+    # Threshold cho e5: unrelated ~0.45-0.55, relevant ~0.65+
+    # Dùng threshold thấp hơn 0.82 cũ vì e5 baseline similarity cao hơn
+    relevance_threshold = threshold  # caller truyền, default đã điều chỉnh
+
+    total_years = 0.0
+    relevance_scores: List[float] = []
+    descriptions: List[str] = []
+    for i, (proj, dur) in enumerate(zip(projects, durations)):
+        raw_sim = float(sims[i])
+        # Rescale: sim dưới threshold → 0, sim tối đa → 1.0
+        if raw_sim >= relevance_threshold:
+            relevance = (raw_sim - relevance_threshold) / (1.0 - relevance_threshold)
+        else:
+            relevance = 0.0
+        total_years += dur * relevance
+        relevance_scores.append(relevance)
+        descriptions.append(proj_texts[i])
+
+    return total_years, relevance_scores, descriptions
 
     # Build project texts
     proj_texts: List[str] = []
@@ -1275,21 +1382,26 @@ def _semantic_project_relevance(
     jd_keywords = [w.lower() for w in re.split(r'\W+', jd_text) if len(w) > 2]
 
     # Similarity vs JD
+    SIM_MIN, SIM_MAX = _get_sim_calibration(embedder)
+    span = max(SIM_MAX - SIM_MIN, 0.05)
+    
     relevances: List[float] = []
     for i in range(len(projects)):
-        sim = float(np.dot(proj_embs[i], jd_emb))
+        raw_sim = float(np.dot(proj_embs[i], jd_emb))
         
         # Keyword Boost: giúp vượt qua khác biệt ngôn ngữ (Eng CV vs Viet JD)
         proj_text_lower = proj_texts[i].lower()
         match_count = sum(1 for kw in jd_keywords if kw in proj_text_lower)
         if match_count > 0:
-            sim = min(sim + (match_count * 0.08), 1.0)
+            raw_sim = min(raw_sim + (match_count * 0.05 * span), 1.0)
             
-        if sim < threshold:
+        normalized_sim = (raw_sim - SIM_MIN) / span
+            
+        if normalized_sim < threshold:
             relevances.append(0.0)
         else:
             # Rescale above threshold so unrelated projects do not create "virtual years".
-            relevances.append(float(np.clip((sim - threshold) / max(1.0 - threshold, 1e-6), 0.0, 1.0)))
+            relevances.append(float(np.clip((normalized_sim - threshold) / max(1.0 - threshold, 1e-6), 0.0, 1.0)))
 
     # Weighted years
     weighted_years = sum(durations[i] * relevances[i] for i in range(len(projects)))
@@ -1409,7 +1521,7 @@ def _semantic_major_relevance(
     cv_education: List[dict],
     jd_data: dict,
     embedder: EmbeddingService,
-    threshold: float = 0.40,
+    threshold: float = 0.40,  # Normalized threshold
 ) -> bool:
     """
     Semantic major relevance: embed JD field description + major text, so sánh similarity.
@@ -1456,11 +1568,15 @@ def _semantic_major_relevance(
         return False
 
     try:
+        SIM_MIN, SIM_MAX = _get_sim_calibration(embedder)
+        span = max(SIM_MAX - SIM_MIN, 0.05)
+
         jd_emb = embedder.encode(jd_focused, normalize=True)
         edu_embs = embedder.encode_batch(edu_texts, normalize=True)
         for i in range(len(cv_education)):
-            sim = float(np.dot(edu_embs[i], jd_emb))
-            if sim >= threshold:
+            raw_sim = float(np.dot(edu_embs[i], jd_emb))
+            normalized_sim = (raw_sim - SIM_MIN) / span
+            if normalized_sim >= threshold:
                 return True
     except Exception as e:
         logger.warning(f"Semantic major relevance embedding failed: {e}")
@@ -1659,8 +1775,9 @@ def _score_career_objectives(
     ]))
 
     try:
-        cv_emb = embedder.encode(cv_objective, normalize=True)
-        jd_emb = embedder.encode(jd_focused_text, normalize=True)
+        # Objective là query (ứng viên tìm job), JD focused text là passage (job description)
+        cv_emb = embedder.encode(_qprefix(cv_objective, embedder), normalize=True)
+        jd_emb = embedder.encode(_pprefix(jd_focused_text, embedder), normalize=True)
         sim = float(np.clip(np.dot(cv_emb, jd_emb), 0.0, 1.0))
         score = float(np.clip((sim - SIM_MIN) / (SIM_MAX - SIM_MIN) * 10.0, 0.0, 10.0))
         
@@ -1998,8 +2115,8 @@ def calculate_hybrid_score(
         embedder = get_embedding_service()
         sim = 0.0
         try:
-            cv_emb = embedder.encode(embedder.encode_structured_cv(cv_data))
-            jd_emb = embedder.encode(embedder.encode_structured_jd(jd_data))
+            cv_emb = embedder.encode(_qprefix(embedder.encode_structured_cv(cv_data), embedder))
+            jd_emb = embedder.encode(_pprefix(embedder.encode_structured_jd(jd_data), embedder))
             sim = round(float(np.clip(np.dot(cv_emb, jd_emb), 0.0, 1.0)), 4)
         except Exception as inner_e:
             logger.error(f"Fallback embedding also failed: {inner_e}")
