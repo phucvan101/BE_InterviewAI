@@ -136,6 +136,91 @@ SKILL_CANONICAL_MAP: Dict[str, List[str]] = {
     "powerpoint": ["mspowerpoint", "presentation-software"],
 }
 
+# Vietnamese skill phrase → canonical key (for cross-language matching)
+# English JD has "Sales Prospecting", Vietnamese CV has "Tìm kiếm khách hàng"
+_VI_SKILL_ALIASES: Dict[str, str] = {
+    # Sales
+    "bán hàng": "sales",
+    "ban hang": "sales",
+    "kinh doanh": "business development",
+    "tìm kiếm khách hàng": "sales prospecting",
+    "tim kiem khach hang": "sales prospecting",
+    "phát triển kinh doanh": "business development",
+    "phat trien kinh doanh": "business development",
+    "quản lý quan hệ khách hàng": "crm",
+    "quan ly quan he khach hang": "crm",
+    "chăm sóc khách hàng": "crm",
+    "cham soc khach hang": "crm",
+    "phân tích nhu cầu khách hàng": "crm",
+    "phan tich nhieu khach hang": "crm",
+    "đàm phán": "negotiation",
+    "dam phan": "negotiation",
+    "thương lượng": "negotiation",
+    "thuong luong": "negotiation",
+    "thuyết phục": "persuasion",
+    "thuyet phuc": "persuasion",
+    "chốt sales": "sales",
+    "chot sales": "sales",
+    "lập hợp đồng": "contract closing",
+    "lap hop dong": "contract closing",
+    "báo giá": "sales reporting",
+    "bao gia": "sales reporting",
+    "theo dõi đơn hàng": "sales tracking",
+    "theo doi don hang": "sales tracking",
+    "tăng doanh số": "sales target achievement",
+    "tang doanh so": "sales target achievement",
+    "chiến lược tiếp cận khách hàng": "business development",
+    " chien luoc tiep can khach hang": "business development",
+    "triển khai chiến dịch": "marketing",
+    "trien khai chien dich": "marketing",
+    "hỗ trợ sau bán": "crm",
+    "ho tro sau ban": "crm",
+    "xử lý khiếu nại": "customer relationship management",
+    "xu ly khieu nai": "customer relationship management",
+    "lập báo cáo": "sales reporting",
+    "lap bao cao": "sales reporting",
+    "marketing": "marketing",
+    "email marketing": "marketing",
+    "tổ chức sự kiện": "project management",
+    "to chuc su kien": "project management",
+    "xây dựng mối quan hệ": "crm",
+    "xay dung moi quan he": "crm",
+    "phối hợp": "teamwork",
+    "phoi hop": "teamwork",
+    "giao tiếp": "communication",
+    "giao tiep": "communication",
+    "giải quyết vấn đề": "problem solving",
+    "giai quyet van de": "problem solving",
+    "làm việc nhóm": "teamwork",
+    "lam viec nhom": "teamwork",
+    "kpi": "sales target achievement",
+    "scps chuyên viên bán hàng chuyên nghiệp": "sales",
+    "scps chuyen vien ban hang chuyen nghiep": "sales",
+    # Also no-space versions (after regex strips spaces in normalize_skill)
+    "bánhàng": "sales",
+    "bankh": "business development",
+    "tìmkiếmkháchhn": "sales prospecting",
+    "timkiemkhachhang": "sales prospecting",
+    "pháttriểnkinhdoanh": "business development",
+    "phattrienkinhdoanh": "business development",
+    "quảnlýquanhệkháchhàng": "crm",
+    "quanlyquanhekhachhang": "crm",
+    "chămsóckháchhàng": "crm",
+    "chamsockhachhang": "crm",
+    "đàmphán": "negotiation",
+    "damphan": "negotiation",
+    "thươnglượng": "negotiation",
+    "thuongluong": "negotiation",
+    "kinhdoanh": "business development",
+    "marketing": "marketing",
+    "giao tiếp": "communication",
+    "giai tiep": "communication",
+    "giảiquyếtvấnđề": "problem solving",
+    "giaiquyetvande": "problem solving",
+    "làmviệcnhóm": "teamwork",
+    "lamviecnhom": "teamwork",
+}
+
 # Build reverse lookup: alias → canonical
 _ALIAS_TO_CANONICAL: Dict[str, str] = {}
 for canonical, aliases in SKILL_CANONICAL_MAP.items():
@@ -143,6 +228,8 @@ for canonical, aliases in SKILL_CANONICAL_MAP.items():
     for alias in aliases:
         _ALIAS_TO_CANONICAL[alias.lower()] = canonical
         _ALIAS_TO_CANONICAL[alias.lower().replace(" ", "")] = canonical
+# Also include domain skills so normalize_skill doesn't strip them
+# (added after _DOMAIN_SKILLS is defined, below)
 
 
 # Domain-specific skills to keep as-is
@@ -167,27 +254,49 @@ _ALWAYS_KEEP = {
     "b2b", "b2c", "seo", "sem", "ux", "ui", "bi", "api", "sql", "os",
 }
 
+# Add domain skills to reverse lookup (after both are defined)
+for skill in _DOMAIN_SKILLS:
+    _ALIAS_TO_CANONICAL[skill] = skill
+    _ALIAS_TO_CANONICAL[skill.replace(" ", "")] = skill
+
 
 def normalize_skill(skill: str) -> str:
-    """Normalize a single skill name to canonical form."""
-    s = skill.lower().strip()
-    s = re.sub(r"[^a-z0-9\s\-\+\#]", "", s)
-    s = re.sub(r"\s+", " ", s).strip()
+    """Normalize a single skill name to canonical form. Preserves Vietnamese characters."""
+    s = skill.strip()
+    # Keep: ASCII letters, digits, spaces, hyphen/plus/hash, and Vietnamese diacritics
+    # Remove only control/emoji/special chars that would break downstream processing
+    s = re.sub(
+        r"[^\w\sàáạảãâầấậẩẫăằắặẳẵèéẹẻẽêềếệểễìíịỉĩđùúụủũôồốộổỗơờớợởỡỳýỵ]",
+        "",
+        s,
+        flags=re.UNICODE,
+    )
+    s = s.lower().strip()
+    s = re.sub(r"\s+", " ", s)
+
+    # 1. Direct lookup in canonical map
+    if s in _ALIAS_TO_CANONICAL:
+        return _ALIAS_TO_CANONICAL[s]
+
+    # 2. Vietnamese skill alias lookup (for cross-language matching)
+    # e.g. "tìm kiếm khách hàng" → "sales prospecting"
+    if s in _VI_SKILL_ALIASES:
+        return _VI_SKILL_ALIASES[s]
+    # Also try without spaces (e.g. "timkiemkhachhang")
+    s_nospace = re.sub(r"\s+", "", s)
+    if s_nospace in _VI_SKILL_ALIASES:
+        return _VI_SKILL_ALIASES[s_nospace]
 
     # Always keep important short domain skills
     if s in _ALWAYS_KEEP or s in _DOMAIN_SKILLS:
         return s
 
-    # Direct lookup
-    if s in _ALIAS_TO_CANONICAL:
-        return _ALIAS_TO_CANONICAL[s]
-
-    # Strip common suffixes and try again
+    # 3. Strip common suffixes and try canonical lookup
     s_clean = re.sub(r"[\-\+\#]?(js|py|ts|sql|api|cv|nlp|ml|dl|ai|db)$", "", s, flags=re.IGNORECASE).strip()
     if s_clean and s_clean in _ALIAS_TO_CANONICAL:
         return _ALIAS_TO_CANONICAL[s_clean]
 
-    # Fuzzy: if close to a known canonical (edit distance ≤ 2)
+    # 4. Fuzzy: if close to a known canonical (edit distance ≤ 2)
     canonicals = list(SKILL_CANONICAL_MAP.keys())
     for cand in canonicals:
         if cand in s or s in cand:
@@ -196,7 +305,7 @@ def normalize_skill(skill: str) -> str:
             if _levenshtein(cand, s) <= 2:
                 return cand
 
-    # Keep multi-word skills as-is (title-cased)
+    # 5. Keep multi-word skills as-is (title-cased)
     if len(s) >= 3 and " " in s and not re.match(r"^[0-9\-\+]+$", s):
         return s.title()
     return s

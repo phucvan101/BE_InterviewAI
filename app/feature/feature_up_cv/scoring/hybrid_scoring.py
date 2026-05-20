@@ -28,53 +28,6 @@ from app.feature.feature_up_cv.core.utils import (
 
 logger = logging.getLogger(__name__)
 
-# ── Industry / domain taxonomy ────────────────────────────────────────────────
-# Dùng để phát hiện domain mismatch sớm trước khi tính điểm chi tiết.
-# Mỗi domain có một tập keywords đặc trưng.
-_DOMAIN_TAXONOMY: Dict[str, List[str]] = {
-    "tech_ai": [
-        "machine learning", "deep learning", "computer vision", "nlp",
-        "pytorch", "tensorflow", "opencv", "yolo", "cnn", "transformer",
-        "data science", "mlops", "ai engineer", "ml engineer",
-        "artificial intelligence", "neural network", "model training",
-    ],
-    "tech_software": [
-        "software engineer", "backend", "frontend", "fullstack", "devops",
-        "python", "javascript", "java", "golang", "react", "nodejs",
-        "docker", "kubernetes", "aws", "api", "microservice", "database",
-    ],
-    "tech_data": [
-        "data engineer", "data analyst", "data warehouse", "etl",
-        "spark", "airflow", "kafka", "sql", "bi", "tableau", "power bi",
-        "data pipeline", "analytics",
-    ],
-    "sales": [
-        "sales", "bán hàng", "kinh doanh", "business development",
-        "negotiation", "crm", "lead generation", "sales executive",
-        "account manager", "customer relationship", "revenue",
-        "sales target", "chỉ tiêu doanh số", "khách hàng tiềm năng",
-    ],
-    "marketing": [
-        "marketing", "digital marketing", "seo", "sem", "content",
-        "social media", "brand", "campaign", "advertising", "pr",
-        "copywriting", "growth hacking",
-    ],
-    "finance": [
-        "finance", "accounting", "tài chính", "kế toán", "audit",
-        "tax", "financial analysis", "investment", "banking", "cfa",
-        "budget", "forecasting", "p&l",
-    ],
-    "hr": [
-        "human resource", "recruitment", "talent acquisition", "hr",
-        "nhân sự", "tuyển dụng", "payroll", "training", "learning development",
-        "employee relations", "hrbp",
-    ],
-    "operations": [
-        "operations", "supply chain", "logistics", "vận hành", "lean",
-        "six sigma", "warehouse", "procurement", "vendor management",
-        "project management", "process improvement",
-    ],
-}
 
 # ── Skill synonym groups ──────────────────────────────────────────────────────
 _SKILL_SYNONYMS: Dict[str, List[str]] = {
@@ -243,19 +196,6 @@ def _pprefix_batch(texts: List[str], embedder) -> List[str]:
     return [f"passage: {t}" for t in texts]
 
 
-# ── Domain detection ───────────────────────────────────────────────────────────
-def _detect_domain(text: str) -> str:
-    """
-    Phát hiện domain chính từ một đoạn text (CV hoặc JD).
-    Trả về domain key có score cao nhất, hoặc 'unknown'.
-    """
-    text_lower = text.lower()
-    scores: Dict[str, int] = {}
-    for domain, keywords in _DOMAIN_TAXONOMY.items():
-        scores[domain] = sum(1 for kw in keywords if kw in text_lower)
-    best = max(scores, key=lambda d: scores[d])
-    return best if scores[best] >= 2 else "unknown"
-
 
 def _build_cv_text(cv_data: dict) -> str:
     """Gộp toàn bộ nội dung CV thành một chuỗi để detect domain."""
@@ -410,6 +350,7 @@ def _score_experience(
     project_years, project_relevance_scores, project_descriptions = \
         _semantic_project_relevance(
             cv_data.get("projects", []),
+            jd_data,
             " ".join([
                 " ".join(jd_struct.get("skills_required", [])),
                 " ".join(jd_struct.get("skills_preferred", [])),
@@ -428,20 +369,58 @@ def _score_experience(
     # Khi years_req = 0 (pure intern), mọi CV có project đều đủ điều kiện → cho điểm tối đa.
     # Khi years_req = 1, project 6 tháng × relevance 0.6 ≈ 0.5 năm → ratio 0.5 → vẫn hợp lý.
     if is_entry_level and years_req == 0:
-        # JD không yêu cầu năm kinh nghiệm → có project/work là đủ
-        # Guard: chỉ cho điểm cao khi thực sự có bằng chứng (project hoặc work)
-        has_evidence = project_years > 0 or total_work_years > 0
+        # JD không yêu cầu năm kinh nghiệm → đánh giá qua project relevance thực tế.
+        # KHÔNG cho flat 40.0 bất kể relevance — tránh trường hợp CV thuần CV
+        # apply JD NLP vẫn được experience_score cao do project_years > 0 (relevance 11%).
+        avg_rel = (
+            sum(project_relevance_scores) / len(project_relevance_scores)
+            if project_relevance_scores else 0.0
+        )
         has_any_project = len(cv_data.get("projects", [])) > 0
-        if has_evidence:
-            years_score = 40.0  # Cho phép đạt điểm max nếu project có relevance
+
+        if total_work_years > 0:
+            # FIX 15C: For SEVERE domain mismatch (skill_overlap < 0.1),
+            # having unrelated work experience (e.g., Barista) should NOT give 35/40.
+            # A Literature student's barista job is completely irrelevant to IT backend.
+            if skill_overlap < 0.1:
+                # Severely mismatched domain — work experience doesn't count
+                years_score = 5.0
+            else:
+                years_score = 35.0
+        elif avg_rel >= 0.55:
+            # Project rất relevant → full score
+            years_score = 40.0
+        elif avg_rel >= 0.25:
+            # Project có liên quan → scale tuyến tính 15→40 theo relevance
+            years_score = 15.0 + (avg_rel - 0.25) / 0.30 * 25.0
+        elif has_any_project and avg_rel > 0:
+            # Có project nhưng relevance thấp < 25% → 10–15đ
+            years_score = 10.0 + avg_rel / 0.25 * 5.0
         elif has_any_project:
-            # Có project nhưng relevance quá thấp → project_years = 0
-            years_score = 20.0  # Tồn tại nhưng không liên quan
+            # Có project nhưng relevance = 0 (domain hoàn toàn lệch)
+            years_score = 8.0
         else:
-            years_score = 10.0  # Không có gì
+            years_score = 5.0  # Không có gì
     elif years_req > 0:
         ratio = min(all_exp_years / years_req, 2.0)
-        raw_years_score = min(40.0 * ratio, 40.0)
+        # BUG 8a FIX: Scale years_score proportionally when CV is underqualified
+        # Before: min(40*ratio, 40) — when ratio=0.875 (3.5y exp / 4y req),
+        #   raw_years_score=35/40 = 87.5% — too generous for an underqualified CV.
+        # After: cap at years_req/years_req = 1.0 when ratio < 1.0 (underqualified)
+        #   ratio=0.875 → raw_years_score = 35 (proportional to the gap)
+        #   But we also need to respect the gap: CV with 87.5% of required years
+        #   should NOT get 87.5% of the 40 pts for years. Cap years_score component
+        #   so that underqualified CVs can't reach 35/40.
+        # Fix: apply a gap multiplier when ratio < 1.0 to further penalize the gap.
+        #   years_ratio_score = min(40 * ratio, 40) is kept as-is for overqualified cases.
+        #   For underqualified: scale down by ratio itself to avoid over-rewarding partial exp.
+        if all_exp_years < years_req:
+            # Underqualified: scale years_score down by (all_exp_years / years_req)
+            # This means a CV with 3.5y exp for a 4y req gets (3.5/4)^2 * 40 = 76.6% of 40 = 30.6
+            gap_ratio = all_exp_years / years_req
+            raw_years_score = min(40.0 * gap_ratio * gap_ratio, 40.0)
+        else:
+            raw_years_score = min(40.0 * ratio, 40.0)
         # BUG 2 FIX: Overqualified penalty cho experience khi JD là Intern/Fresher
         # CV có kinh nghiệm >> yêu cầu sẽ bị trừ nhẹ (tối đa -8 điểm) vì khả năng
         # ứng viên không gắn bó lâu dài hoặc mức lương không phù hợp.
@@ -466,30 +445,50 @@ def _score_experience(
         exp_titles, project_descriptions, embedder
     )
 
+    # BUG 13 FIX: For intern/fresher JDs, seniority should be proportional to work years vs requirement.
+    # OLD: if total_work_years > 0 → seniority = 10.0 (too generous for even 1y freelance)
+    # NEW: Scale seniority by (actual_work_years / years_req) for intern JDs.
+    seniority_base = 0.0
     if domain_penalty >= 0.7:
-        seniority_score = 0.0
+        seniority_base = 0.0
     elif is_entry_level:
-        # Intern/Fresher JD: có project relevant là đủ seniority match
         avg_rel = (
             sum(project_relevance_scores) / len(project_relevance_scores)
             if project_relevance_scores else 0.0
         )
         if total_work_years > 0:
-            seniority_score = 10.0  # có work experience thì full marks
+            # Scale by work years vs JD requirement to avoid giving 10/10 for any work experience
+            # For "0-2 years" JD: years_req=0 → fall through to project-based scoring
+            # For "1-3 years" JD: years_req=1 → partial credit based on years ratio
+            if years_req > 0:
+                # Scale seniority: years_actual / years_req gives 0-1 ratio, cap at 10
+                years_ratio = min(total_work_years / years_req, 1.5)
+                seniority_base = round(min(years_ratio * 10.0, 10.0), 1)
+            else:
+                seniority_base = 10.0
         elif avg_rel >= 0.50:
-            seniority_score = 8.0   # project relevant tốt
+            seniority_base = 8.0
         elif avg_rel >= 0.30:
-            seniority_score = 5.0   # project có liên quan
+            seniority_base = 5.0
         else:
-            seniority_score = 2.0   # có project nhưng không relevant
+            seniority_base = 2.0
     elif cv_level >= req_level:
-        seniority_score = 10.0
+        seniority_base = 10.0
     elif cv_level == req_level - 1:
-        seniority_score = 5.0
+        seniority_base = 5.0
     elif cv_level > 0:
-        seniority_score = 2.0
+        seniority_base = 2.0
     else:
-        seniority_score = 0.0
+        seniority_base = 0.0
+
+    # Apply level-ratio scaling when CV is below required level (within same domain)
+    # This penalizes e.g. Junior CV (level 1) applying for Senior JD (level 3) even
+    # when domain is the same and domain_penalty = 0.
+    if domain_penalty < 0.7 and req_level > 0 and cv_level < req_level and cv_level > 0:
+        level_ratio = cv_level / req_level
+        seniority_score = round(min(seniority_base * level_ratio, 10.0), 1)
+    else:
+        seniority_score = seniority_base
 
     # 6. Bonus — chỉ cộng khi domain gần nhau
     bonus = 0.0
@@ -501,7 +500,6 @@ def _score_experience(
                 sum(project_relevance_scores) / len(project_relevance_scores)
                 if project_relevance_scores else 0.0
             )
-            # Intern/Fresher: threshold thấp hơn vì project là primary evidence
             rel_threshold_high = 0.55 if is_entry_level else 0.65
             rel_threshold_mid = 0.35 if is_entry_level else 0.50
             if avg_rel >= rel_threshold_high:
@@ -509,7 +507,40 @@ def _score_experience(
             elif avg_rel >= rel_threshold_mid:
                 bonus += 3.0
 
+    # FIX: Intern JD bonus cap — years_req <= 1 năm means no one deserves full 50/50
+    # Với JD intern/fresher (years_req <= 1), max possible raw = 40+10+5 = 55
+    # Cap raw ở 42 (roughly 85% của max) để tránh CV 1 năm exp đạt 50/50
+    if is_entry_level and years_req <= 1.0:
+        bonus = min(bonus, 3.0)
+
     raw_total = years_score + seniority_score + bonus
+
+    # FIX 11: Cap seniority directly when years gap is severe
+    # When CV has less than 50% of required years (not intern JD), seniority should be
+    # further penalized regardless of cv_level detection. A 1.5-year CV for a 4-year
+    # Senior JD has years_gap_ratio=0.375 — even cv_level detection might give mid-level
+    # credit that doesn't reflect the actual gap. Cap seniority at years_gap_ratio.
+    if (not is_entry_level and
+            years_req > 0 and
+            all_exp_years < years_req * 0.5):
+        years_gap_ratio = all_exp_years / years_req
+        seniority_score = round(min(seniority_score * years_gap_ratio, 10.0), 1)
+
+    # FIX 11 (hard cap): Severe underqualification → cap raw at 30/50 (60% of max)
+    # Threshold 0.86: when CV has ≤86% of JD minimum required years (same domain),
+    # cap experience score. This prevents same-domain CVs with significant experience gap
+    # from scoring too high just because domain matches.
+    #   - pair_04: 3.42y exp for "4-7y" JD → years_req=4.0 (min), ratio=0.855
+    #     0.855 ≤ 0.86 → cap triggers → exp ~30 → total ~60
+    #   - pair_09: 2y finance exp for "1-3y" data JD → years_req=1.0 (min), ratio=2.0
+    #     2.0 > 0.86 → cap NOT triggered → exp stays at 25 (correct)
+    if (not is_entry_level and
+            years_req > 0 and
+            all_exp_years > 0 and
+            all_exp_years <= years_req * 0.86 and
+            domain_penalty < 0.4):
+        raw_total = min(raw_total, 30.0)
+
     total_exp = round(min(raw_total * (1.0 - domain_penalty), 50.0), 2)
 
     # 7. Rationale
@@ -615,7 +646,11 @@ def _parse_years(start: str, end: str) -> float:
 
                 m = re.search(r"\d{4}", val)
                 if m:
-                    return int(m.group()), 1
+                    # Year-only format (e.g. "2022"): interpret as END of year (December)
+                    # because most CVs list work years by calendar year, and "2022"
+                    # in a resume typically means "some time in 2022" ending by Dec 2022.
+                    # This is more conservative than defaulting to January.
+                    return int(m.group()), 12
             return None
 
         sy = _extract_year_month(start)
@@ -929,8 +964,7 @@ def _match_criteria_to_cv(
         if not status and sim_matrix is not None:
             best_idx = int(sim_matrix[:, j].argmax())
             raw_sim = float(np.clip(sim_matrix[best_idx, j], 0.0, 1.0))
-            
-            # Tự động scale dựa trên đặc tính phân bố của model (Dynamic Calibration)
+
             SIM_MIN, SIM_MAX = _get_sim_calibration(embedder)
             span = max(SIM_MAX - SIM_MIN, 0.05)
             best_sim = float(np.clip((raw_sim - SIM_MIN) / span, 0.0, 1.0))
@@ -939,18 +973,40 @@ def _match_criteria_to_cv(
             category = str(criterion.get("category", "")).lower()
             source = str(criterion.get("source", "")).lower()
             is_atomic_skill = source.startswith("skills_") or category in {"skill", "technical_skill", "tool"}
-            
-            # Universal thresholds trên thang chuẩn hóa [0, 1]
-            match_threshold = 0.75 if is_atomic_skill else 0.65
-            related_threshold = 0.45 if is_atomic_skill else 0.35
-            
-            if best_sim >= match_threshold:
+
+            # Universal thresholds on normalized [0, 1] scale
+            match_threshold = 0.88 if is_atomic_skill else 0.80
+            related_threshold = 0.68 if is_atomic_skill else 0.62
+
+            # Cross-domain guard: English atomic skill criteria are prone to false-positive
+            # semantic matches against unrelated Vietnamese CV text.
+            # e.g. "Sales Prospecting" vs "Tm Kim Khch Hng" → sim ~0.65-0.75 (similar
+            # generic semantics) but different domains. We require sim >= 0.88 (exact
+            # match bar) to accept, rejecting "related_only" false positives.
+            criterion_name_lower = str(criterion.get("name", "")).lower()
+            has_latin = bool(re.search(r'[a-z]{4,}', criterion_name_lower))
+            has_vietnamese = bool(re.search(
+                r'[àáạảãâầấậẩẫăằắặẳẵèéẹẻẽêềếệểễìíịỉĩđùúụủũôồốộổỗơờớợởỡỳýỵ]',
+                criterion_name_lower
+            ))
+            is_english_atomic = is_atomic_skill and has_latin and not has_vietnamese
+
+            if is_english_atomic and status not in {"exact_match", "equivalent_match"}:
+                # Strict: only accept if sim >= match_threshold, else missing
+                if best_sim < match_threshold:
+                    status = "missing"
+                    evidence = ""
+                    best_sim = 0.0
+                    ratio = 0.0
+                # if best_sim >= match_threshold, fall through to set as semantic_match
+            elif best_sim >= match_threshold:
                 status = "semantic_match"
             elif best_sim >= related_threshold:
                 status = "related_only"
             else:
                 status = "missing"
                 evidence = ""
+                best_sim = 0.0
 
         if not status:
             status = "missing"
@@ -982,7 +1038,7 @@ def _compute_skill_overlap_ratio(
     cv_skills: List[str],
     jd_skills: List[str],
     embedder: EmbeddingService,
-    threshold: float = 0.70,  # Normalized threshold
+    threshold: float = 0.85,  # FIX: was 0.70 — higher to reduce false positive semantic matches
 ) -> float:
     """Return proportion of JD skills that are truly covered, not mean raw similarity."""
     jd_skills = _dedupe_strings(jd_skills)
@@ -1049,7 +1105,15 @@ def _score_skills(
             "coverage_ratio": 0.0,
             "rule_score": 0.0,
             "semantic_score": 0.0,
+            "exact_weight": 0.0,
+            "semantic_weight": 0.0,
+            "related_weight": 0.0,
+            "total_weight": 0.0,
             "criteria_count": 0,
+            "critical_matched": 0,
+            "critical_total": 0,
+            "important_matched": 0,
+            "important_total": 0,
             "domain_cap_applied": False,
         }, []
 
@@ -1082,8 +1146,11 @@ def _score_skills(
 
     total_score = round(min(raw_skills, max_skills), 2)
     cap_factor = total_score / raw_skills if raw_skills > 0 else 1.0
-    rule_score = round(min(total_score, (exact_weight / total_weight) * 30.0 * cap_factor), 2)
-    semantic_score = round(max(0.0, total_score - rule_score), 2)
+    # Exact score = proportional share of total (respecting cap), not double-capped
+    exact_raw = (exact_weight / total_weight) * raw_skills
+    exact_capped = exact_raw * cap_factor
+    exact_score = round(min(exact_capped, total_score), 2)
+    semantic_score = round(max(0.0, total_score - exact_score), 2)
 
     matched_display = [
         r["name"]
@@ -1095,23 +1162,23 @@ def _score_skills(
         for r in criteria_results
         if r["match_status"] == "related_only"
     ]
-    # Loại criteria category='education' khỏi missing_skills:
-    # Các yêu cầu học vấn ("Currently a 3rd/4th year student...") đã được tính
-    # trong education_score riêng, không nên xuất hiện trong danh sách skills thiếu.
-    _EDUCATION_CATEGORIES = {"education", "degree", "academic"}
+    # Loại criteria category='education' và 'soft_skill' khỏi missing_skills:
+    # - Education: đã được tính trong education_score riêng
+    # - Soft skill: không thể verify qua CV text, gây noise cho HR
+    _EXCLUDED_MISSING_CATEGORIES = {"education", "degree", "academic", "soft_skill"}
     missing_display = [
         r["name"]
         for r in criteria_results
         if r["match_status"] == "missing"
         and r["importance"] != "BONUS"
-        and str(r.get("category", "")).lower() not in _EDUCATION_CATEGORIES
+        and str(r.get("category", "")).lower() not in _EXCLUDED_MISSING_CATEGORIES
     ]
     missing_display.extend(
         r["name"]
         for r in criteria_results
         if r["match_status"] == "missing"
         and r["importance"] == "BONUS"
-        and str(r.get("category", "")).lower() not in _EDUCATION_CATEGORIES
+        and str(r.get("category", "")).lower() not in _EXCLUDED_MISSING_CATEGORIES
     )
 
     # Overall CV-JD embedding similarity for telemetry only.
@@ -1123,8 +1190,8 @@ def _score_skills(
         else:
             cv_text = embedder.encode_structured_cv(cv_data)
             jd_text = embedder.encode_structured_jd(jd_data)
-            cv_emb = embedder.encode(cv_text)
-            jd_emb = embedder.encode(jd_text)
+            cv_emb = embedder.encode(_pprefix(cv_text, embedder))
+            jd_emb = embedder.encode(_qprefix(jd_text, embedder))
         sim_raw = float(np.dot(cv_emb, jd_emb))
         sim = float(np.clip(sim_raw, 0.0, 1.0))
     except Exception as e:
@@ -1145,7 +1212,7 @@ def _score_skills(
     breakdown = {
         "raw_score": round(raw_skills, 2),
         "coverage_ratio": round(coverage_ratio, 4),
-        "rule_score": rule_score,
+        "rule_score": exact_score,
         "semantic_score": semantic_score,
         "exact_weight": round(exact_weight, 2),
         "semantic_weight": round(semantic_weight, 2),
@@ -1236,10 +1303,11 @@ def _get_sim_calibration(embedder: EmbeddingService) -> tuple:
     if cache_key in _sim_calibration_cache:
         return _sim_calibration_cache[cache_key]
     try:
-        # Dùng query prefix cho calibration text (đều là query role)
-        _unrelated_a = embedder.encode(_qprefix("software engineer python backend", embedder), normalize=True)
+        # Dùng mixed prefix (passage vs query) để calibration phản ánh đúng
+        # distribution thực tế khi so sánh CV (passage) vs JD/criteria (query)
+        _unrelated_a = embedder.encode(_pprefix("software engineer python backend", embedder), normalize=True)
         _unrelated_b = embedder.encode(_qprefix("chef cooking restaurant food", embedder), normalize=True)
-        _identical_a = embedder.encode(_qprefix("machine learning engineer AI", embedder), normalize=True)
+        _identical_a = embedder.encode(_pprefix("machine learning engineer AI", embedder), normalize=True)
         _identical_b = embedder.encode(_qprefix("machine learning engineer artificial intelligence", embedder), normalize=True)
         sim_low  = float(np.clip(np.dot(_unrelated_a, _unrelated_b), 0.0, 1.0))
         sim_high = float(np.clip(np.dot(_identical_a, _identical_b), 0.0, 1.0))
@@ -1290,38 +1358,30 @@ def _semantic_domain_detection(
     if best_score >= threshold and (best_score - second_best) >= 0.03:
         return best_domain
 
-    # Fallback keyword
-    keyword_domain = _detect_domain(text)
-    if keyword_domain != "unknown":
-        return keyword_domain
-
     return best_domain if best_score >= threshold else "unknown"
 
 
 def _semantic_project_relevance(
     projects: List[dict],
+    jd_data: dict,
     jd_text: str,
     embedder: EmbeddingService,
     threshold: float = 0.35,  # Normalized threshold
     default_duration: float = 0.25,
 ) -> Tuple[float, List[float], List[str]]:
     """
-    Semantic project relevance: embed project description + name rồi so sánh với JD text.
-
-    Returns (total_weighted_years, list_of_relevance_scores, list_of_descriptions).
-    total_weighted_years = sum(proj_dur * relevance) trên tất cả projects.
-    relevance được tính bằng max similarity giữa project text và JD text.
+    Semantic project relevance: kết hợp Embedding Similarity và Tech Stack Intersection.
     """
     if not projects:
         return 0.0, [], []
 
+    jd_struct = jd_data.get("structured", jd_data)
+    jd_skills = set(s.lower() for s in jd_struct.get("skills_required", []) + jd_struct.get("skills_preferred", []))
+
     durations: List[float] = []
     for proj in projects:
-        dur_str = str(proj.get("duration", ""))
-        m = re.search(r"(\d+(?:\.\d+)?)\s*(month|year)", dur_str, re.IGNORECASE)
-        if m:
-            val = float(m.group(1))
-            durations.append(val / 12 if "month" in m.group(2).lower() else val)
+        if proj.get("start") and not proj.get("end"):
+            durations.append(default_duration)
         elif proj.get("start") or proj.get("end"):
             parsed_duration = _parse_years(proj.get("start", ""), proj.get("end", ""))
             durations.append(parsed_duration if parsed_duration > 0 else default_duration)
@@ -1337,7 +1397,6 @@ def _semantic_project_relevance(
         proj_texts.append(" ".join(p for p in parts if p))
 
     try:
-        # JD là query (tìm kiếm project phù hợp), project là passage (corpus)
         jd_emb = embedder.encode(_qprefix(jd_text, embedder), normalize=True)
         proj_prefixed = _pprefix_batch(proj_texts, embedder)
         proj_embs = embedder.encode_batch(proj_prefixed, normalize=True)
@@ -1346,67 +1405,34 @@ def _semantic_project_relevance(
         logger.warning(f"_semantic_project_relevance embedding failed: {e}")
         return 0.0, [], proj_texts
 
-    # Threshold cho e5: unrelated ~0.45-0.55, relevant ~0.65+
-    # Dùng threshold thấp hơn 0.82 cũ vì e5 baseline similarity cao hơn
-    relevance_threshold = threshold  # caller truyền, default đã điều chỉnh
+    SIM_MIN, SIM_MAX = _get_sim_calibration(embedder)
+    span = max(SIM_MAX - SIM_MIN, 0.05)
 
     total_years = 0.0
     relevance_scores: List[float] = []
     descriptions: List[str] = []
+    
     for i, (proj, dur) in enumerate(zip(projects, durations)):
         raw_sim = float(sims[i])
-        # Rescale: sim dưới threshold → 0, sim tối đa → 1.0
-        if raw_sim >= relevance_threshold:
-            relevance = (raw_sim - relevance_threshold) / (1.0 - relevance_threshold)
+        
+        # Tech Stack Matching Boost: Chính xác tuyệt đối thông qua parsed arrays
+        proj_techs = set(t.lower() for t in proj.get("technologies", []))
+        intersection_count = len(proj_techs.intersection(jd_skills))
+        if intersection_count > 0:
+            raw_sim = min(raw_sim + (intersection_count * 0.05 * span), 1.0)
+
+        normalized_sim = (raw_sim - SIM_MIN) / span
+        
+        if normalized_sim >= threshold:
+            relevance = float(np.clip((normalized_sim - threshold) / max(1.0 - threshold, 1e-6), 0.0, 1.0))
         else:
             relevance = 0.0
+            
         total_years += dur * relevance
         relevance_scores.append(relevance)
         descriptions.append(proj_texts[i])
 
     return total_years, relevance_scores, descriptions
-
-    # Build project texts
-    proj_texts: List[str] = []
-    for proj in projects:
-        name = proj.get("name", "")
-        desc = proj.get("description", "")
-        techs = " ".join(proj.get("technologies", []))
-        proj_texts.append(f"{name}. {desc}. Technologies: {techs}")
-
-    # Encode all
-    jd_emb = embedder.encode(jd_text, normalize=True)
-    proj_embs = embedder.encode_batch(proj_texts, normalize=True)
-
-    # Collect JD keywords for fallback boost from jd_text
-    jd_keywords = [w.lower() for w in re.split(r'\W+', jd_text) if len(w) > 2]
-
-    # Similarity vs JD
-    SIM_MIN, SIM_MAX = _get_sim_calibration(embedder)
-    span = max(SIM_MAX - SIM_MIN, 0.05)
-    
-    relevances: List[float] = []
-    for i in range(len(projects)):
-        raw_sim = float(np.dot(proj_embs[i], jd_emb))
-        
-        # Keyword Boost: giúp vượt qua khác biệt ngôn ngữ (Eng CV vs Viet JD)
-        proj_text_lower = proj_texts[i].lower()
-        match_count = sum(1 for kw in jd_keywords if kw in proj_text_lower)
-        if match_count > 0:
-            raw_sim = min(raw_sim + (match_count * 0.05 * span), 1.0)
-            
-        normalized_sim = (raw_sim - SIM_MIN) / span
-            
-        if normalized_sim < threshold:
-            relevances.append(0.0)
-        else:
-            # Rescale above threshold so unrelated projects do not create "virtual years".
-            relevances.append(float(np.clip((normalized_sim - threshold) / max(1.0 - threshold, 1e-6), 0.0, 1.0)))
-
-    # Weighted years
-    weighted_years = sum(durations[i] * relevances[i] for i in range(len(projects)))
-
-    return weighted_years, relevances, proj_texts
 
 
 def _semantic_seniority_detection(
@@ -1427,7 +1453,8 @@ def _semantic_seniority_detection(
     if not cv_text.strip():
         return 0
 
-    cv_emb = embedder.encode(cv_text, normalize=True)
+    # CV text là query (tìm anchor phù hợp nhất), anchor là passage → dùng query prefix
+    cv_emb = embedder.encode(_qprefix(cv_text, embedder), normalize=True)
     best_level = 0
     best_sim = -1.0
     for level, anchor_emb in _seniority_anchors_embs.items():
@@ -1439,149 +1466,102 @@ def _semantic_seniority_detection(
     return best_level
 
 
-def _major_keyword_match(cv_education: List[dict], jd_data: dict) -> bool:
+def _major_relevance_score(
+    cv_education: List[dict],
+    jd_data: dict,
+    embedder: EmbeddingService,
+) -> float:
     """
-    Keyword-based fallback cho major relevance.
+    Semantic-based major relevance scoring — ATS modern approach.
 
-    Dùng khi semantic embedding không đủ độ tin cậy (ví dụ: major text quá ngắn
-    như "Artificial Intelligence" → embedding không đủ dense để vượt threshold 0.40
-    khi so với JD text rất dài).
+    KhÔNG hardcode keyword cho từng ngành. Dùng embedding similarity giữa
+    education text và JD context để xác định mức độ phù hợp.
 
-    Chiến lược: so sánh trực tiếp các từ trong major/degree với JD title + industry.
-    Sử dụng các nhóm từ đồng nghĩa ngành học phổ biến.
+    Returns float 0.0-1.0:
+        1.0 = strong major-domain match (e.g. "Kế toán" CV vs "Accountant" JD)
+        0.5 = partial/adjaent match (e.g. "Kinh tế" CV vs "Data Analyst" JD)
+        0.0 = no relevance (e.g. "Văn học" CV vs "Software Engineer" JD)
+
+    Chiến lược 2-tier giống ATS hiện đại:
+      1. Enrich education text bằng school context để tăng embedding density
+      2. Embed education vs JD context text, dùng raw cosine similarity
     """
-    _MAJOR_GROUPS: Dict[str, List[str]] = {
-        "tech_ai": [
-            "artificial intelligence", "ai", "machine learning", "deep learning",
-            "computer vision", "data science", "nlp", "trí tuệ nhân tạo",
-            "học máy", "khoa học dữ liệu",
-        ],
-        "tech_cs": [
-            "computer science", "khoa học máy tính", "information technology",
-            "công nghệ thông tin", "cntt", "software engineering",
-            "kỹ thuật phần mềm", "information systems", "hệ thống thông tin",
-            "computing", "informatics", "tin học",
-        ],
-        "tech_data": [
-            "data engineering", "data analytics", "statistics", "thống kê",
-            "mathematics", "toán học", "applied mathematics", "toán ứng dụng",
-        ],
-        "tech_electronics": [
-            "electronics", "electrical engineering", "điện tử", "kỹ thuật điện",
-            "embedded systems", "robotics", "robot",
-        ],
-    }
-    _JD_DOMAIN_GROUPS: Dict[str, List[str]] = {
-        "tech_ai": [
-            "ai", "artificial intelligence", "machine learning", "deep learning",
-            "computer vision", "data science", "nlp", "intern", "engineer",
-        ],
-        "tech_cs": [
-            "software", "backend", "frontend", "fullstack", "developer",
-            "engineer", "devops", "web", "mobile",
-        ],
-        "tech_data": [
-            "data", "analytics", "analyst", "bi", "etl", "warehouse",
-        ],
-        "tech_electronics": [
-            "embedded", "iot", "robotics", "hardware", "electronics",
-        ],
-    }
+    if not cv_education:
+        return 0.0
 
     jd_struct = jd_data.get("structured", jd_data)
-    jd_title = (
-        (jd_struct.get("job_title") or jd_data.get("job_title") or "") + " " +
-        (jd_struct.get("industry") or "")
-    ).lower()
 
-    # Detect JD domain từ title
-    jd_domains: set = set()
-    for domain, kws in _JD_DOMAIN_GROUPS.items():
-        if any(kw in jd_title for kw in kws):
-            jd_domains.add(domain)
+    # Build JD context text — enriched version của job để embedding có ngữ cảnh
+    jd_context_parts = [
+        jd_struct.get("job_title", ""),
+        jd_data.get("job_title", ""),
+        # Sử dụng responsibilities + requirements vì chúng mô tả CÔNG VIỆC thực tế,
+        # không phải title trừu tượng. VD: "Senior AI Engineer" quá ngắn, nhưng
+        # "Design and develop AI/ML systems, fine-tune LLMs" cho embedding context tốt hơn.
+        " ".join(jd_struct.get("responsibilities", [])),
+        " ".join(jd_struct.get("requirements", [])),
+        # Skills required cung cấp vocabulary cụ thể cho domain
+        " ".join(jd_struct.get("skills_required", [])),
+        " ".join(jd_struct.get("skills_preferred", [])),
+    ]
+    jd_context = " ".join(filter(None, jd_context_parts)).strip()
 
-    if not jd_domains:
-        return False  # Không detect được JD domain → không thể kết luận
-
+    # Enrich education text — school name cung cấp domain context quan trọng
+    # VD: "ĐH Bách Khoa Hà Nội" → context "engineering", "ĐH Kinh tế" → "business/finance"
+    # Dùng school name thay vì industry vì school name thường có trong parsed data
+    edu_texts: List[str] = []
     for edu in cv_education:
-        major_text = (
-            (edu.get("major") or "") + " " + (edu.get("degree") or "")
-        ).lower()
-        if not major_text.strip():
-            continue
-        # Detect major domain
-        for domain, kws in _MAJOR_GROUPS.items():
-            if any(kw in major_text for kw in kws):
-                if domain in jd_domains:
-                    return True  # Major domain khớp JD domain
-    return False
+        edu_parts = [
+            edu.get("major", ""),
+            edu.get("degree", ""),
+            edu.get("school", ""),
+            edu.get("description", ""),
+        ]
+        # Filter out empty parts but keep structure
+        filtered = [p.strip() for p in edu_parts if p.strip()]
+        edu_text = " ".join(filtered)
+        if edu_text:
+            edu_texts.append(edu_text)
+
+    if not edu_texts or not jd_context:
+        return 0.0
+
+    try:
+        SIM_MIN, SIM_MAX = _get_sim_calibration(embedder)
+        span = max(SIM_MAX - SIM_MIN, 0.05)
+
+        # Embed: JD là query, mỗi education entry là passage
+        jd_emb = embedder.encode(_qprefix(jd_context, embedder), normalize=True)
+        edu_embs = embedder.encode_batch(_pprefix_batch(edu_texts, embedder), normalize=True)
+
+        # Lấy max similarity — chỉ cần 1 education entry phù hợp là đạt
+        best_sim = 0.0
+        for i in range(len(edu_texts)):
+            raw_sim = float(np.dot(edu_embs[i], jd_emb))
+            # Normalize về 0-1 scale
+            normalized_sim = max(0.0, min(1.0, (raw_sim - SIM_MIN) / span))
+            if normalized_sim > best_sim:
+                best_sim = normalized_sim
+
+        return round(best_sim, 3)
+
+    except Exception as e:
+        logger.warning(f"Major relevance embedding failed: {e}")
+        return 0.0
 
 
 def _semantic_major_relevance(
     cv_education: List[dict],
     jd_data: dict,
     embedder: EmbeddingService,
-    threshold: float = 0.40,  # Normalized threshold
+    threshold: float = 0.40,
 ) -> bool:
     """
-    Semantic major relevance: embed JD field description + major text, so sánh similarity.
-
-    Chiến lược 2 tầng:
-    1. Keyword fallback TRƯỚC: nếu major keywords khớp JD domain rõ ràng → True ngay.
-       (Tránh false negative khi major text quá ngắn làm embedding kém tin cậy.)
-    2. Semantic embedding: embed education text vs JD field text, threshold >= 0.40.
-
-    Returns True nếu ít nhất 1 education entry phù hợp JD field.
+    Legacy wrapper — kept for backward compatibility.
+    Returns True if _major_relevance_score >= threshold.
     """
-    if not cv_education:
-        return False
-
-    # Tầng 1: Keyword-based match — nhanh và chắc cho major ngắn
-    if _major_keyword_match(cv_education, jd_data):
-        return True
-
-    # Tầng 2: Semantic embedding — cho trường hợp phức tạp hơn
-    jd_struct = jd_data.get("structured", jd_data)
-    # Dùng job_title + industry (ngắn, focused) thay vì toàn bộ JD text
-    # để tránh "dilution" khi JD text quá dài → similarity bị kéo xuống
-    jd_focused = " ".join(filter(None, [
-        jd_struct.get("job_title", ""),
-        jd_data.get("job_title", ""),
-        jd_struct.get("industry", ""),
-    ]))
-    if not jd_focused.strip():
-        return False
-
-    # Build education texts — enrich major ngắn với context ngành
-    edu_texts: List[str] = []
-    for edu in cv_education:
-        parts = [
-            edu.get("degree", ""),
-            edu.get("major", ""),
-            edu.get("school", ""),
-            edu.get("description", ""),
-        ]
-        edu_text = " ".join(filter(None, parts))
-        edu_texts.append(edu_text)
-
-    if not any(t.strip() for t in edu_texts):
-        return False
-
-    try:
-        SIM_MIN, SIM_MAX = _get_sim_calibration(embedder)
-        span = max(SIM_MAX - SIM_MIN, 0.05)
-
-        jd_emb = embedder.encode(jd_focused, normalize=True)
-        edu_embs = embedder.encode_batch(edu_texts, normalize=True)
-        for i in range(len(cv_education)):
-            raw_sim = float(np.dot(edu_embs[i], jd_emb))
-            normalized_sim = (raw_sim - SIM_MIN) / span
-            if normalized_sim >= threshold:
-                return True
-    except Exception as e:
-        logger.warning(f"Semantic major relevance embedding failed: {e}")
-
-    return False
+    score = _major_relevance_score(cv_education, jd_data, embedder)
+    return score >= threshold
 
 
 # ════════════════════════════════════════════════════════════════════════════
@@ -1596,7 +1576,14 @@ def _score_education(
     cv_data: dict,
     jd_data: dict,
     embedder: EmbeddingService,
+    domain_penalty: float = 0.0,
 ) -> Tuple[float, str]:
+    """
+    Score 0-10.
+    domain_penalty: passed from scoring engine (0.0 = same domain, 1.0 = completely unrelated).
+    When domain_penalty >= 0.7 (SEVERE mismatch), education base is heavily capped because
+    a Literature degree is completely irrelevant to IT — the degree level alone is not enough.
+    """
     jd_struct = jd_data.get("structured", jd_data)
     req_text = " ".join(jd_struct.get("requirements", []))
 
@@ -1613,11 +1600,7 @@ def _score_education(
         if kw in req_text.lower():
             req_degree = max(req_degree, val)
 
-    import datetime
-    current_year = datetime.datetime.now().year
-
     cv_degree = 0
-    cv_is_student = False  # đang học đại học (chưa tốt nghiệp)
     for edu in cv_data.get("education", []):
         text = f"{edu.get('degree', '')} {edu.get('major', '')} {edu.get('school', '')}".lower()
         for kw, val in degree_map.items():
@@ -1625,51 +1608,29 @@ def _score_education(
                 cv_degree = max(cv_degree, val)
         if edu.get("degree") or edu.get("major"):
             cv_degree = max(cv_degree, 2)
-        # Detect sinh viên đang học: end year >= current year → chưa tốt nghiệp
-        end_year_str = str(edu.get("end", "") or "")
-        m_year = re.search(r"\d{4}", end_year_str)
-        if m_year and int(m_year.group()) >= current_year:
-            cv_is_student = True
-            # Đang học đại học → treat như degree = 3 (sẽ tốt nghiệp)
-            cv_degree = max(cv_degree, 3)
 
-    # SEMANTIC MATCHING: thay keyword-based major relevance bằng embedding similarity
-    cv_major_match = _semantic_major_relevance(
-        cv_data.get("education", []), jd_data, embedder, threshold=0.40
-    )
+    # Lấy thông tin sinh viên từ LLM Parser
+    cv_is_student = cv_data.get("is_student", False)
+    if cv_is_student:
+        cv_degree = max(cv_degree, 3)
 
-    cert_count = 0
-    cv_text_lower = str(cv_data).lower()
-    # BUG 4 FIX: Loại bỏ "kaggle" khỏi cert_keywords.
-    # Kaggle là learning platform/competition platform, KHÔNG phải certification
-    # như AWS Certified, PMP hay Scrum Master. Việc có "kaggle" trong CV text
-    # (vd: kaggle competition, kaggle dataset) không nên count là cert.
-    cert_keywords = [
-        "aws certified", "google certified",
-        "azure certified", "cisco certified", "oracle certified",
-        "salesforce certified", "pmp certified", "pmp certificate",
-        "scrum master", "deep learning specialization", "google data analytics",
-        "certification", "certificate",
-    ]
-    for kw in cert_keywords:
-        if kw in cv_text_lower:
-            cert_count += 1
+    # FIX 15A: For SEVERE domain mismatch, force cv_major_match=False regardless
+    # of semantic similarity. A Literature degree is NEVER relevant to IT backend,
+    # even if the embedding model finds some superficial similarity.
+    if domain_penalty >= 0.7:
+        cv_major_match = False
+        is_severe_domain_mismatch = True
+    else:
+        cv_major_match = _semantic_major_relevance(
+            cv_data.get("education", []), jd_data, embedder, threshold=0.40
+        )
+        is_severe_domain_mismatch = False
 
-    # BUG 3 FIX: JD Intern thường viết "Sinh viên năm 3, 4" hoặc "đang học đại học"
-    # thay vì "Cao đẳng/Đại học" → req_degree = 0 dù thực tế JD kỳ vọng SV đại học.
-    # Khi req_degree = 0 mà JD có dấu hiệu intern/student → treat như req_degree = 3
-    # để base điểm là 6.0 (đúng ngành) thay vì bị giảm về 4.0 (no req).
-    jd_req_text_lower = req_text.lower()
-    jd_is_intern_student = any(
-        kw in jd_req_text_lower for kw in [
-            "intern", "sinh viên", "student", "năm 3", "năm 4", "năm cuối",
-            "fresher", "đang học", "chưa tốt nghiệp",
-        ]
-    )
-    # Cũng check seniority field
-    seniority_req_edu = (jd_struct.get("seniority") or "").lower()
-    if not jd_is_intern_student and any(kw in seniority_req_edu for kw in ["intern", "fresher"]):
-        jd_is_intern_student = True
+    # Sử dụng mảng certifications bóc tách bởi LLM Parser thay vì regex keyword
+    cert_count = len(cv_data.get("certifications", []))
+
+    # JD Intern / Sinh viên được xác định bằng LLM Parser
+    jd_is_intern_student = jd_struct.get("is_entry_level", False)
 
     effective_req_degree = req_degree
     if req_degree == 0 and jd_is_intern_student:
@@ -1678,24 +1639,41 @@ def _score_education(
 
     if effective_req_degree > 0:
         if cv_degree >= effective_req_degree:
-            base = 6.0 if cv_major_match else 3.5
+            # Đáp ứng đủ bằng cấp: base 8.0 (đúng ngành) hoặc 5.0 (trái ngành)
+            base = 8.0 if cv_major_match else 5.0
         elif cv_is_student and cv_degree >= effective_req_degree - 1:
-            # Đang học, sắp đủ bằng → không penalize nặng
-            base = 5.5 if cv_major_match else 3.0
+            # Đang học, sắp đủ bằng: base 7.5 (đúng ngành) hoặc 4.5 (trái ngành)
+            base = 7.5 if cv_major_match else 4.5
         else:
-            base = max(0.0, (cv_degree / max(effective_req_degree, 1)) * 4.0)
+            base = max(0.0, (cv_degree / max(effective_req_degree, 1)) * 5.0)
             if cv_major_match:
-                base += 1.0
+                base += 1.5
     else:
-        base = 4.0 if cv_major_match else 2.5
+        base = 6.0 if cv_major_match else 4.0
+
+    # FIX 15A (continued): SEVERE domain mismatch — hard cap on base
+    # Even if degree level is sufficient, a completely unrelated degree deserves
+    # at most 2.0 base. This prevents Literature → IT from scoring 5.0 just because
+    # both have "bachelor" degree level.
+    if is_severe_domain_mismatch:
+        base = min(base, 2.0)
+        cert_bonus_max = 1.0  # at most +1.0 from certs (max score = 3.0)
+    else:
+        cert_bonus_max = 2.0   # at most +2.0 from certs (max score = 10.0)
 
     # Bonus cho sinh viên đang học đúng ngành với JD intern/fresher
     if cv_is_student and cv_major_match:
-        base = min(base + 1.5, 8.0)  # tối đa 8 để còn chỗ cho cert bonus
+        base = min(base + 1.0, 9.0)  # tối đa 9.0 để còn chỗ cho cert bonus
 
-    score = min(base + min(cert_count, 3) * 0.8, 10.0)
+    # Mỗi chứng chỉ +0.5 điểm (tối đa 4 chứng chỉ = 2.0 điểm)
+    score = min(base + min(cert_count, 4) * 0.5, 10.0)
+    # But cap cert bonus for severe mismatch
+    score = min(score, base + cert_bonus_max)
 
     major_note = "Ngành học phù hợp." if cv_major_match else "Ngành học không liên quan trực tiếp."
+    student_note = " Đang học (chưa tốt nghiệp)." if cv_is_student else ""
+    if is_severe_domain_mismatch:
+        major_note = "Domain hoàn toàn không liên quan — ngành học không có giá trị cho JD này."
     student_note = " Đang học (chưa tốt nghiệp)." if cv_is_student else ""
     rationale = f"Trình độ: {cv_degree}/5.{student_note} {major_note}"
     if cert_count > 0:
@@ -1709,12 +1687,15 @@ def _score_career_objectives(
     cv_data: dict,
     jd_data: dict,
     embedder: EmbeddingService,
+    domain_penalty: float = 0.0,
 ) -> Tuple[float, str]:
     """
-    Score 0-10:
-    - So sánh career objective trong CV với JD (job title, responsibilities, industry)
-    - Semantic matching: embed và so sánh cosine similarity
-    - Fallback keyword matching nếu embedding fail
+    Score 0-10.
+    domain_penalty: passed from scoring engine (0.0 = same domain, 1.0 = completely unrelated).
+    When domain_penalty >= 0.7 (SEVERE mismatch), career score is capped at max 1.0 because
+    a Literature major's career goals are completely irrelevant to IT — even if the embedding
+    finds superficial semantic similarity between "communication skills" and "teamwork", it
+    shouldn't count as career alignment.
     """
     cv_objective = (cv_data.get("career_objectives") or cv_data.get("objective") or "").strip()
     jd_struct = jd_data.get("structured", jd_data)
@@ -1736,7 +1717,9 @@ def _score_career_objectives(
         cv_exp_titles = [exp.get("title", "") for exp in cv_data.get("work_experience", []) if exp.get("title")]
         cv_proxy_text = " ".join(filter(None, cv_skills_list + cv_exp_titles)).strip()
         if not cv_proxy_text:
-            return 3.0, "CV không có mục tiêu nghề nghiệp. Không đủ thông tin để đánh giá (điểm mặc định 3/10)."
+            default = 1.0 if domain_penalty >= 0.7 else 3.0
+            note = "Domain hoan toan khong lien quan." if domain_penalty >= 0.7 else "Khong du thong tin de danh gia."
+            return default, f"CV khong co muc tieu nghe nghiep. {note} (diem mac dinh {default}/10)."
         # Dùng proxy text để tính similarity, nhưng cap tối đa 6/10 vì thiếu objective
         try:
             proxy_emb = embedder.encode(cv_proxy_text, normalize=True)
@@ -1744,12 +1727,17 @@ def _score_career_objectives(
             sim_fb = float(np.clip(np.dot(proxy_emb, jd_emb_fb), 0.0, 1.0))
             SIM_MIN_FB, SIM_MAX_FB = 0.25, 0.65
             proxy_score = float(np.clip((sim_fb - SIM_MIN_FB) / (SIM_MAX_FB - SIM_MIN_FB) * 6.0, 0.0, 6.0))
-            return round(proxy_score, 2), (
-                f"CV không có mục tiêu nghề nghiệp. "
-                f"Điểm proxy từ skills + kinh nghiệm (tối đa 6/10): {proxy_score:.1f}/10."
+            return round(min(proxy_score, 2.0 if domain_penalty >= 0.7 else 6.0), 2), (
+                f"CV khong co muc tieu nghe nghiep. "
+                f"Diem proxy tu skills + kinh nghiem (max {2.0 if domain_penalty >= 0.7 else 6.0}/10): {proxy_score:.1f}/10."
+                f" {'Domain khong lien quan.' if domain_penalty >= 0.7 else ''}"
             )
         except Exception:
-            return 3.0, "CV không có mục tiêu nghề nghiệp. Không thể tính điểm proxy (điểm mặc định 3/10)."
+            return round(min(3.0, 1.0 if domain_penalty >= 0.7 else 3.0), 2), (
+                f"CV khong co muc tieu nghe nghiep. Khong the tinh diem proxy "
+                f"(diem mac dinh {1.0 if domain_penalty >= 0.7 else 3.0}/10)."
+                f" {'Domain khong lien quan.' if domain_penalty >= 0.7 else ''}"
+            )
 
     if not jd_goal_text:
         return 5.0, "Không có thông tin JD để so sánh mục tiêu."
@@ -1818,6 +1806,15 @@ def _score_career_objectives(
         rationale_parts.append("Mục tiêu nghề nghiệp chưa phù hợp với JD.")
 
     rationale = " ".join(rationale_parts) if rationale_parts else "Mục tiêu nghề nghiệp chưa rõ ràng."
+
+    # FIX 15B: SEVERE domain mismatch — cap career score at 1.0
+    # Even if the embedding finds some semantic similarity (e.g., "communication" vs
+    # "teamwork"), a Literature major's career goals are completely unrelated to IT.
+    # The proxy fallback also shouldn't score high for unrelated domains.
+    if domain_penalty >= 0.7:
+        score = min(score, 1.0)
+        rationale = "Domain hoàn toàn không liên quan — mục tiêu nghề nghiệp không có giá trị cho JD này."
+
     return round(min(score, 10.0), 2), rationale
 
 
@@ -1889,44 +1886,29 @@ def _score_company_fit(
         str(company_data.get("tech_culture", "")),
     ])).lower()
 
-    cv_text_for_domain = _build_cv_text(cv_data)
-    cv_domain = _semantic_domain_detection(cv_text_for_domain, embedder, threshold=0.38)
-
-    _DOMAIN_CI_SIGNALS: Dict[str, List[str]] = {
-        "tech_ai":       ["ai", "ml", "machine learning", "deep learning", "data science",
-                          "computer vision", "nlp", "llm", "neural", "artificial intelligence"],
-        "tech_software": ["software", "saas", "platform", "backend", "frontend", "cloud",
-                          "microservice", "api", "devops", "it services", "outsourcing"],
-        "tech_data":     ["data", "analytics", "bi", "warehouse", "etl", "big data", "spark"],
-        "sales":         ["sales", "retail", "e-commerce", "marketplace", "ban le", "kinh doanh"],
-        "marketing":     ["marketing", "advertising", "media", "content", "brand"],
-        "finance":       ["fintech", "finance", "banking", "insurance", "investment", "fund"],
-        "hr":            ["hr", "human resource", "recruitment", "talent", "nhan su"],
-        "operations":    ["logistics", "supply chain", "manufacturing", "van hanh", "warehouse"],
-    }
+    cv_domain = cv_data.get("domain")
+    if not cv_domain or cv_domain == "unknown":
+        cv_text_for_domain = _build_cv_text(cv_data)
+        cv_domain = _semantic_domain_detection(cv_text_for_domain, embedder, threshold=0.38)
 
     domain_score = 0.0
     domain_rationale = ""
     if ci_industry_text.strip():
-        ci_signals = _DOMAIN_CI_SIGNALS.get(cv_domain, [])
-        if ci_signals:
-            hit_count = sum(1 for sig in ci_signals if sig in ci_industry_text)
-            hit_ratio = hit_count / len(ci_signals)
-            if hit_ratio >= 0.4:
-                domain_score, domain_rationale = 3.0, f"CV domain ({cv_domain}) phu hop tot voi nganh cong ty"
-            elif hit_ratio >= 0.2:
-                domain_score, domain_rationale = 2.0, f"CV domain ({cv_domain}) phu hop mot phan"
-            else:
-                domain_score, domain_rationale = 0.5, f"CV domain ({cv_domain}) khac biet voi nganh cong ty"
-        else:
-            try:
-                cv_dom_emb = embedder.encode(cv_text_for_domain[:600], normalize=True)
-                ci_dom_emb = embedder.encode(ci_industry_text[:400], normalize=True)
-                dom_sim = float(np.clip(np.dot(cv_dom_emb, ci_dom_emb), 0.0, 1.0))
-                domain_score = round(min(dom_sim * 3.0, 3.0), 2)
-                domain_rationale = f"Domain unknown, embedding sim={dom_sim:.0%}"
-            except Exception:
-                domain_score, domain_rationale = 1.5, "Khong xac dinh duoc domain"
+        # Dùng hoàn toàn semantic similarity thay vì keyword dictionary
+        try:
+            cv_text_for_domain = cv_data.get("domain", "") + " " + cv_text_for_domain
+            cv_dom_emb = embedder.encode(cv_text_for_domain[:600], normalize=True)
+            ci_dom_emb = embedder.encode(ci_industry_text[:400], normalize=True)
+            dom_sim = float(np.clip(np.dot(cv_dom_emb, ci_dom_emb), 0.0, 1.0))
+            
+            SIM_MIN, SIM_MAX = _get_sim_calibration(embedder)
+            span = max(SIM_MAX - SIM_MIN, 0.1)
+            scaled_sim = np.clip((dom_sim - SIM_MIN) / span, 0.0, 1.0)
+            
+            domain_score = round(scaled_sim * 3.0, 2)
+            domain_rationale = f"Semantic match sim={dom_sim:.0%}"
+        except Exception:
+            domain_score, domain_rationale = 1.5, "Khong xac dinh duoc domain"
     else:
         domain_score, domain_rationale = 1.5, "CI khong co thong tin industry"
 
@@ -1978,14 +1960,6 @@ def _score_company_fit(
         rationale_parts.append("[Culture] Thieu thong tin van hoa cong ty -> mac dinh 1/2")
 
     # -- [D] Engineering Practices Bonus (0-1.0) -------------------------------
-    _PRACTICE_KW: Dict[str, List[str]] = {
-        "cicd":          ["ci/cd", "cicd", "github actions", "jenkins", "gitlab ci", "devops", "pipeline"],
-        "testing":       ["testing", "unit test", "tdd", "pytest", "jest", "qa", "quality assurance"],
-        "code_review":   ["code review", "pull request", "pair programming", "peer review"],
-        "agile":         ["agile", "scrum", "kanban", "sprint", "jira"],
-        "documentation": ["documentation", "swagger", "openapi", "technical writing"],
-    }
-
     ci_eng_practices: List[str] = company_data.get("engineering_practices", [])
     eng_bonus = 0.0
     if ci_eng_practices:
@@ -2000,15 +1974,21 @@ def _score_company_fit(
         ])).lower()
         ci_practices_text = " ".join(str(x) for x in ci_eng_practices if x).lower()
 
-        match_count = 0
-        for practice_kws in _PRACTICE_KW.values():
-            ci_has = any(kw in ci_practices_text for kw in practice_kws)
-            cv_has = any(kw in cv_evidence_text   for kw in practice_kws)
-            if ci_has and cv_has:
-                match_count += 1
-
-        eng_bonus = round(min(match_count * 0.25, 1.0), 2)
-        rationale_parts.append(f"[Engineering] {match_count} practice match -> +{eng_bonus}/1")
+        # Dùng hoàn toàn semantic similarity thay vì keyword dictionary
+        try:
+            cv_prac_emb = embedder.encode(cv_evidence_text[:600], normalize=True)
+            ci_prac_emb = embedder.encode(ci_practices_text[:400], normalize=True)
+            prac_sim = float(np.clip(np.dot(cv_prac_emb, ci_prac_emb), 0.0, 1.0))
+            
+            SIM_MIN, SIM_MAX = _get_sim_calibration(embedder)
+            span = max(SIM_MAX - SIM_MIN, 0.1)
+            scaled_sim = np.clip((prac_sim - SIM_MIN) / span, 0.0, 1.0)
+            
+            eng_bonus = round(scaled_sim * 1.0, 2)
+            rationale_parts.append(f"[Engineering] semantic sim={prac_sim:.0%} -> +{eng_bonus}/1")
+        except Exception:
+            eng_bonus = 0.0
+            rationale_parts.append("[Engineering] Loi embedding -> +0/1")
     else:
         rationale_parts.append("[Engineering] CI khong co engineering_practices -> +0")
 
@@ -2048,10 +2028,15 @@ def calculate_hybrid_score(
 
         # Detect domain sớm — dùng cho penalty toàn hệ thống
         # SEMANTIC MATCHING: dùng embedding thay keyword cho domain detection
-        cv_text_full = _build_cv_text(cv_data)
-        jd_text_full = _build_jd_text(jd_data)
-        cv_domain = _semantic_domain_detection(cv_text_full, embedder, threshold=0.40)
-        jd_domain = _semantic_domain_detection(jd_text_full, embedder, threshold=0.40)
+        cv_domain = cv_data.get("domain")
+        if not cv_domain or cv_domain == "unknown":
+            cv_text_full = _build_cv_text(cv_data)
+            cv_domain = _semantic_domain_detection(cv_text_full, embedder, threshold=0.40)
+            
+        jd_domain = jd_data.get("structured", {}).get("domain")
+        if not jd_domain or jd_domain == "unknown":
+            jd_text_full = _build_jd_text(jd_data)
+            jd_domain = _semantic_domain_detection(jd_text_full, embedder, threshold=0.40)
 
         # Skill overlap cho domain penalty: dùng tỷ lệ JD required được cover thật,
         # không dùng mean raw cosine similarity.
@@ -2097,9 +2082,9 @@ def calculate_hybrid_score(
             cv_data, jd_data, embedder, domain_penalty,
             cv_embedding=cv_embedding, jd_embedding=jd_embedding
         )
-        edu_score, edu_rationale = _score_education(cv_data, jd_data, embedder)
+        edu_score, edu_rationale = _score_education(cv_data, jd_data, embedder, domain_penalty)
         career_obj_score, career_obj_rationale = _score_career_objectives(
-            cv_data, jd_data, embedder
+            cv_data, jd_data, embedder, domain_penalty
         )
         try:
             company_score, company_rationale = _score_company_fit(cv_data, company_data, embedder)

@@ -85,7 +85,11 @@ QUAN TRỌNG - Phương pháp trích xuất:
    - Trích xuất định hướng phát triển nghề nghiệp mà JD đề cập (ví dụ: "phát triển lên Senior trong 2 năm", "định hướng Tech Lead")
    - Trích từ benefits, responsibilities hoặc description. Nếu không có, để chuỗi rỗng ""
 
-9. VỀ evaluation_criteria:
+9. VỀ PHÂN TÍCH CHUYÊN MÔN:
+   - domain: phân loại JD vào MỘT trong các nhóm (tech_ai, tech_data, tech_backend, tech_frontend, tech_mobile, tech_qa, sales, marketing, hr, finance, design, management, unknown).
+   - is_entry_level: true nếu JD dành cho Thực tập sinh (Intern), Sinh viên kiến tập, Fresher, hoặc Junior yêu cầu dưới 1 năm kinh nghiệm.
+
+10. VỀ evaluation_criteria:
    - Bổ sung danh sách tiêu chí đánh giá nguyên tử để scoring và sinh câu hỏi phỏng vấn.
    - Mỗi criterion phải là một yêu cầu có thể kiểm chứng bằng evidence trong CV.
    - Không atomize quá vụn; gom các yêu cầu thuộc cùng một năng lực nếu JD viết liền nhau.
@@ -104,6 +108,8 @@ Schema output:
 {{
   "job_title": "",
   "location": "",
+  "domain": "",
+  "is_entry_level": false,
   "seniority": "",
   "years_of_experience": "",
   "employment_type": "",
@@ -154,6 +160,8 @@ OUTPUT:
 {{
   "job_title": "Backend Engineer",
   "location": "",
+  "domain": "tech_backend",
+  "is_entry_level": false,
   "seniority": "Mid-level",
   "years_of_experience": "3+",
   "employment_type": "",
@@ -204,6 +212,8 @@ def _fallback_structured() -> Dict[str, Any]:
     return {
         "job_title": "",
         "location": "",
+        "domain": "unknown",
+        "is_entry_level": False,
         "seniority": "",
         "years_of_experience": "",
         "employment_type": "",
