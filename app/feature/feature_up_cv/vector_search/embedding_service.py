@@ -4,21 +4,18 @@ Embedding Service - Sentence Transformers for semantic similarity
 Uses all-MiniLM-L6-v2 model for efficient, high-quality embeddings.
 """
 
-import hashlib
-import json
 import os
 from pathlib import Path
 from typing import List, Optional
 
 import numpy as np
 
-from app.feature.feature_up_cv.file_storage import EMBEDDINGS_CACHE_DIR as _EMBEDDINGS_CACHE_DIR
+from app.feature.feature_up_cv.core.file_storage import EMBEDDINGS_CACHE_DIR as _EMBEDDINGS_CACHE_DIR
 
 # Lazy-load model to avoid heavy import at startup
 _model = None
 _model_name = "sentence-transformers/all-MiniLM-L6-v2"
 EMBEDDING_DIM = 384
-_cache_dir: Optional[Path] = None
 
 
 def _get_cache_dir() -> Path:
@@ -34,11 +31,6 @@ def _load_model():
         _model = SentenceTransformer(_model_name)
         print(f"[EMBEDDING] Model loaded successfully (dim={EMBEDDING_DIM})")
     return _model
-
-
-def _compute_hash(texts: List[str]) -> str:
-    combined = "|".join(sorted(t.lower().strip() for t in texts))
-    return hashlib.sha256(combined.encode("utf-8")).hexdigest()[:32]
 
 
 class EmbeddingService:

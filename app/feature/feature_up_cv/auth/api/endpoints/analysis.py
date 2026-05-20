@@ -21,7 +21,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.database import get_db
 from app.core.dependencies import get_current_active_user, get_current_authenticated_user
 from app.feature.auth.models.user import User
-from app.feature.feature_up_cv.file_storage import (
+from app.feature.feature_up_cv.core.file_storage import (
     compute_text_hash,
     save_parser_result,
     load_parser_result,
@@ -64,15 +64,15 @@ def _log_parser_result(parser_name: str, started_at: float, success: bool, error
 
 # Import utilities from feature_up_cv using absolute imports
 try:
-    from app.feature.feature_up_cv.hybrid_scoring import calculate_hybrid_score
-    from app.feature.feature_up_cv.embedding_service import get_embedding_service
-    from app.feature.feature_up_cv.faiss_index_manager import get_faiss_manager
-    from app.feature.feature_up_cv.score_matching import calculate_matching_score_from_payload
-    from app.feature.feature_up_cv.parser_cv import llm_parser_cv
-    from app.feature.feature_up_cv.parser_company import llm_parser_company
-    from app.feature.feature_up_cv.text_extract import extract_text_auto, UnsupportedFileTypeError
-    from app.feature.feature_up_cv.parser_jd import llm_parser_jd
-    from app.feature.feature_up_cv.gemini_client import GeminiQuotaExceededError, GeminiRateLimitedError
+    from app.feature.feature_up_cv.scoring.hybrid_scoring import calculate_hybrid_score
+    from app.feature.feature_up_cv.vector_search.embedding_service import get_embedding_service
+    from app.feature.feature_up_cv.vector_search.faiss_index_manager import get_faiss_manager
+    from app.feature.feature_up_cv.scoring.score_matching import calculate_matching_score_from_payload
+    from app.feature.feature_up_cv.parsers.parser_cv import llm_parser_cv
+    from app.feature.feature_up_cv.parsers.parser_company import llm_parser_company
+    from app.feature.feature_up_cv.core.text_extract import extract_text_auto, UnsupportedFileTypeError
+    from app.feature.feature_up_cv.parsers.parser_jd import llm_parser_jd
+    from app.feature.feature_up_cv.core.gemini_client import GeminiQuotaExceededError, GeminiRateLimitedError
 except ImportError as e:
     print(f"⚠️ Warning: Could not import from feature_up_cv: {e}")
     calculate_hybrid_score = None

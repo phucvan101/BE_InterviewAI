@@ -14,23 +14,8 @@ from __future__ import annotations
 import json
 from typing import Any, Dict, List
 
-from app.feature.feature_up_cv.gemini_client import generate_content
-
-
-def _extract_first_json(text: str) -> str | None:
-    """Extract the first balanced JSON object from a string."""
-    stack = 0
-    start = None
-    for i, c in enumerate(text):
-        if c == "{":
-            if stack == 0:
-                start = i
-            stack += 1
-        elif c == "}":
-            stack -= 1
-            if stack == 0 and start is not None:
-                return text[start : i + 1]
-    return None
+from app.feature.feature_up_cv.core.gemini_client import generate_content
+from app.feature.feature_up_cv.core.utils import extract_first_json as _extract_first_json
 
 
 def _build_cv_prompt(cv_text: str) -> str:
@@ -220,7 +205,7 @@ def llm_parser_cv(cv_text: str) -> Dict[str, Any]:
 
     # Also extract skills from work_experience highlights via regex
     try:
-        from app.feature.feature_up_cv.skill_normalizer import extract_skills_from_text
+        from app.feature.feature_up_cv.core.skill_normalizer import extract_skills_from_text
         for exp in result.get("work_experience", []):
             for hl in exp.get("highlights", []):
                 extra = extract_skills_from_text(str(hl))
@@ -234,7 +219,7 @@ def llm_parser_cv(cv_text: str) -> Dict[str, Any]:
 
     # Normalize via skill_normalizer if available
     try:
-        from app.feature.feature_up_cv.skill_normalizer import normalize_skills_list
+        from app.feature.feature_up_cv.core.skill_normalizer import normalize_skills_list
         result["skills"] = normalize_skills_list(raw_skills)
     except Exception:
         result["skills"] = raw_skills

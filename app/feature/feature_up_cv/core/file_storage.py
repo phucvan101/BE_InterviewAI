@@ -17,7 +17,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 # ── Base storage directory (relative to feature_up_cv) ─────────────────────────
-_BASE_DIR = Path(__file__).resolve().parent / "storage"
+_BASE_DIR = Path(__file__).resolve().parent.parent / "storage"
 RAW_FILE_DIR        = _BASE_DIR / "raw_file"
 PARSER_FILE_DIR     = _BASE_DIR / "parser_file"
 RESULT_FILE_DIR     = _BASE_DIR / "result_analysis_file"
