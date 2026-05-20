@@ -35,6 +35,9 @@ QUAN TRỌNG - QUY TẮC TRÍCH XUẤT SKILLS:
    - DOMAIN: nghiệp vụ chuyên môn (sales, marketing, finance, logistics, consulting...)
    - SOFT: giao tiếp, làm việc nhóm, lãnh đạo, presentation
 4. Năm hiện tại là 2026. Tính chính xác số năm kinh nghiệm.
+5. PHÂN TÍCH CHUYÊN MÔN:
+   - domain: phân loại CV vào MỘT trong các nhóm (tech_ai, tech_data, tech_backend, tech_frontend, tech_mobile, tech_qa, sales, marketing, hr, finance, design, management, unknown). Dựa trên kinh nghiệm và kỹ năng.
+   - is_student: true nếu ứng viên đang là sinh viên, năm 3, năm 4, hoặc vừa tốt nghiệp mà chưa có kinh nghiệm đi làm full-time thực tế (chỉ có đồ án/thực tập).
 
 QUAN TRỌNG - RÀNG BUỘC:
 - CHỈ trả về 1 JSON object. KHÔNG có text/markdown nào khác. KHÔNG giải thích.
@@ -54,6 +57,8 @@ Schema (giữ đúng keys và types):
     "email": "",
     "address": ""
   }},
+  "domain": "",
+  "is_student": false,
   "objective": "",
   "career_objectives": "",
   "education": [{{"school": "", "degree": "", "major": "", "start": "", "end": ""}}],
@@ -92,6 +97,8 @@ INPUT: "Nguyễn Văn A. Backend Developer tại ABC Corp. 2020-2023. Python, Fa
 OUTPUT:
 {{
   "personal_info": {{"name":"Nguyễn Văn A","dob":"","gender":"","phone":"","email":"","address":""}},
+  "domain": "tech_backend",
+  "is_student": false,
   "objective": "",
   "education": [],
   "work_experience": [{{"company":"ABC Corp","title":"Backend Developer","start":"2020","end":"2023","highlights":["Đạt KPI 120%"]}}],
@@ -150,6 +157,8 @@ def _fallback() -> Dict[str, Any]:
         "personal_info": {
             "name": "", "dob": "", "gender": "", "phone": "", "email": "", "address": ""
         },
+        "domain": "unknown",
+        "is_student": False,
         "objective": "",
         "career_objectives": "",
         "education": [],
