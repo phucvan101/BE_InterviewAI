@@ -4,6 +4,7 @@ Interactive terminal script that tests Conversation via FastAPI HTTP API.
 Prereqs:
   - Run the API server first (e.g. `uvicorn app.main:app --reload`)
   - Ensure `.env` points to the same DB the server uses.
+  - Have an analysis_sessions record with id=2 (or specify --analysis-session-id)
 
 Run:
   PYTHONPATH=. .venv/bin/python app/scripts/interactive_conversation_api_cli.py
@@ -11,6 +12,7 @@ Run:
 Flags:
   --base-url http://localhost:8000
   --email test@example.com --password test123456
+  --analysis-session-id 2 (default: fetch JD/CV from analysis_sessions table)
 """
 
 import argparse
@@ -19,48 +21,39 @@ import json
 from typing import Any, Optional
 
 import httpx
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
+from sqlalchemy.orm import sessionmaker
+
+from app.feature.feature_up_cv.auth.models.analysis_session import AnalysisSession
+from app.core.config import settings
 
 
-SAMPLE_JOB_DESCRIPTION = """
-Senior Python Backend Engineer
-
-Requirements:
-- 5+ years experience with Python
-- FastAPI or Django experience
-- PostgreSQL and async programming
-- AWS/Cloud services
-- RESTful API design
-- System design and scalability
-
-Responsibilities:
-- Design and build scalable backend services
-- Mentor junior developers
-- Code review and architecture decisions
-""".strip()
-
-SAMPLE_CV_PROFILE = """
-Name: Nguyen Van A
-Email: nguyenvana@example.com
-Phone: +84 123 456 789
-
-Experience:
-- Backend Developer at TechCorp (2021-2024, 3 years)
-  * Built APIs using FastAPI
-  * PostgreSQL database design
-  * AWS deployment and DevOps
-
-- Junior Developer at StartupXYZ (2019-2021, 2 years)
-  * Django development
-  * REST API development
-  * MySQL database
-
-Skills:
-- Languages: Python, JavaScript, SQL
-- Frameworks: FastAPI, Django, Flask
-- Databases: PostgreSQL, MySQL, MongoDB
-- Cloud: AWS, Google Cloud
-- Tools: Docker, Git, CI/CD
-""".strip()
+async def _get_analysis_session_data(session_id: int) -> dict[str, str]:
+    """Fetch CV and JD data from analysis_sessions table."""
+    database_url = settings.DATABASE_URL
+    engine = create_async_engine(database_url, echo=False)
+    async_session = sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
+    
+    async with async_session() as db:
+        result = await db.execute(
+            select(AnalysisSession).where(AnalysisSession.id_session == session_id)
+        )
+        analysis_session = result.scalar_one_or_none()
+        await engine.dispose()
+        
+        if not analysis_session:
+            raise ValueError(f"AnalysisSession with id {session_id} not found")
+        
+        if not analysis_session.cv_raw_text or not analysis_session.jd_raw_text:
+            raise ValueError(
+                f"AnalysisSession {session_id} missing cv_raw_text or jd_raw_text"
+            )
+        
+        return {
+            "job_description": analysis_session.jd_raw_text,
+            "cv_profile": analysis_session.cv_raw_text,
+        }
 
 
 async def _ainput(prompt: str) -> str:
@@ -128,7 +121,7 @@ async def run_interactive(
     username: str,
     password: str,
     max_rounds: int,
-    use_sample: bool,
+    analysis_session_id: int,
 ) -> int:
     async with httpx.AsyncClient(base_url=base_url, timeout=60.0) as client:
         await _maybe_register(client, api_prefix, email=email, username=username, password=password)
@@ -136,13 +129,12 @@ async def run_interactive(
         client.headers.update({"Authorization": f"Bearer {token}"})
 
         print("\n=== START INTERVIEW (API) ===")
-        if use_sample:
-            job_description = SAMPLE_JOB_DESCRIPTION
-            cv_profile = SAMPLE_CV_PROFILE
-            print("(using SAMPLE_JOB_DESCRIPTION + SAMPLE_CV_PROFILE)")
-        else:
-            job_description = await _ainput("Paste Job Description (single line):\n> ")
-            cv_profile = await _ainput("Paste CV profile (single line):\n> ")
+        # Fetch data from analysis_sessions table
+        print(f"Fetching data from analysis_sessions (id={analysis_session_id})...")
+        session_data = await _get_analysis_session_data(analysis_session_id)
+        job_description = session_data["job_description"]
+        cv_profile = session_data["cv_profile"]
+        print(f"✓ Loaded JD and CV from analysis_sessions table")
 
         conv = await _start_conversation(
             client,
@@ -192,7 +184,12 @@ def main() -> int:
     parser.add_argument("--username", default="testuser")
     parser.add_argument("--password", default="test123456")
     parser.add_argument("--max-rounds", type=int, default=6)
-    parser.add_argument("--no-sample", action="store_true", help="Do not use sample JD/CV; prompt for input")
+    parser.add_argument(
+        "--analysis-session-id", 
+        type=int, 
+        default=2, 
+        help="Analysis session ID to fetch JD/CV from (default: 2)"
+    )
     args = parser.parse_args()
 
     try:
@@ -204,7 +201,7 @@ def main() -> int:
                 username=args.username,
                 password=args.password,
                 max_rounds=args.max_rounds,
-                use_sample=not args.no_sample,
+                analysis_session_id=args.analysis_session_id,
             )
         )
     except KeyboardInterrupt:

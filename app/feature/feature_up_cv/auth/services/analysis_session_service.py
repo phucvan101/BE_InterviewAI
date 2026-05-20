@@ -16,6 +16,9 @@ class AnalysisSessionService:
             id_cv=data.id_cv,
             id_jd=data.id_jd,
             id_ci=data.id_ci,
+            cv_raw_text=data.cv_raw_text,
+            jd_raw_text=data.jd_raw_text,
+            ci_raw_text=data.ci_raw_text,
             score=data.score,
             experience_score=data.experience_score,
             skills_score=data.skills_score,
@@ -32,6 +35,12 @@ class AnalysisSessionService:
     async def get_by_id(self, id_session: int) -> AnalysisSession | None:
         result = await self.db.execute(
             select(AnalysisSession).where(AnalysisSession.id_session == id_session)
+        )
+        return result.scalar_one_or_none()
+
+    async def get_by_session_id(self, session_id: int) -> AnalysisSession | None:
+        result = await self.db.execute(
+            select(AnalysisSession).where(AnalysisSession.id_session == session_id)
         )
         return result.scalar_one_or_none()
 
@@ -85,6 +94,10 @@ class AnalysisSessionService:
         if not session:
             return None
         
+        if data.cv_raw_text is not None:
+            session.cv_raw_text = data.cv_raw_text
+        if data.jd_raw_text is not None:
+            session.jd_raw_text = data.jd_raw_text
         if data.score is not None:
             session.score = data.score
         if data.experience_score is not None:

@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import Optional
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
 # ──────────────────────────────────────────────────────────────
@@ -36,8 +36,8 @@ class ConversationMessageResponse(ConversationMessageBase):
 
 class ConversationBase(BaseModel):
     """Base schema cho conversation"""
-    job_description: str = Field(..., description="Job description")
-    cv_profile: str = Field(..., description="CV profile của ứng viên")
+    job_description: Optional[str] = Field(default=None, description="Job description")
+    cv_profile: Optional[str] = Field(default=None, description="CV profile của ứng viên")
 
 
 class ConversationCreate(ConversationBase):
@@ -47,7 +47,19 @@ class ConversationCreate(ConversationBase):
 
 class ConversationStartRequest(ConversationBase):
     """Schema để bắt đầu phiên phỏng vấn mới"""
-    pass
+    session_id: Optional[str] = Field(
+        default=None,
+        description="Session ID trung gian (từ analysis_sessions.session_id) để lấy JD/CV raw text",
+    )
+
+    @model_validator(mode="after")
+    def _validate_source(self):
+        # Ưu tiên session_id; nếu không có thì bắt buộc nhập trực tiếp JD + CV (backward compatibility)
+        if self.session_id:
+            return self
+        if not self.job_description or not self.cv_profile:
+            raise ValueError("Cần cung cấp `session_id` hoặc cả `job_description` và `cv_profile`")
+        return self
 
 
 class ConversationResponse(BaseModel):

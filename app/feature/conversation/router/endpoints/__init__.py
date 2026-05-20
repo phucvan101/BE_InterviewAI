@@ -14,6 +14,7 @@ from app.feature.conversation.schema import (
     InterviewResultResponse,
 )
 from app.feature.conversation.service import ConversationService
+from app.feature.feature_up_cv.auth.services.analysis_session_service import AnalysisSessionService
 
 router = APIRouter()
 
@@ -36,10 +37,37 @@ async def start_interview(
     - cv_profile: Thông tin CV của ứng viên
     """
     service = ConversationService(db)
+
+    job_description = request.job_description
+    cv_profile = request.cv_profile
+
+    # Nếu có session_id: lấy JD/CV raw text từ analysis_sessions (khóa trung gian)
+    if request.session_id:
+        session_service = AnalysisSessionService(db)
+        analysis_session = await session_service.get_by_session_id(request.session_id)
+        if not analysis_session:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Session không tìm thấy (analysis_sessions)",
+            )
+        if analysis_session.user_id != current_user.id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Bạn không có quyền truy cập session này",
+            )
+        if not analysis_session.jd_raw_text or not analysis_session.cv_raw_text:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Session chưa có dữ liệu raw text (cv_raw_text/jd_raw_text)",
+            )
+        job_description = analysis_session.jd_raw_text
+        cv_profile = analysis_session.cv_raw_text
+
     conversation = await service.create_conversation(
         user_id=current_user.id,
-        job_description=request.job_description,
-        cv_profile=request.cv_profile,
+        job_description=job_description or "",
+        cv_profile=cv_profile or "",
+        session_id=request.session_id,
     )
     await db.commit()
     return ConversationResponse.model_validate(conversation)

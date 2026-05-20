@@ -18,7 +18,12 @@ from app.scripts.ensure_admin import ensure_admin
 
 
 import logging
-logging.basicConfig(level=logging.DEBUG)
+logging.basicConfig(level=logging.INFO)
+# Disable all SQLAlchemy logging
+logging.getLogger("sqlalchemy.engine").setLevel(logging.ERROR)
+logging.getLogger("sqlalchemy.pool").setLevel(logging.ERROR)
+logging.getLogger("sqlalchemy.dialects").setLevel(logging.ERROR)
+logging.getLogger("sqlalchemy").setLevel(logging.ERROR)
 # Ensure all ORM models are registered with Base.metadata before init_db()
 import app.feature.auth.models  # noqa: F401
 import app.feature.audit.models  # noqa: F401

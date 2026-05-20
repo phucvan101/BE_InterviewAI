@@ -26,14 +26,25 @@ class ConversationService:
         user_id: int,
         job_description: str,
         cv_profile: str,
+        session_id: str | None = None,
     ) -> Conversation:
         """Tạo conversation mới"""
-        conversation = Conversation(
-            user_id=user_id,
-            job_description=job_description,
-            cv_profile=cv_profile,
-            status=ConversationStatus.ACTIVE,
-        )
+        # Idempotent: nếu session_id đã có conversation thì trả về luôn
+        if session_id:
+            existing = await self.get_conversation_by_session_id(session_id)
+            if existing:
+                return existing
+
+        conversation_kwargs = {
+            "user_id": user_id,
+            "job_description": job_description,
+            "cv_profile": cv_profile,
+            "status": ConversationStatus.ACTIVE,
+        }
+        if session_id:
+            conversation_kwargs["session_id"] = session_id
+
+        conversation = Conversation(**conversation_kwargs)
         self.db.add(conversation)
         await self.db.flush()  # Get the ID without committing
         await self.db.refresh(conversation)
