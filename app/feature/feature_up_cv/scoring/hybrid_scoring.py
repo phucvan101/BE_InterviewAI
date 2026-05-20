@@ -15,9 +15,15 @@ from typing import Any, Dict, List, Tuple
 
 import numpy as np
 
-from app.feature.feature_up_cv.embedding_service import (
+from app.feature.feature_up_cv.vector_search.embedding_service import (
     EmbeddingService,
     get_embedding_service,
+)
+from app.feature.feature_up_cv.core.utils import (
+    coerce_string_list as _coerce_string_list,
+    criterion_id as _criterion_id,
+    criterion_key as _criterion_key,
+    normalize_importance as _normalize_importance,
 )
 
 logger = logging.getLogger(__name__)
@@ -608,32 +614,14 @@ def _dedupe_strings(items: List[str]) -> List[str]:
     return output
 
 
-def _criterion_key(text: str) -> str:
-    return re.sub(r"[^a-z0-9]+", "", text.lower())
-
-
-def _coerce_string_list(value: Any) -> List[str]:
-    if isinstance(value, list):
-        return [str(v).strip() for v in value if str(v).strip()]
-    if isinstance(value, str) and value.strip():
-        return [value.strip()]
-    return []
-
-
-def _normalize_importance(value: Any, fallback: str = "IMPORTANT") -> str:
-    level = str(value or "").strip().upper()
-    return level if level in {"CRITICAL", "IMPORTANT", "BONUS"} else fallback
+# _criterion_key, _coerce_string_list, _normalize_importance, _criterion_id
+# are now imported from app.feature.feature_up_cv.core.utils
 
 
 def _criterion_weight(importance: str) -> float:
     return {"CRITICAL": 3.0, "IMPORTANT": 2.0, "BONUS": 1.0}.get(
         _normalize_importance(importance), 2.0
     )
-
-
-def _criterion_id(index: int, name: str) -> str:
-    slug = re.sub(r"[^a-z0-9]+", "_", name.lower()).strip("_")[:32]
-    return f"crit_{index:02d}" + (f"_{slug}" if slug else "")
 
 
 def _is_soft_skill_text(skill: str) -> bool:
@@ -1208,58 +1196,6 @@ def _get_sim_calibration(embedder: EmbeddingService) -> tuple:
     return result
 
 
-def _semantic_skill_match(
-    cv_skills: List[str],
-    jd_skills: List[str],
-    embedder: EmbeddingService,
-    sim_threshold: float = 0.65,
-) -> Tuple[List[str], List[str]]:
-    """
-    Pure semantic skill matching — không dùng keyword/synonym normalization.
-
-    Mỗi JD skill được embed thành vector, so sánh cosine với TẤT CẢ CV skills.
-    Nếu có bất kỳ CV skill nào similarity >= sim_threshold → JD skill được coi là matched.
-
-    Ưu điểm so với keyword matching:
-    - "YOLOv8" match với "Object Detection" dù không cùng từ
-    - "Customer Relationship" match với "CRM" dù viết khác
-    - "Negotiation" KHÔNG match với "CNN" dù cùng 3 chữ cái
-    - Cover mọi ngành nghề mà không cần maintain synonym list
-
-    Returns (matched_jd_skills, missing_jd_skills) — original JD skill strings.
-    """
-    if not jd_skills:
-        return [], []
-    if not cv_skills:
-        return [], list(jd_skills)
-
-    try:
-        # Batch encode tất cả cùng lúc — hiệu quả hơn encode từng cái
-        all_texts = cv_skills + jd_skills
-        embs = embedder.encode_batch(all_texts, normalize=True)
-        cv_embs = embs[: len(cv_skills)]   # shape: (n_cv, dim)
-        jd_embs = embs[len(cv_skills):]    # shape: (n_jd, dim)
-
-        # Ma trận similarity: hàng = CV skill, cột = JD skill
-        # sim_matrix[i, j] = cosine(cv_skills[i], jd_skills[j])
-        sim_matrix = np.dot(cv_embs, jd_embs.T)  # shape: (n_cv, n_jd)
-
-        matched: List[str] = []
-        missing: List[str] = []
-
-        for j, jd_skill in enumerate(jd_skills):
-            # Max similarity giữa JD skill này với tất cả CV skills
-            best_cv_sim = float(sim_matrix[:, j].max())
-            if best_cv_sim >= sim_threshold:
-                matched.append(jd_skill)
-            else:
-                missing.append(jd_skill)
-
-        return matched, missing
-
-    except Exception as e:
-        logger.warning(f"_semantic_skill_match embedding failed: {e}. Fallback: all missing.")
-        return [], list(jd_skills)
 
 
 def _semantic_domain_detection(
@@ -1537,27 +1473,6 @@ def _semantic_major_relevance(
 # ════════════════════════════════════════════════════════════════════════════
 
 
-def _extract_skills_from_text(text: str) -> List[str]:
-    patterns = [
-        r"\b(Python|JavaScript|TypeScript|Java|C\+\+|C#|Go|Rust|Swift|Kotlin|Ruby|PHP|Scala|Shell|R)\b",
-        r"\b(React|Vue|Angular|Node\.js|Django|Flask|FastAPI|Spring|Laravel|Rails)\b",
-        r"\b(TensorFlow|PyTorch|Keras|Scikit-learn|Pandas|Numpy|Spark|Hadoop|Kafka|Airflow)\b",
-        r"\b(PostgreSQL|MySQL|MongoDB|Redis|Elasticsearch|Cassandra|Neo4j|SQLite|DynamoDB)\b",
-        r"\b(Docker|Kubernetes|Terraform|Ansible|Jenkins|CircleCI|GitHubActions)\b",
-        r"\b(AWS|Azure|GCP|Google\s*Cloud)\b",
-        r"\b(OpenCV|Open-CV|CUDA|TensorRT|ONNX|YOLO|OCR|LSTM|CNN|Transformer|YOLOv8)\b",
-        r"\b(REST|GraphQL|gRPC|API)\b",
-        r"\b(HTML5|CSS3|SASS|LESS|Bootstrap|Tailwind)\b",
-        r"\b(Machine Learning|Deep Learning|NLP|Computer Vision|MLOps|AI)\b",
-        r"\b(Agile|Scrum|Kanban|Jira|Git|Linux)\b",
-    ]
-    found: set = set()
-    for pattern in patterns:
-        for m in re.finditer(pattern, text, re.IGNORECASE):
-            skill = m.group(0).strip()
-            if len(skill) >= 2:
-                found.add(skill)
-    return list(found)
 
 
 # ── Education Scoring (0-10) ──────────────────────────────────────────────────

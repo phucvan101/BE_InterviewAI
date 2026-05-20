@@ -17,7 +17,7 @@ try:
 except ImportError:
     FAISS_AVAILABLE = False
 
-from app.feature.feature_up_cv.embedding_service import get_embedding_service, EMBEDDING_DIM
+from app.feature.feature_up_cv.vector_search.embedding_service import get_embedding_service, EMBEDDING_DIM
 
 
 class FAISSIndexManager:
@@ -36,7 +36,7 @@ class FAISSIndexManager:
         self.embedder = get_embedding_service()
 
         if index_dir is None:
-            from app.feature.feature_up_cv.file_storage import FAISS_INDEX_DIR
+            from app.feature.feature_up_cv.core.file_storage import FAISS_INDEX_DIR
             index_dir = FAISS_INDEX_DIR
 
         self.index_dir = Path(index_dir)

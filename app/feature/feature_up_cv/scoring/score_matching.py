@@ -18,7 +18,7 @@ load_dotenv()
 
 MODEL_NAME = os.getenv('MODEL_NAME', 'models/gemini-2.5-flash')
 
-from app.feature.feature_up_cv.gemini_client import generate_content
+from app.feature.feature_up_cv.core.gemini_client import generate_content
 
 
 def load_json_file(file_path: str) -> Dict[str, Any]:

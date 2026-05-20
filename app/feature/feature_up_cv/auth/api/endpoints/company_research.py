@@ -9,13 +9,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.database import get_db
 from app.core.dependencies import get_current_active_user
 from app.feature.auth.models.user import User
-from app.feature.feature_up_cv.file_storage import (
+from app.feature.feature_up_cv.core.file_storage import (
     save_raw_file,
     compute_text_hash,
     delete_file,
     FILE_TYPE_CI,
 )
-from app.feature.feature_up_cv.text_extract import extract_text_auto
+from app.feature.feature_up_cv.core.text_extract import extract_text_auto
 from app.feature.feature_up_cv.auth.services.company_info_service import CompanyInfoService
 from app.feature.feature_up_cv.auth.schemas.company_info import CompanyInfoCreate
 
