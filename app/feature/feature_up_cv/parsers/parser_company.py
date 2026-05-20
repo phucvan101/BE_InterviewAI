@@ -17,23 +17,8 @@ import json
 import re
 from typing import Any, Dict
 
-from app.feature.feature_up_cv.gemini_client import generate_content
-
-
-def _extract_first_json(text: str) -> str | None:
-    """Extract the first balanced JSON object from a string."""
-    stack = 0
-    start = None
-    for i, c in enumerate(text):
-        if c == "{":
-            if stack == 0:
-                start = i
-            stack += 1
-        elif c == "}":
-            stack -= 1
-            if stack == 0 and start is not None:
-                return text[start : i + 1]
-    return None
+from app.feature.feature_up_cv.core.gemini_client import generate_content
+from app.feature.feature_up_cv.core.utils import extract_first_json as _extract_first_json
 
 
 def _build_company_prompt(text: str) -> str:

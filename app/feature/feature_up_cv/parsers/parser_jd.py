@@ -17,7 +17,14 @@ import json
 import re
 from typing import Any, Dict, List
 
-from app.feature.feature_up_cv.gemini_client import generate_content
+from app.feature.feature_up_cv.core.gemini_client import generate_content
+from app.feature.feature_up_cv.core.utils import (
+    extract_first_json as _extract_first_json,
+    criterion_key as _criterion_key,
+    normalize_importance as _normalize_importance,
+    coerce_string_list as _coerce_string_list,
+    criterion_id as _criterion_id,
+)
 
 
 _GENERIC_SKILLS = {
@@ -28,23 +35,6 @@ _GENERIC_SKILLS = {
     "logical thinking", "analytical thinking", "growth mindset",
     "independent work", "proactiveness", "resilience", "goal achievement",
 }
-
-
-def _extract_first_json(text: str) -> str | None:
-    """Extract the first balanced JSON object from a string."""
-    stack = 0
-    start = None
-    for i, c in enumerate(text):
-        if c == "{":
-            if stack == 0:
-                start = i
-            stack += 1
-        elif c == "}":
-            stack -= 1
-            if stack == 0 and start is not None:
-                return text[start : i + 1]
-    return None
-
 
 def _build_jd_prompt(jd_text: str) -> str:
     return f"""
@@ -240,26 +230,8 @@ def _fallback_structured() -> Dict[str, Any]:
     }
 
 
-def _criterion_key(text: str) -> str:
-    return re.sub(r"[^a-z0-9]+", "", text.lower())
-
-
-def _normalize_importance(value: Any, fallback: str = "IMPORTANT") -> str:
-    level = str(value or "").strip().upper()
-    return level if level in {"CRITICAL", "IMPORTANT", "BONUS"} else fallback
-
-
-def _criterion_id(index: int, name: str) -> str:
-    slug = re.sub(r"[^a-z0-9]+", "_", name.lower()).strip("_")[:32]
-    return f"crit_{index:02d}" + (f"_{slug}" if slug else "")
-
-
-def _coerce_string_list(value: Any) -> List[str]:
-    if isinstance(value, list):
-        return [str(v).strip() for v in value if str(v).strip()]
-    if isinstance(value, str) and value.strip():
-        return [value.strip()]
-    return []
+# _criterion_key, _normalize_importance, _criterion_id, _coerce_string_list
+# are now imported from app.feature.feature_up_cv.core.utils
 
 
 def _criterion_from_requirement(
