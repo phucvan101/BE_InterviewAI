@@ -1,0 +1,60 @@
+{
+  "jd28": {
+    "overall_score": 74,
+    "experience_score": 38,
+    "experience_assessment": "JD Intern/Fresher — dự án cá nhân là bằng chứng chính (relevance trung bình: 43%).",
+    "exp_features": {
+      "years_ratio": 0.4316,
+      "skill_overlap": 0.8667,
+      "domain_penalty": 0.0,
+      "seniority_gap": -3,
+      "project_relevance_scores": [
+        0.43721795495369675,
+        0.4260193447722883
+      ],
+      "project_descriptions": [
+        "SYSTEM SCORING IMAGE SCAN ANSWER SHEET Designed an end-to-end Computer Vision system for automatic multiple-choice answer sheet grading. Built and augmented a custom dataset (5640 images) to improve model robustness. Trained YOLOv8 to detect answer bubbles and classify filled/unfilled responses. Achieved 100% accuracy on clean PDF inputs with 67.5 ms/image inference speed. Deployed the system as a Flask-based local web application.",
+        "TRAFFIC SIGN RECOGNITION Built a CNN-based image classification system for traffic sign recognition. Performed EDA, handled class imbalance, and applied data preprocessing techniques. Evaluated model performance using Accuracy, Precision, and F1-score. Achieved 90.44% accuracy with 9.07 ms/image inference time. Deployed a Flask web demo for real-time testing."
+      ],
+      "project_years": 0.43161864986299253
+    },
+    "project_relevance_scores": [
+      0.43721795495369675,
+      0.4260193447722883
+    ],
+    "project_descriptions": [
+      "SYSTEM SCORING IMAGE SCAN ANSWER SHEET Designed an end-to-end Computer Vision system for automatic multiple-choice answer sheet grading. Built and augmented a custom dataset (5640 images) to improve model robustness. Trained YOLOv8 to detect answer bubbles and classify filled/unfilled responses. Achieved 100% accuracy on clean PDF inputs with 67.5 ms/image inference speed. Deployed the system as a Flask-based local web application.",
+      "TRAFFIC SIGN RECOGNITION Built a CNN-based image classification system for traffic sign recognition. Performed EDA, handled class imbalance, and applied data preprocessing techniques. Evaluated model performance using Accuracy, Precision, and F1-score. Achieved 90.44% accuracy with 9.07 ms/image inference time. Deployed a Flask web demo for real-time testing."
+    ],
+    "project_years": 0.43161864986299253
+  },
+  "jd29": {
+    "overall_score": 66,
+    "experience_score": 42,
+    "experience_assessment": "JD Intern/Fresher — dự án cá nhân là bằng chứng chính (relevance trung bình: 47%).",
+    "exp_features": {
+      "years_ratio": 0.4704,
+      "skill_overlap": 0.5625,
+      "domain_penalty": 0.0,
+      "seniority_gap": -3,
+      "project_relevance_scores": [
+        0.4115870948168338,
+        0.5292597265630643
+      ],
+      "project_descriptions": [
+        "SYSTEM SCORING IMAGE SCAN ANSWER SHEET Designed an end-to-end Computer Vision system for automatic multiple-choice answer sheet grading. Built and augmented a custom dataset (5640 images) to improve model robustness. Trained YOLOv8 to detect answer bubbles and classify filled/unfilled responses. Achieved 100% accuracy on clean PDF inputs with 67.5 ms/image inference speed. Deployed the system as a Flask-based local web application.",
+        "TRAFFIC SIGN RECOGNITION Built a CNN-based image classification system for traffic sign recognition. Performed EDA, handled class imbalance, and applied data preprocessing techniques. Evaluated model performance using Accuracy, Precision, and F1-score. Achieved 90.44% accuracy with 9.07 ms/image inference time. Deployed a Flask web demo for real-time testing."
+      ],
+      "project_years": 0.4704234106899491
+    },
+    "project_relevance_scores": [
+      0.4115870948168338,
+      0.5292597265630643
+    ],
+    "project_descriptions": [
+      "SYSTEM SCORING IMAGE SCAN ANSWER SHEET Designed an end-to-end Computer Vision system for automatic multiple-choice answer sheet grading. Built and augmented a custom dataset (5640 images) to improve model robustness. Trained YOLOv8 to detect answer bubbles and classify filled/unfilled responses. Achieved 100% accuracy on clean PDF inputs with 67.5 ms/image inference speed. Deployed the system as a Flask-based local web application.",
+      "TRAFFIC SIGN RECOGNITION Built a CNN-based image classification system for traffic sign recognition. Performed EDA, handled class imbalance, and applied data preprocessing techniques. Evaluated model performance using Accuracy, Precision, and F1-score. Achieved 90.44% accuracy with 9.07 ms/image inference time. Deployed a Flask web demo for real-time testing."
+    ],
+    "project_years": 0.4704234106899491
+  }
+}
