@@ -1,0 +1,186 @@
+{
+  "model_path": "C:\\Users\\pc\\Documents\\code\\DATN\\BE_InterviewAI\\app\\feature\\feature_up_cv\\models\\ltr_model.pkl",
+  "ndcg@2": 0.9630929753571458,
+  "meta": [
+    {
+      "jd": "jd_20260520075903_7_2.json",
+      "project_index": 0,
+      "project_name": "SYSTEM SCORING IMAGE SCAN ANSWER SHEET",
+      "sem_sim": 0.8148050308227539,
+      "tech_inter": 0,
+      "ce_score": -8.887646675109863,
+      "label": 0.1934323928219995
+    },
+    {
+      "jd": "jd_20260520075903_7_2.json",
+      "project_index": 1,
+      "project_name": "TRAFFIC SIGN RECOGNITION",
+      "sem_sim": 0.8036473393440247,
+      "tech_inter": 2,
+      "ce_score": -8.949518203735352,
+      "label": 0.4564860790478721
+    },
+    {
+      "jd": "jd_20260520081926_7_1.json",
+      "project_index": 0,
+      "project_name": "SYSTEM SCORING IMAGE SCAN ANSWER SHEET",
+      "sem_sim": 0.7858278751373291,
+      "tech_inter": 0,
+      "ce_score": -8.894635200500488,
+      "label": 0.017952305047362664
+    },
+    {
+      "jd": "jd_20260520081926_7_1.json",
+      "project_index": 1,
+      "project_name": "TRAFFIC SIGN RECOGNITION",
+      "sem_sim": 0.7704505920410156,
+      "tech_inter": 0,
+      "ce_score": -8.842226028442383,
+      "label": 0.0
+    },
+    {
+      "jd": "jd_20260520083521_7_22.json",
+      "project_index": 0,
+      "project_name": "SYSTEM SCORING IMAGE SCAN ANSWER SHEET",
+      "sem_sim": 0.8344448804855347,
+      "tech_inter": 1,
+      "ce_score": -7.877645492553711,
+      "label": 0.5236911037766263
+    },
+    {
+      "jd": "jd_20260520083521_7_22.json",
+      "project_index": 1,
+      "project_name": "TRAFFIC SIGN RECOGNITION",
+      "sem_sim": 0.8228191137313843,
+      "tech_inter": 2,
+      "ce_score": -8.081767082214355,
+      "label": 0.39771178360052584
+    },
+    {
+      "jd": "jd_20260520083752_7_23.json",
+      "project_index": 0,
+      "project_name": "SYSTEM SCORING IMAGE SCAN ANSWER SHEET",
+      "sem_sim": 0.8180666565895081,
+      "tech_inter": 0,
+      "ce_score": -8.948471069335938,
+      "label": 0.2032954014630176
+    },
+    {
+      "jd": "jd_20260520083752_7_23.json",
+      "project_index": 1,
+      "project_name": "TRAFFIC SIGN RECOGNITION",
+      "sem_sim": 0.8067396879196167,
+      "tech_inter": 1,
+      "ce_score": -8.987873077392578,
+      "label": 0.3466277636248934
+    },
+    {
+      "jd": "jd_20260520160349_7_24.json",
+      "project_index": 0,
+      "project_name": "SYSTEM SCORING IMAGE SCAN ANSWER SHEET",
+      "sem_sim": 0.8060032725334167,
+      "tech_inter": 0,
+      "ce_score": -9.283110618591309,
+      "label": 0.16340654039832478
+    },
+    {
+      "jd": "jd_20260520160349_7_24.json",
+      "project_index": 1,
+      "project_name": "TRAFFIC SIGN RECOGNITION",
+      "sem_sim": 0.8038802742958069,
+      "tech_inter": 1,
+      "ce_score": -9.206825256347656,
+      "label": 0.3472774050940752
+    },
+    {
+      "jd": "jd_20260520160959_7_25.json",
+      "project_index": 0,
+      "project_name": "SYSTEM SCORING IMAGE SCAN ANSWER SHEET",
+      "sem_sim": 0.8230177164077759,
+      "tech_inter": 0,
+      "ce_score": -8.179951667785645,
+      "label": 0.5095846377010097
+    },
+    {
+      "jd": "jd_20260520160959_7_25.json",
+      "project_index": 1,
+      "project_name": "TRAFFIC SIGN RECOGNITION",
+      "sem_sim": 0.8192834258079529,
+      "tech_inter": 0,
+      "ce_score": -8.74802017211914,
+      "label": 0.36350406688080594
+    },
+    {
+      "jd": "jd_20260521025019_7_26.json",
+      "project_index": 0,
+      "project_name": "SYSTEM SCORING IMAGE SCAN ANSWER SHEET",
+      "sem_sim": 0.830284595489502,
+      "tech_inter": 1,
+      "ce_score": -7.93818473815918,
+      "label": 0.5146419930004756
+    },
+    {
+      "jd": "jd_20260521025019_7_26.json",
+      "project_index": 1,
+      "project_name": "TRAFFIC SIGN RECOGNITION",
+      "sem_sim": 0.8192383050918579,
+      "tech_inter": 1,
+      "ce_score": -8.229720115661621,
+      "label": 0.3984901253533539
+    },
+    {
+      "jd": "jd_20260521033249_7_27.json",
+      "project_index": 0,
+      "project_name": "SYSTEM SCORING IMAGE SCAN ANSWER SHEET",
+      "sem_sim": 0.812485933303833,
+      "tech_inter": 0,
+      "ce_score": -8.748644828796387,
+      "label": 0.18688982742042412
+    },
+    {
+      "jd": "jd_20260521033249_7_27.json",
+      "project_index": 1,
+      "project_name": "TRAFFIC SIGN RECOGNITION",
+      "sem_sim": 0.814176082611084,
+      "tech_inter": 1,
+      "ce_score": -8.851397514343262,
+      "label": 0.3668043322273215
+    },
+    {
+      "jd": "jd_20260521124012_7_28.json",
+      "project_index": 0,
+      "project_name": "SYSTEM SCORING IMAGE SCAN ANSWER SHEET",
+      "sem_sim": 0.8301734924316406,
+      "tech_inter": 1,
+      "ce_score": -7.931405544281006,
+      "label": 0.5387002777351051
+    },
+    {
+      "jd": "jd_20260521124012_7_28.json",
+      "project_index": 1,
+      "project_name": "TRAFFIC SIGN RECOGNITION",
+      "sem_sim": 0.8192088007926941,
+      "tech_inter": 1,
+      "ce_score": -8.483529090881348,
+      "label": 0.42601934477228837
+    },
+    {
+      "jd": "jd_20260521124223_7_29.json",
+      "project_index": 0,
+      "project_name": "SYSTEM SCORING IMAGE SCAN ANSWER SHEET",
+      "sem_sim": 0.8163310885429382,
+      "tech_inter": 0,
+      "ce_score": -8.837903022766113,
+      "label": 0.4115870948168338
+    },
+    {
+      "jd": "jd_20260521124223_7_29.json",
+      "project_index": 1,
+      "project_name": "TRAFFIC SIGN RECOGNITION",
+      "sem_sim": 0.8111958503723145,
+      "tech_inter": 3,
+      "ce_score": -8.874011039733887,
+      "label": 0.5292597265630643
+    }
+  ]
+}

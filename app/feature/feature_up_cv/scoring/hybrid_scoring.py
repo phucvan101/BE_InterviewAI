@@ -10,8 +10,12 @@ Changes from v3:
 """
 
 import logging
+import math
 import re
+import json
+from pathlib import Path
 from typing import Any, Dict, List, Tuple
+from dataclasses import dataclass
 
 import numpy as np
 
@@ -28,103 +32,43 @@ from app.feature.feature_up_cv.core.utils import (
 
 logger = logging.getLogger(__name__)
 
+from .scoring_config import SCORING_CONFIG, _safe_cap, _build_experience_features
+from .scoring_constants import (
+    _SOFT_SKILL_KEYS,
+    _DOMAIN_ANCHORS,
+    _SENIORITY_ANCHORS,
+    _PROJECT_TECH_EQUIVALENTS,
+)
+from .cross_encoder_reranker import CrossEncoderReranker
 
-# ── Skill synonym groups ──────────────────────────────────────────────────────
-_SKILL_SYNONYMS: Dict[str, List[str]] = {
-    # Vision / AI
-    "computervision": [
-        "computer vision", "cv", "image processing", "image analysis",
-        "opencv", "yolo", "yolov5", "yolov8", "yolov7", "yolov6",
-        "cnn", "object detection", "image classification", "image segmentation",
-        "face recognition", "ocr", "detectron2", "mmdetection",
-        "image recognition", "real-time processing", "video processing",
-        "r-cnn", "fast r-cnn", "faster r-cnn", "ssd", "retinanet",
-        "vit", "vision transformer", "resnet", "vgg",
-    ],
-    "nlp": [
-        "natural language processing", "text processing", "text mining",
-        "llm", "large language model", "language model", "nlp",
-        "transformer", "bert", "gpt", "chatbot", "text classification",
-        "tokenization", "word embedding", "seq2seq",
-    ],
-    "deeplearning": [
-        "deep learning", "dl", "neural network", "neural networks",
-        "pytorch", "tensorflow", "keras", "torch",
-    ],
-    "machinelearning": [
-        "machine learning", "ml", "ml algorithms", "ml models",
-        "scikit-learn", "sklearn", "xgboost", "lightgbm", "catboost",
-        "gradient boosting", "random forest", "svm", "knn", "k-means",
-    ],
-    "trainingpipeline": [
-        "training pipeline", "data pipeline", "ml pipeline", "data engineering",
-        "data preparation", "data augmentation", "feature engineering",
-        "model training", "hyperparameter tuning", "model evaluation",
-    ],
-    "deployment": [
-        "deployment", "deploy", "model serving", "model inference",
-        "flask", "fastapi", "django", "streamlit", "gradio",
-        "web application", "web app", "api",
-    ],
-    "modeloptimization": [
-        "model optimization", "optimization", "quantization", "pruning",
-        "onnx", "tensorrt", "trt", "openvino", "mnn", "ncnn",
-        "tflite", "tensorflow lite", "torchscript", "model compression",
-    ],
-    # Backend / DevOps
-    "python": ["python", "py", "python3"],
-    "javascript": ["javascript", "js", "ecmascript", "node.js", "nodejs"],
-    "typescript": ["typescript", "ts"],
-    "postgresql": ["postgresql", "postgres", "psql", "postgre"],
-    "mongodb": ["mongodb", "mongo", "mongo-db"],
-    "redis": ["redis", "redis-cache"],
-    "docker": ["docker", "docker-compose", "dockerfile", "containerization"],
-    "kubernetes": ["kubernetes", "k8s", "k8", "eks", "gke", "aks", "helm"],
-    "aws": ["aws", "amazon web services", "amazon-web-services", "aws-ec2", "aws-s3"],
-    "gcp": ["gcp", "google cloud platform", "google cloud", "googlecloud"],
-    "azure": ["azure", "microsoft azure", "ms azure", "azure-devops"],
-    "git": ["git", "github", "gitlab", "bitbucket", "git-flow", "gitops"],
-    "linux": ["linux", "ubuntu", "debian", "centos", "unix", "bash", "shell script"],
-    "devops": ["devops", "dev-ops", "sre", "platform engineering", "ci/cd", "cicd"],
-    "restapi": ["rest api", "restapi", "rest", "restful", "restful api", "api design"],
-    "graphql": ["graphql", "gql", "graphql-api"],
-    "kafka": ["kafka", "apache kafka", "msk", "kafka streams"],
-    "airflow": ["airflow", "apache airflow"],
-    "c++": ["c++", "cpp", "c plus plus"],
-    "java": ["java", "spring"],
-    "c#": ["c#", "csharp", ".net", "dotnet"],
-    # Soft skills — tách riêng, không dùng để inflate technical score
-    "problemsolving": [
-        "problem solving", "problem-solving", "analytical", "analytical thinking",
-        "logical thinking", "kỹ năng giải quyết vấn đề",
-    ],
-    "communication": [
-        "communication", "giao tiếp", "presentation", "public speaking",
-        "soft skills", "interpersonal",
-    ],
-    "agile": ["agile", "scrum", "kanban", "jira", "agile methodology"],
-    "projectmanagement": ["project management", "quản lý dự án", "pm"],
-    # Sales-specific
-    "negotiation": ["negotiation", "đàm phán", "thương lượng", "persuasion", "thuyết phục"],
-    "crm": [
-        "crm", "customer relationship management", "salesforce", "hubspot",
-        "customer relationship", "chăm sóc khách hàng",
-    ],
-    "salesprospecting": [
-        "sales prospecting", "lead generation", "tìm kiếm khách hàng",
-        "cold calling", "outbound sales",
-    ],
-    "businessdevelopment": [
-        "business development", "phát triển kinh doanh", "bd",
-        "market analysis", "phân tích thị trường", "market research",
-    ],
-}
 
-# Soft skill keys — không tính vào technical skill score chính
-_SOFT_SKILL_KEYS = {
-    "communication", "problemsolving", "projectmanagement", "agile",
-    "teamwork", "leadership", "creativity", "adaptability",
-}
+# ── Skill synonym groups (loaded from external JSON) ─────────────────────────
+def _load_skill_synonyms() -> Dict[str, List[str]]:
+    base = Path(__file__).parent
+    pyaml = base / "skill_synonyms.yaml"
+    pjson = base / "skill_synonyms.json"
+    data = {}
+    try:
+        if pyaml.exists():
+            try:
+                import yaml
+            except Exception:
+                logger.warning("PyYAML not available; falling back to JSON if present.")
+            else:
+                with pyaml.open("r", encoding="utf-8") as fh:
+                    data = yaml.safe_load(fh) or {}
+        if not data and pjson.exists():
+            with pjson.open("r", encoding="utf-8") as fh:
+                data = json.load(fh) or {}
+        if not isinstance(data, dict):
+            return {}
+        return {str(k): list(v) for k, v in data.items()}
+    except Exception as _e:
+        logger.warning("Failed to load skill_synonyms (yaml/json): %s", _e)
+        return {}
+
+
+_SKILL_SYNONYMS: Dict[str, List[str]] = _load_skill_synonyms()
 
 
 def _normalize_skill_key(skill: str) -> str:
@@ -251,14 +195,48 @@ def _compute_domain_penalty(
         "tech_ai": "tech",
         "tech_software": "tech",
         "tech_data": "tech",
+        "tech_devops": "tech",
+        "tech_security": "tech",
         "sales": "business",
         "marketing": "business",
         "finance": "business",
         "hr": "business",
         "operations": "business",
+        "healthcare": "business",
+        "education": "business",
+        "design": "business",
     }
     cv_family = _DOMAIN_FAMILY.get(cv_domain, cv_domain)
     jd_family = _DOMAIN_FAMILY.get(jd_domain, jd_domain)
+
+    # NEW — sub-family: phân biệt tech sub-domain (AI/Software/Data/DevOps/Security
+    # cùng "tech" family nhưng là job functions hoàn toàn khác nhau.
+    # Backend engineer vs AI engineer là MISMATCH dù cùng "tech".
+    _TECH_SUBFAMILY = {
+        "tech_ai": {"tech_ai"},
+        "tech_software": {"tech_software"},
+        "tech_data": {"tech_data"},
+        "tech_devops": {"tech_devops"},
+        "tech_security": {"tech_security"},
+    }
+    cv_sub = _TECH_SUBFAMILY.get(cv_domain, set())
+    jd_sub = _TECH_SUBFAMILY.get(jd_domain, set())
+    same_tech_sub = bool(cv_sub and jd_sub and cv_sub == jd_sub)
+
+    # business sub-family: phân biệt HR/Sales/Marketing/Finance/Operations
+    _BUSINESS_SUBFAMILY = {
+        "sales": {"sales"},
+        "marketing": {"marketing"},
+        "finance": {"finance"},
+        "hr": {"hr"},
+        "operations": {"operations"},
+        "healthcare": {"healthcare"},
+        "education": {"education"},
+        "design": {"design"},
+    }
+    cv_bus = _BUSINESS_SUBFAMILY.get(cv_domain, set())
+    jd_bus = _BUSINESS_SUBFAMILY.get(jd_domain, set())
+    same_business_sub = bool(cv_bus and jd_bus and cv_bus == jd_bus)
 
     if cv_domain == "unknown" and jd_domain == "unknown":
         return 0.0, "Không đủ dữ liệu để xác định domain; không áp dụng phạt domain."
@@ -274,11 +252,22 @@ def _compute_domain_penalty(
         # Cùng domain: không phạt
         return 0.0, "Domain khớp."
 
+    # NEW: cùng tech sub-family → coi như cùng domain (không phạt)
+    if same_tech_sub:
+        return 0.0, "Cùng tech sub-domain."
+
+    # NEW: cùng business sub-family → coi như cùng domain (không phạt)
+    if same_business_sub:
+        return 0.0, "Cùng business sub-domain."
+
     if cv_family == jd_family:
-        # Cùng họ (vd: tech_ai vs tech_software): phạt nhẹ nếu skill overlap thấp
-        if skill_overlap >= 0.25:
-            return 0.0, f"Domain gần nhau ({cv_domain} vs {jd_domain}), skill overlap đủ."
-        return 0.2, f"Domain gần nhau ({cv_domain} vs {jd_domain}) nhưng skill overlap thấp ({skill_overlap:.0%})."
+        # Cùng họ nhưng khác sub-family (vd: tech_ai vs tech_software)
+        # = hoàn toàn khác job function → phạt nặng
+        if skill_overlap < 0.15:
+            return 0.85, f"Domain tech khac chuc nang ({cv_domain} vs {jd_domain}), skill overlap thap ({skill_overlap:.0%})."
+        if skill_overlap < 0.30:
+            return 0.70, f"Domain tech khac chuc nang ({cv_domain} vs {jd_domain}), skill overlap thap ({skill_overlap:.0%})."
+        return 0.50, f"Domain tech khac chuc nang ({cv_domain} vs {jd_domain}), co mot phan skill chung ({skill_overlap:.0%})."
 
     # Khác họ hoàn toàn (vd: tech vs business)
     if skill_overlap < 0.1:
@@ -296,7 +285,7 @@ def _score_experience(
     jd_domain: str,
     skill_overlap: float,
     embedder: EmbeddingService,
-) -> Tuple[float, str]:
+) -> Tuple[float, str, Dict[str, Any]]:
     jd_struct = jd_data.get("structured", jd_data)
 
     # 0. JD yêu cầu bao nhiêu năm kinh nghiệm
@@ -351,15 +340,9 @@ def _score_experience(
         _semantic_project_relevance(
             cv_data.get("projects", []),
             jd_data,
-            " ".join([
-                " ".join(jd_struct.get("skills_required", [])),
-                " ".join(jd_struct.get("skills_preferred", [])),
-                " ".join(jd_struct.get("responsibilities", [])),
-                " ".join(jd_struct.get("requirements", [])),
-            ]),
+            "",  # unused: responsibilities text built internally from jd_data
             embedder,
-            threshold=0.30,
-            default_duration=default_proj_dur,
+            default_proj_dur,
         )
 
     all_exp_years = total_work_years + project_years
@@ -390,9 +373,9 @@ def _score_experience(
         elif avg_rel >= 0.55:
             # Project rất relevant → full score
             years_score = 40.0
-        elif avg_rel >= 0.25:
+        elif avg_rel >= 0.20:
             # Project có liên quan → scale tuyến tính 15→40 theo relevance
-            years_score = 15.0 + (avg_rel - 0.25) / 0.30 * 25.0
+            years_score = 15.0 + (avg_rel - 0.20) / 0.35 * 25.0
         elif has_any_project and avg_rel > 0:
             # Có project nhưng relevance thấp < 25% → 10–15đ
             years_score = 10.0 + avg_rel / 0.25 * 5.0
@@ -466,12 +449,14 @@ def _score_experience(
                 seniority_base = round(min(years_ratio * 10.0, 10.0), 1)
             else:
                 seniority_base = 10.0
-        elif avg_rel >= 0.50:
-            seniority_base = 8.0
-        elif avg_rel >= 0.30:
+        elif avg_rel >= 0.70:
+            seniority_base = 7.0
+        elif avg_rel >= 0.45:
             seniority_base = 5.0
+        elif avg_rel >= 0.25:
+            seniority_base = 3.0
         else:
-            seniority_base = 2.0
+            seniority_base = 1.0
     elif cv_level >= req_level:
         seniority_base = 10.0
     elif cv_level == req_level - 1:
@@ -489,6 +474,16 @@ def _score_experience(
         seniority_score = round(min(seniority_base * level_ratio, 10.0), 1)
     else:
         seniority_score = seniority_base
+
+    # NEW: Severe seniority gap — hard cap
+    # AI/NLP 2y → Senior AI/CV JD (4-7y): gap >= 2 levels → seniority capped at 2.0
+    # HR 4y → BDR (entry): gap >= 3 levels → seniority = 0
+    if domain_penalty < 0.7 and req_level > 0 and cv_level < req_level:
+        level_gap = req_level - cv_level
+        if level_gap >= 3:
+            seniority_score = 0.0
+        elif level_gap >= 2:
+            seniority_score = min(seniority_score, 2.0)
 
     # 6. Bonus — chỉ cộng khi domain gần nhau
     bonus = 0.0
@@ -515,6 +510,16 @@ def _score_experience(
 
     raw_total = years_score + seniority_score + bonus
 
+    # NEW: Domain-mismatch experience penalty
+    # Backend 2y apply AI NLP JD: work experience không đếm khi domain hoàn toàn khác
+    # Chỉ áp dụng khi domain_penalty >= 0.5 (tức tech_ai vs tech_software,
+    # hoặc business vs tech)
+    if domain_penalty >= 0.5 and total_work_years > 0 and skill_overlap < 0.10:
+        # Kiểm tra domain của work experience có match JD không
+        # Nếu work domain (từ title/company) hoàn toàn khác JD domain
+        # → giảm years_score đáng kể
+        years_score = years_score * 0.65  # penalty 50% cho work years không liên quan
+
     # FIX 11: Cap seniority directly when years gap is severe
     # When CV has less than 50% of required years (not intern JD), seniority should be
     # further penalized regardless of cv_level detection. A 1.5-year CV for a 4-year
@@ -522,7 +527,7 @@ def _score_experience(
     # credit that doesn't reflect the actual gap. Cap seniority at years_gap_ratio.
     if (not is_entry_level and
             years_req > 0 and
-            all_exp_years < years_req * 0.5):
+            all_exp_years <= years_req * 0.5):
         years_gap_ratio = all_exp_years / years_req
         seniority_score = round(min(seniority_score * years_gap_ratio, 10.0), 1)
 
@@ -538,10 +543,47 @@ def _score_experience(
             years_req > 0 and
             all_exp_years > 0 and
             all_exp_years <= years_req * 0.86 and
-            domain_penalty < 0.4):
-        raw_total = min(raw_total, 30.0)
+            domain_penalty < 0.7):
+        raw_total = _safe_cap(raw_total, SCORING_CONFIG.UNDERQUALIFIED_CAP)
+
+    # NEW: Aggressive cap for large seniority gap (>= 2 years short)
+    # AI/NLP 2y -> Senior AI/CV JD (4y min): gap = 2y, ratio = 0.5 -> cap at 25
+    if (not is_entry_level and
+            years_req > 0 and
+            all_exp_years > 0 and
+            years_req - all_exp_years >= 2.0):
+        raw_total = _safe_cap(raw_total, SCORING_CONFIG.SEVERE_GAP_CAP)
+
+    # NEW: Same-domain specialization mismatch cap
+    # tech_ai CV (NLP) vs tech_ai JD (CV): same domain but different specialization
+    # skill_overlap < 0.40 signals wrong specialization within same domain
+    # Apply to non-severe-domain-penalty cases where coverage is suspiciously low
+    if (domain_penalty < 0.4 and
+            skill_overlap < 0.40 and
+            not is_entry_level and
+            years_req > 0 and
+            all_exp_years > 0):
+        # Cap raw at 35 to reflect: same-domain spirit but wrong specialization
+        raw_total = _safe_cap(raw_total, SCORING_CONFIG.SPECIALIZATION_MISMATCH_CAP)
 
     total_exp = round(min(raw_total * (1.0 - domain_penalty), 50.0), 2)
+
+    # Build experience features for downstream use / debugging
+    try:
+        features = _build_experience_features(
+            all_exp_years, years_req, skill_overlap, domain_penalty, int(req_level - cv_level)
+        )
+        # Attach per-project debug info so callers can inspect relevance per project
+        try:
+            features["project_relevance_scores"] = project_relevance_scores
+            features["project_descriptions"] = project_descriptions
+            features["project_years"] = project_years
+        except Exception:
+            # non-fatal: keep base features if project details missing
+            pass
+        logger.debug("Experience features: %s", features)
+    except Exception:
+        features = {}
 
     # 7. Rationale
     if domain_penalty >= 0.7:
@@ -576,7 +618,7 @@ def _score_experience(
     else:
         rationale = "Chưa có kinh nghiệm làm việc hoặc dự án liên quan."
 
-    return total_exp, rationale
+    return total_exp, rationale, features
 
 
 def _build_experience_detail(cv_data: dict) -> str:
@@ -920,6 +962,34 @@ def _find_exact_criterion_evidence(
     # Bước 2: Keyword extraction cho criteria dạng câu dài
     # Chỉ áp dụng khi criterion name có >= 3 từ (tức là câu mô tả, không phải tên kỹ năng đơn)
     criterion_name = criterion.get("name", "")
+    # Special-case: if criterion explicitly lists named platforms/APIs (comma-separated
+    # or contains words like 'APIs'/'platforms' and proper names), require explicit
+    # presence of one of those names in the CV instead of falling back to generic
+    # semantic matching. This prevents a generic 'LLM' mention from satisfying a
+    # requirement that asks for specific platform experience.
+    def _parse_enumerated_names(s: str) -> List[str]:
+        parts = [p.strip() for p in re.split(r",|/|;|\\bor\\b|\\band\\b", s) if p.strip()]
+        # filter out overly short tokens
+        parts = [p for p in parts if len(p) >= 2]
+        return parts
+
+    # detect enumerated names in the primary candidate string
+    primary = str(candidates[0] or "")
+    enumerated = _parse_enumerated_names(primary)
+    has_named_list = False
+    if enumerated and (len(enumerated) > 1 or re.search(r"APIs?|platforms?", primary, re.IGNORECASE)):
+        # treat as named list criterion
+        has_named_list = True
+
+    if has_named_list:
+        # try to match any enumerated item exactly against CV skills
+        for name in enumerated:
+            key = _normalize_skill_key(name)
+            if key in cv_norm_map:
+                return "equivalent_match", cv_norm_map[key]
+        # none of the explicit names appeared in CV: require named evidence
+        return "requires_named", ""
+
     if isinstance(criterion_name, str) and len(criterion_name.split()) >= 3:
         tech_keywords = _extract_tech_keywords_from_criterion(criterion_name)
         for kw in tech_keywords:
@@ -956,12 +1026,25 @@ def _match_criteria_to_cv(
             logger.warning(f"Criteria evidence embedding failed: {e}")
 
     results: List[Dict[str, Any]] = []
+    # lazy cross-encoder instance for verification
+    ce_reranker = None
     for j, criterion in enumerate(criteria):
         importance = _normalize_importance(criterion.get("importance"))
         status, evidence = _find_exact_criterion_evidence(criterion, cv_skill_pool)
-        best_sim = 1.0 if status else 0.0
+        ce_score = None
+        # If criterion requires explicit named platform evidence and none was found,
+        # skip semantic embedding fallback to avoid matching generic mentions.
+        if status == "requires_named":
+            best_sim = 0.0
+            # treat as missing without embedding fallback
+            status = "missing"
+            evidence = ""
+            skip_embedding = True
+        else:
+            best_sim = 1.0 if status else 0.0
+            skip_embedding = False
 
-        if not status and sim_matrix is not None:
+        if not status and sim_matrix is not None and not skip_embedding:
             best_idx = int(sim_matrix[:, j].argmax())
             raw_sim = float(np.clip(sim_matrix[best_idx, j], 0.0, 1.0))
 
@@ -974,9 +1057,13 @@ def _match_criteria_to_cv(
             source = str(criterion.get("source", "")).lower()
             is_atomic_skill = source.startswith("skills_") or category in {"skill", "technical_skill", "tool"}
 
-            # Universal thresholds on normalized [0, 1] scale
-            match_threshold = 0.88 if is_atomic_skill else 0.80
-            related_threshold = 0.68 if is_atomic_skill else 0.62
+            # Universal thresholds on normalized [0, 1] scale (config-driven)
+            if is_atomic_skill:
+                match_threshold = SCORING_CONFIG.ATOMIC_MATCH_THRESHOLD
+                related_threshold = SCORING_CONFIG.ATOMIC_RELATED_THRESHOLD
+            else:
+                match_threshold = SCORING_CONFIG.GENERIC_MATCH_THRESHOLD
+                related_threshold = SCORING_CONFIG.GENERIC_RELATED_THRESHOLD
 
             # Cross-domain guard: English atomic skill criteria are prone to false-positive
             # semantic matches against unrelated Vietnamese CV text.
@@ -1008,6 +1095,32 @@ def _match_criteria_to_cv(
                 evidence = ""
                 best_sim = 0.0
 
+            # Cross-encoder verification: optionally verify semantic/related matches
+            if (
+                SCORING_CONFIG.CE_VERIFY_ENABLED
+                and status in {"semantic_match", "related_only"}
+                and evidence
+            ):
+                try:
+                    if ce_reranker is None:
+                        ce_reranker = CrossEncoderReranker(model_name=SCORING_CONFIG.CE_MODEL_NAME)
+                    # criterion text (query) vs evidence (passage)
+                    crit_text = criterion_texts[j]
+                    ce_score = ce_reranker.score(crit_text, [evidence])[0]
+                    # if CE verification fails, downgrade or mark missing
+                    if ce_score < SCORING_CONFIG.CE_VERIFICATION_THRESHOLD:
+                        if status == "semantic_match" and best_sim >= related_threshold:
+                            status = "related_only"
+                        else:
+                            status = "missing"
+                            evidence = ""
+                            best_sim = 0.0
+                    else:
+                        # tighten confidence to reflect CE verification
+                        best_sim = float(min(best_sim, ce_score))
+                except Exception as _cev:
+                    logger.debug(f"CE verification error: {_cev}")
+
         if not status:
             status = "missing"
 
@@ -1027,6 +1140,7 @@ def _match_criteria_to_cv(
             "match_status": status,
             "score_ratio": ratio,
             "confidence": round(best_sim, 4),
+            "ce_score": round(ce_score, 4) if ce_score is not None else None,
             "cv_evidence": evidence,
             "question_intent": criterion.get("question_intent", "validate_depth"),
         })
@@ -1137,12 +1251,16 @@ def _score_skills(
     coverage_ratio = earned_weight / total_weight
     raw_skills = min(coverage_ratio * 30.0, 30.0)
 
-    # Domain taxonomy chỉ là phụ trợ: chỉ cap nếu domain penalty cao và coverage thực sự thấp.
-    max_skills = 30.0
-    if domain_penalty >= 0.7 and coverage_ratio < 0.35:
-        max_skills = 12.0
-    elif domain_penalty >= 0.4 and coverage_ratio < 0.25:
-        max_skills = 18.0
+    # Domain taxonomy chỉ là phụ trợ: cap dựa theo cấu hình
+    max_skills = SCORING_CONFIG.SKILLS_MAX
+    if domain_penalty >= SCORING_CONFIG.DOMAIN_CAP_SEVERE_PENALTY and coverage_ratio < SCORING_CONFIG.DOMAIN_CAP_SEVERE_COVERAGE:
+        max_skills = SCORING_CONFIG.DOMAIN_CAP_SEVERE
+    elif domain_penalty >= SCORING_CONFIG.DOMAIN_CAP_MODERATE_PENALTY and coverage_ratio < SCORING_CONFIG.DOMAIN_CAP_MODERATE_COVERAGE:
+        max_skills = SCORING_CONFIG.DOMAIN_CAP_MODERATE
+
+    # Severe semantic mismatch cap
+    if domain_penalty >= SCORING_CONFIG.DOMAIN_CAP_SEMANTIC_MISMATCH_PENALTY and coverage_ratio < SCORING_CONFIG.DOMAIN_CAP_SEMANTIC_MISMATCH_COVERAGE:
+        max_skills = min(max_skills, SCORING_CONFIG.DOMAIN_CAP_SEMANTIC_MISMATCH_MAX)
 
     total_score = round(min(raw_skills, max_skills), 2)
     cap_factor = total_score / raw_skills if raw_skills > 0 else 1.0
@@ -1241,26 +1359,8 @@ def _score_skills(
 # SEMANTIC MATCHING — thay thế keyword matching bằng embedding similarity
 # ════════════════════════════════════════════════════════════════════════════
 
-# Domain anchor descriptions — mô tả semantic cho mỗi domain
-_DOMAIN_ANCHORS = {
-    "tech_ai": "AI Machine Learning Deep Learning Computer Vision NLP Neural Network Model Training MLOps",
-    "tech_software": "Software Engineer Backend Frontend Fullstack DevOps Software Development API Database Microservice",
-    "tech_data": "Data Engineer Data Analyst ETL Data Pipeline Analytics Business Intelligence SQL Data Warehouse",
-    "sales": "Sales Business Development Account Management CRM Negotiation Lead Generation Revenue Customer Relationship B2B B2C",
-    "marketing": "Digital Marketing SEO SEM Content Marketing Social Media Brand Campaign Advertising Growth",
-    "finance": "Finance Accounting Financial Analysis Investment Banking Audit Tax Budgeting CFA Risk Management",
-    "hr": "Human Resources Recruitment Talent Acquisition HRBP Training Employee Relations Payroll L&D",
-    "operations": "Operations Supply Chain Logistics Procurement Process Improvement Lean Six Sigma Project Management",
-}
-
-# Seniority anchor descriptions
-_SENIORITY_ANCHORS = {
-    0: "Internship Fresher entry level no experience trainee beginner intern junior trainee",
-    1: "Junior Developer Junior Engineer Entry level with 1-2 years experience junior software engineer",
-    2: "Mid-level Developer Software Engineer with 2-5 years experience mid senior independent contributor",
-    3: "Senior Developer Senior Engineer Lead with 5+ years experience senior specialist expert technical lead",
-    4: "Principal Lead Manager Director Head Chief with 7+ years experience principal architect manager director chief",
-}
+# Domain and seniority anchors moved to scoring_constants._DOMAIN_ANCHORS
+# and scoring_constants._SENIORITY_ANCHORS to keep this module lightweight.
 
 # Cache cho domain/seniority embeddings — init lần đầu khi dùng
 _domain_anchors_embs: Dict[str, np.ndarray] = {}
@@ -1361,43 +1461,95 @@ def _semantic_domain_detection(
     return best_domain if best_score >= threshold else "unknown"
 
 
+# Project tech equivalence mapping moved to scoring_constants._PROJECT_TECH_EQUIVALENTS
+
+
+def _expand_proj_tech(proj_tech: str) -> List[str]:
+    """Expand a project technology to its equivalents + itself."""
+    key = proj_tech.lower()
+    equivalents = _PROJECT_TECH_EQUIVALENTS.get(key, [key])
+    return [e.lower() for e in equivalents]
+
+
 def _semantic_project_relevance(
     projects: List[dict],
     jd_data: dict,
     jd_text: str,
     embedder: EmbeddingService,
-    threshold: float = 0.35,  # Normalized threshold
     default_duration: float = 0.25,
 ) -> Tuple[float, List[float], List[str]]:
     """
-    Semantic project relevance: kết hợp Embedding Similarity và Tech Stack Intersection.
+    Semantic project relevance: kết hợp Embedding Similarity và Tech Stack Exact Match.
+
+    Flow:
+    1. Embedding chỉ so sánh project description với JD RESPONSIBILITIES
+       (không gộp skills list để tránh dilute embedding).
+    2. Tech stack match: exact intersection giữa project technologies và JD skills.
+    3. Final relevance = 40% semantic + 60% tech match.
     """
     if not projects:
         return 0.0, [], []
 
     jd_struct = jd_data.get("structured", jd_data)
-    jd_skills = set(s.lower() for s in jd_struct.get("skills_required", []) + jd_struct.get("skills_preferred", []))
+    jd_skills = set(s.lower() for s in
+                    jd_struct.get("skills_required", []) +
+                    jd_struct.get("skills_preferred", []))
 
-    durations: List[float] = []
+    # ── Precompute tech match scores cho tất cả projects ──────────────────
+    jd_skills_all = set(s.lower() for s in
+                        jd_struct.get("skills_required", []) +
+                        jd_struct.get("skills_preferred", []))
+    # skill_importance keys are capitalized (e.g. "Python", "OpenCV")
+    skill_importance = jd_struct.get("skill_importance", {})
+    # jd_critical: all skills from skills_required (normalized to lowercase)
+    jd_critical = set(s.lower() for s in jd_struct.get("skills_required", []))
+    # jd_important: skills where importance is IMPORTANT or CRITICAL
+    jd_important = {
+        s.lower() for s in jd_struct.get("skills_required", [])
+        if skill_importance.get(s, "").lower() in ("important", "critical")
+    }
+    total_required = len(jd_critical)
+    total_important = max(len(jd_important), 1)
+
+    tech_info: List[Dict[str, Any]] = []
     for proj in projects:
-        if proj.get("start") and not proj.get("end"):
-            durations.append(default_duration)
-        elif proj.get("start") or proj.get("end"):
-            parsed_duration = _parse_years(proj.get("start", ""), proj.get("end", ""))
-            durations.append(parsed_duration if parsed_duration > 0 else default_duration)
-        else:
-            durations.append(default_duration)
+        # Expand project techs via equivalence mapping before matching
+        expanded_techs: set = set()
+        for t in proj.get("technologies", []):
+            expanded_techs.update(_expand_proj_tech(t))
+        intersection = jd_skills_all.intersection(expanded_techs)
+        critical_hits = len(intersection.intersection(jd_critical))
+        important_hits = len(intersection.intersection(jd_important))
+
+        # Quality-adjusted coverage: critical hits weigh 2x, important hits weigh 1x
+        quality_score = (
+            2.0 * critical_hits / max(total_required, 1) +
+            1.0 * important_hits / total_important
+        ) / 3.0
+
+        tech_info.append({
+            "intersection": intersection,
+            "intersection_count": len(intersection),
+            "critical_hits": critical_hits,
+            "quality_score": quality_score,
+        })
+
+    # Responsibilities text là nguồn semantic signal tốt nhất (không có skills để dilute).
+    # Nếu responsibilities quá ngắn → bổ sung requirements để có đủ ngữ cảnh.
+    resp_text = " ".join(jd_struct.get("responsibilities", []))
+    req_text = " ".join(jd_struct.get("requirements", []))
+    if len(resp_text.split()) < 50:
+        resp_text = resp_text + " " + req_text
 
     proj_texts = []
     for proj in projects:
         parts = [proj.get("name", ""), proj.get("description", "")]
-        parts.extend(proj.get("technologies", []))
         for hl in proj.get("highlights", []):
             parts.append(str(hl))
         proj_texts.append(" ".join(p for p in parts if p))
 
     try:
-        jd_emb = embedder.encode(_qprefix(jd_text, embedder), normalize=True)
+        jd_emb = embedder.encode(_qprefix(resp_text, embedder), normalize=True)
         proj_prefixed = _pprefix_batch(proj_texts, embedder)
         proj_embs = embedder.encode_batch(proj_prefixed, normalize=True)
         sims = np.clip(proj_embs @ jd_emb, 0.0, 1.0)
@@ -1408,29 +1560,81 @@ def _semantic_project_relevance(
     SIM_MIN, SIM_MAX = _get_sim_calibration(embedder)
     span = max(SIM_MAX - SIM_MIN, 0.05)
 
-    total_years = 0.0
+    # ── Duration computation ───────────────────────────────────────────────
+    durations: List[float] = []
+    for proj in projects:
+        if proj.get("start") and not proj.get("end"):
+            durations.append(default_duration)
+        elif proj.get("start") or proj.get("end"):
+            parsed = _parse_years(proj.get("start", ""), proj.get("end", ""))
+            durations.append(parsed if parsed > 0 else default_duration)
+        else:
+            durations.append(default_duration)
+
     relevance_scores: List[float] = []
     descriptions: List[str] = []
-    
+
+    # Compute per-project hybrid relevance (embedding + tech) first
     for i, (proj, dur) in enumerate(zip(projects, durations)):
         raw_sim = float(sims[i])
-        
-        # Tech Stack Matching Boost: Chính xác tuyệt đối thông qua parsed arrays
-        proj_techs = set(t.lower() for t in proj.get("technologies", []))
-        intersection_count = len(proj_techs.intersection(jd_skills))
-        if intersection_count > 0:
-            raw_sim = min(raw_sim + (intersection_count * 0.05 * span), 1.0)
-
         normalized_sim = (raw_sim - SIM_MIN) / span
-        
-        if normalized_sim >= threshold:
-            relevance = float(np.clip((normalized_sim - threshold) / max(1.0 - threshold, 1e-6), 0.0, 1.0))
+
+        intersection_count = tech_info[i]["intersection_count"]
+        tech_score = min(0.10 + 0.35 * math.sqrt(intersection_count), 0.70)
+        has_tech = intersection_count > 0
+
+        semantic_score = max(0.0, normalized_sim)
+
+        # use per-project critical_hits from tech_info (avoid relying on outer-scope var)
+        critical_hits = tech_info[i].get("critical_hits", 0)
+
+        if has_tech:
+            if intersection_count >= 2 or critical_hits > 0:
+                tech_weight = 0.70
+            elif intersection_count == 1:
+                tech_weight = 0.60
+            else:
+                tech_weight = 0.55
+            relevance = float(np.clip(tech_weight * tech_score + (1.0 - tech_weight) * semantic_score, 0.0, 1.0))
         else:
-            relevance = 0.0
-            
-        total_years += dur * relevance
+            relevance = float(np.clip(0.70 * semantic_score, 0.0, 1.0))
+
+        relevance = float(np.clip(relevance, 0.0, 1.0))
         relevance_scores.append(relevance)
         descriptions.append(proj_texts[i])
+
+    # ── Optional: cross-encoder reranking for top-K candidates
+    try:
+        top_k = min(max(int(SCORING_CONFIG.RERANK_TOP_K), 0), len(relevance_scores))
+    except Exception:
+        top_k = 0
+
+    if top_k > 0 and len(relevance_scores) > 0:
+        try:
+            ce = CrossEncoderReranker(model_name=SCORING_CONFIG.CE_MODEL_NAME)
+            # Select top-K by current relevance
+            top_idxs = list(np.argsort(relevance_scores)[::-1][:top_k])
+            candidates = [proj_texts[i] for i in top_idxs]
+            ce_raw = ce.score(resp_text, candidates)
+            if ce_raw:
+                ce_arr = np.array(ce_raw, dtype=float)
+                # normalize to [0,1]
+                if float(np.ptp(ce_arr)) == 0.0:
+                    ce_norm = np.full_like(ce_arr, 0.5)
+                else:
+                    ce_norm = (ce_arr - ce_arr.min()) / float(np.ptp(ce_arr))
+                beta = float(np.clip(SCORING_CONFIG.RERANK_WEIGHT, 0.0, 1.0))
+                for idx, ce_score in zip(top_idxs, ce_norm.tolist()):
+                    orig = relevance_scores[idx]
+                    new_rel = float(np.clip(beta * orig + (1.0 - beta) * float(ce_score), 0.0, 1.0))
+                    relevance_scores[idx] = new_rel
+        except Exception as e:
+            logger.debug("Reranker failed: %s", e)
+
+    # Compute total project-years after any reranking adjustments
+    total_years = 0.0
+    for dur, rel in zip(durations, relevance_scores):
+        total_years += dur * float(rel)
 
     return total_years, relevance_scores, descriptions
 
@@ -1658,6 +1862,10 @@ def _score_education(
     if is_severe_domain_mismatch:
         base = min(base, 2.0)
         cert_bonus_max = 1.0  # at most +1.0 from certs (max score = 3.0)
+    elif domain_penalty >= 0.5:
+        # NEW: Moderate domain mismatch — education score capped at 4.0
+        base = min(base, 4.0)
+        cert_bonus_max = 1.0
     else:
         cert_bonus_max = 2.0   # at most +2.0 from certs (max score = 10.0)
 
@@ -2067,7 +2275,7 @@ def calculate_hybrid_score(
 
         domain_penalty, _ = _compute_domain_penalty(cv_domain, jd_domain, skill_overlap)
 
-        exp_score, exp_rationale = _score_experience(
+        exp_score, exp_rationale, exp_features = _score_experience(
             cv_data, jd_data, cv_domain, jd_domain, skill_overlap, embedder
         )
         (
@@ -2108,6 +2316,7 @@ def calculate_hybrid_score(
             sim = 0.0
         exp_score = skills_score = edu_score = career_obj_score = company_score = overall = 0
         exp_rationale = "Không thể tính điểm kinh nghiệm."
+        exp_features = {}
         matched_skills = []
         related_skills = []
         missing_skills_list = []
@@ -2156,13 +2365,13 @@ def calculate_hybrid_score(
 
     # Recommendation
     if overall >= 75:
-        recommendation = "Ứng viên rất phù hợp. Nên mời phỏng vấn."
+        recommendation = "Ứng viên rất phù hợp. Nên ứng tuyển."
     elif overall >= 55:
-        recommendation = "Ứng viên khá phù hợp. Cân nhắc phỏng vấn."
+        recommendation = "Ứng viên khá phù hợp. Cân nhắc ứng tuyển."
     elif overall >= 35:
-        recommendation = "Ứng viên đáp ứng một phần. Cân nhắc nếu thiếu ứng viên khác."
+        recommendation = "Ứng viên đáp ứng một phần. Cân nhắc nếu ứng tuyển."
     else:
-        recommendation = "Ứng viên chưa đáp ứng yêu cầu chính. Không khuyến khích tuyển."
+        recommendation = "Ứng viên chưa đáp ứng yêu cầu chính. Không nên ứng tuyển."
 
     cv_name = cv_data.get("personal_info", {}).get("name", "Unknown")
     job_title = (
@@ -2212,6 +2421,9 @@ def calculate_hybrid_score(
         "cv_candidate": cv_name,
         "job_position": job_title,
         "matched_at": __import__("datetime").datetime.now().isoformat(),
+        "features": {
+            "experience": exp_features,
+        },
         "evidence": {
             "cv_skills": list(_build_skill_groups(cv_data.get("skills", []))),
             "jd_skills_required": list(_build_skill_groups(

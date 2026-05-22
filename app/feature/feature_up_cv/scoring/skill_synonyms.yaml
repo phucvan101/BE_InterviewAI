@@ -1,0 +1,302 @@
+computervision:
+  - "computer vision"
+  - cv
+  - "image processing"
+  - "image analysis"
+  - opencv
+  - yolo
+  - yolov5
+  - yolov8
+  - yolov7
+  - yolov6
+  - cnn
+  - "object detection"
+  - "image classification"
+  - "image segmentation"
+  - "face recognition"
+  - ocr
+  - detectron2
+  - mmdetection
+  - "image recognition"
+  - "real-time processing"
+  - "video processing"
+  - "r-cnn"
+  - "fast r-cnn"
+  - "faster r-cnn"
+  - ssd
+  - retinanet
+  - vit
+  - "vision transformer"
+  - resnet
+  - vgg
+
+nlp:
+  - "natural language processing"
+  - "text processing"
+  - "text mining"
+  - llm
+  - "large language model"
+  - "language model"
+  - nlp
+  - transformer
+  - bert
+  - gpt
+  - chatbot
+  - "text classification"
+  - tokenization
+  - "word embedding"
+  - seq2seq
+
+deeplearning:
+  - "deep learning"
+  - dl
+  - "neural network"
+  - "neural networks"
+  - pytorch
+  - tensorflow
+  - keras
+  - torch
+
+machinelearning:
+  - "machine learning"
+  - ml
+  - "ml algorithms"
+  - "ml models"
+  - scikit-learn
+  - sklearn
+  - xgboost
+  - lightgbm
+  - catboost
+  - "gradient boosting"
+  - "random forest"
+  - svm
+  - knn
+  - "k-means"
+
+trainingpipeline:
+  - "training pipeline"
+  - "data pipeline"
+  - "ml pipeline"
+  - "data engineering"
+  - "data preparation"
+  - "data augmentation"
+  - "feature engineering"
+  - "model training"
+  - "hyperparameter tuning"
+  - "model evaluation"
+
+deployment:
+  - deployment
+  - deploy
+  - "model serving"
+  - "model inference"
+  - flask
+  - fastapi
+  - django
+  - streamlit
+  - gradio
+  - "web application"
+  - "web app"
+  - api
+
+modeloptimization:
+  - "model optimization"
+  - optimization
+  - quantization
+  - pruning
+  - onnx
+  - tensorrt
+  - trt
+  - openvino
+  - mnn
+  - ncnn
+  - tflite
+  - "tensorflow lite"
+  - torchscript
+  - "model compression"
+
+python:
+  - python
+  - py
+  - python3
+
+javascript:
+  - javascript
+  - js
+  - ecmascript
+  - "node.js"
+  - nodejs
+
+typescript:
+  - typescript
+  - ts
+
+postgresql:
+  - postgresql
+  - postgres
+  - psql
+  - postgre
+
+mongodb:
+  - mongodb
+  - mongo
+  - "mongo-db"
+
+redis:
+  - redis
+  - "redis-cache"
+
+docker:
+  - docker
+  - "docker-compose"
+  - dockerfile
+  - containerization
+
+kubernetes:
+  - kubernetes
+  - k8s
+  - k8
+  - eks
+  - gke
+  - aks
+  - helm
+
+aws:
+  - aws
+  - "amazon web services"
+  - "amazon-web-services"
+  - "aws-ec2"
+  - "aws-s3"
+
+gcp:
+  - gcp
+  - "google cloud platform"
+  - "google cloud"
+  - googlecloud
+
+azure:
+  - azure
+  - "microsoft azure"
+  - "ms azure"
+  - "azure-devops"
+
+git:
+  - git
+  - github
+  - gitlab
+  - bitbucket
+  - "git-flow"
+  - gitops
+
+linux:
+  - linux
+  - ubuntu
+  - debian
+  - centos
+  - unix
+  - bash
+  - "shell script"
+
+devops:
+  - devops
+  - "dev-ops"
+  - sre
+  - "platform engineering"
+  - "ci/cd"
+  - cicd
+
+restapi:
+  - "rest api"
+  - restapi
+  - rest
+  - restful
+  - "restful api"
+  - "api design"
+
+graphql:
+  - graphql
+  - gql
+  - "graphql-api"
+
+kafka:
+  - kafka
+  - "apache kafka"
+  - msk
+  - "kafka streams"
+
+airflow:
+  - airflow
+  - "apache airflow"
+
+"c++":
+  - "c++"
+  - cpp
+  - "c plus plus"
+
+"java":
+  - java
+  - spring
+
+"c#":
+  - "c#"
+  - csharp
+  - ".net"
+  - dotnet
+
+problemsolving:
+  - "problem solving"
+  - "problem-solving"
+  - analytical
+  - "analytical thinking"
+  - "logical thinking"
+  - "kỹ năng giải quyết vấn đề"
+
+communication:
+  - communication
+  - "giao tiếp"
+  - presentation
+  - "public speaking"
+  - "soft skills"
+  - interpersonal
+
+agile:
+  - agile
+  - scrum
+  - kanban
+  - jira
+  - "agile methodology"
+
+projectmanagement:
+  - "project management"
+  - "quản lý dự án"
+  - pm
+
+negotiation:
+  - negotiation
+  - "đàm phán"
+  - "thương lượng"
+  - persuasion
+  - "thuyết phục"
+
+crm:
+  - crm
+  - "customer relationship management"
+  - salesforce
+  - hubspot
+  - "customer relationship"
+  - "chăm sóc khách hàng"
+
+salesprospecting:
+  - "sales prospecting"
+  - "lead generation"
+  - "tìm kiếm khách hàng"
+  - "cold calling"
+  - "outbound sales"
+
+businessdevelopment:
+  - "business development"
+  - "phát triển kinh doanh"
+  - bd
+  - "market analysis"
+  - "phân tích thị trường"
+  - "market research"
