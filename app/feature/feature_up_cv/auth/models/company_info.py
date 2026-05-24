@@ -24,6 +24,7 @@ class CompanyInfo(Base):
     raw_file_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
     
     # ── Content ──────────────────────────────
+    text_content: Mapped[str | None] = mapped_column(String, nullable=True)
     text_hashed: Mapped[str | None] = mapped_column(String(255), nullable=True)
 
     # ── Timestamps ───────────────────────────

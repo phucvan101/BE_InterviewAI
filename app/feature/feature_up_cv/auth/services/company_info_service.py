@@ -16,6 +16,7 @@ class CompanyInfoService:
             parser_file_url=data.parser_file_url,
             raw_file_url=data.raw_file_url,
             text_hashed=data.text_hashed,
+            text_content=data.text_content,
         )
         self.db.add(ci)
         await self.db.flush()
@@ -59,8 +60,9 @@ class CompanyInfoService:
         if data.raw_file_url is not None:
             ci.raw_file_url = data.raw_file_url
         if data.text_hashed is not None:
-            ci.text_hashed = data.text_hashed
-        
+            ci.text_hashed = data.text_hashed        
+        if data.text_content is not None:
+            ci.text_content = data.text_content        
         await self.db.flush()
         await self.db.refresh(ci)
         return ci
