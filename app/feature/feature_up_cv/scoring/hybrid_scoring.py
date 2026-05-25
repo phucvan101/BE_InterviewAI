@@ -420,6 +420,30 @@ def _score_experience(
     else:
         years_score = min(all_exp_years * 20.0, 40.0)
 
+    # NEW: Experience Quality Multiplier (Semantic Match với experience_context)
+    exp_context = jd_struct.get("experience_context", "").strip()
+    if exp_context and total_work_years > 0:
+        cv_work_text = " ".join([
+            f"{e.get('title', '')} {e.get('company', '')} {' '.join(e.get('highlights', []))}"
+            for e in cv_data.get("work_experience", [])
+        ]).strip()
+        if cv_work_text:
+            try:
+                cv_emb = embedder.encode(cv_work_text[:1000], normalize=True)
+                jd_emb = embedder.encode(exp_context[:500], normalize=True)
+                sim = float(np.clip(np.dot(cv_emb, jd_emb), 0.0, 1.0))
+                
+                SIM_MIN, SIM_MAX = _get_sim_calibration(embedder)
+                span = max(SIM_MAX - SIM_MIN, 0.1)
+                scaled_sim = np.clip((sim - SIM_MIN) / span, 0.0, 1.0)
+                
+                # quality_multiplier từ 0.6 đến 1.0
+                quality_multiplier = 0.6 + (0.4 * scaled_sim)
+                years_score = years_score * quality_multiplier
+            except Exception as e:
+                import logging as _lg
+                _lg.getLogger(__name__).debug(f"Exp context embedding failed: {e}")
+
     # 4. Domain penalty
     domain_penalty, penalty_reason = _compute_domain_penalty(cv_domain, jd_domain, skill_overlap)
 
@@ -810,6 +834,22 @@ def _build_jd_criteria(jd_data: dict) -> List[Dict[str, Any]]:
                     "question_intent": "validate_depth",
                 })
 
+    for lang_req in jd_struct.get("languages_required", []):
+        if isinstance(lang_req, dict):
+            lang_name = lang_req.get("language", "").strip()
+            proficiency = lang_req.get("proficiency", "").strip()
+            if lang_name:
+                name = f"{lang_name} {proficiency}".strip()
+                if _criterion_key(name) not in seen:
+                    add({
+                        "name": name,
+                        "category": "language",
+                        "importance": "CRITICAL",
+                        "source": "languages_required",
+                        "source_text": name,
+                        "question_intent": "verify_gap",
+                    })
+
     return criteria[:30]
 
 
@@ -834,6 +874,13 @@ def _collect_cv_evidence(cv_data: dict) -> Tuple[List[str], List[str]]:
             skill_pool.append(cert)
         elif isinstance(cert, dict):
             skill_pool.append(" ".join(str(v) for v in cert.values() if v))
+            
+    for lang in cv_data.get("languages", []):
+        if isinstance(lang, dict):
+            lang_name = lang.get("language", "").strip()
+            prof = lang.get("proficiency", "").strip()
+            if lang_name:
+                skill_pool.append(f"{lang_name} {prof}".strip())
 
     evidence: List[str] = []
     evidence.extend(skill_pool)
@@ -1000,6 +1047,124 @@ def _find_exact_criterion_evidence(
     return "", ""
 
 
+# ── Match status constants ──────────────────────────────────────────────────────
+# 3-way classification:
+#   PERFECT_MATCH   : keyword / exact match on requirement
+#   RELEVANT_MATCH : semantic match (embedding similarity above threshold)
+#   MISS_MATCH      : no match found
+MATCH_PERFECT   = "PERFECT_MATCH"
+MATCH_RELEVANT  = "RELEVANT_MATCH"
+MATCH_MISS      = "MISS_MATCH"
+
+# Score ratios for 3-way classification
+_SCORE_RATIO = {
+    MATCH_PERFECT:   1.0,
+    MATCH_RELEVANT:  0.7,
+    MATCH_MISS:      0.0,
+}
+
+
+def _build_match_reason(
+    criterion: Dict[str, Any],
+    match_status: str,
+    evidence: str,
+    best_sim: float,
+    confidence: float,
+    evidence_context: str = "",
+) -> str:
+    """
+    Generate a human-readable reason explaining WHY the match/mismatch occurred.
+    """
+    name = criterion.get("name", "yêu cầu này")
+    importance = criterion.get("importance", "IMPORTANT")
+    category = str(criterion.get("category", "")).lower()
+    source = str(criterion.get("source", "")).lower()
+
+    if match_status == MATCH_PERFECT:
+        if evidence_context:
+            return (
+                f"Tìm thấy '{name}' trong CV. "
+                f"Chi tiết (từ CV): {evidence_context}. "
+                f"Đây là yêu cầu quan trọng ({importance.lower()}) — đáp ứng đầy đủ."
+            )
+        elif evidence:
+            # Truncate long evidence
+            ev = evidence[:120].strip()
+            return (
+                f"Tìm thấy '{name}' trong CV "
+                f"(bằng chứng: {ev}...). "
+                f"Đây là yêu cầu quan trọng ({importance.lower()}) — đáp ứng đầy đủ."
+            )
+        return (
+            f"Yêu cầu '{name}' được tìm thấy trong CV. "
+            f"Đây là yêu cầu ({importance.lower()}) — đáp ứng đầy đủ."
+        )
+
+    elif match_status == MATCH_RELEVANT:
+        if evidence_context:
+            return (
+                f"Phát hiện nội dung liên quan '{name}' trong CV. "
+                f"Chi tiết (từ CV): {evidence_context}. "
+                f"Có thể đáp ứng yêu cầu này ở mức cơ bản."
+            )
+        # Evidence came from semantic search — explain why it's related
+        if category in {"skill", "technical_skill", "tool"}:
+            return (
+                f"Không tìm thấy trực tiếp '{name}' trong CV, "
+                f"nhưng phát hiện nội dung liên quan "
+                f"(similarity={confidence:.0%}, bằng chứng: {evidence[:80] if evidence else 'N/A'}...). "
+                f"Có thể đáp ứng yêu cầu này ở mức cơ bản."
+            )
+        elif category in {"responsibility", "experience"}:
+            return (
+                f"Phát hiện kinh nghiệm liên quan đến '{name}' trong CV "
+                f"(similarity={confidence:.0%}). "
+                f"Có thể đáp ứng yêu cầu này."
+            )
+        else:
+            return (
+                f"Nội dung CV có liên quan đến '{name}' "
+                f"(similarity={confidence:.0%}). "
+                f"Cần kiểm chứng thêm trong phỏng vấn."
+            )
+
+    else:  # MISS_MATCH
+        # Provide actionable feedback
+        if importance == "CRITICAL":
+            return (
+                f"Không tìm thấy '{name}' trong CV. "
+                f"Đây là yêu cầu BẮT BUỘC — ứng viên cần bổ sung kỹ năng này "
+                f"trước khi ứng tuyển."
+            )
+        elif importance == "IMPORTANT":
+            return (
+                f"Không tìm thấy '{name}' trong CV. "
+                f"Đây là yêu cầu quan trọng — nên bổ sung để tăng cơ hội."
+            )
+        elif source == "skills_preferred":
+            return (
+                f"'{name}' không có trong CV (yêu cầu ưu tiên). "
+                f"Không bắt buộc nhưng là điểm cộng nếu có."
+            )
+        else:
+            return (
+                f"Không tìm thấy '{name}' trong CV. "
+                f"Có thể bổ sung để cải thiện hồ sơ."
+            )
+
+
+def _map_legacy_status(status: str) -> str:
+    """Map old 5-way statuses to new 3-way statuses."""
+    return {
+        "exact_match":      MATCH_PERFECT,
+        "equivalent_match":  MATCH_PERFECT,
+        "semantic_match":   MATCH_RELEVANT,
+        "related_only":     MATCH_RELEVANT,
+        "missing":          MATCH_MISS,
+        "requires_named":   MATCH_MISS,
+    }.get(status, MATCH_MISS)
+
+
 def _match_criteria_to_cv(
     criteria: List[Dict[str, Any]],
     cv_data: dict,
@@ -1013,7 +1178,6 @@ def _match_criteria_to_cv(
     sim_matrix = None
     if cv_evidence and criterion_texts:
         try:
-            # CV evidence là passage (corpus), criteria là query (tìm kiếm)
             cv_prefixed   = _pprefix_batch(cv_evidence, embedder)
             crit_prefixed = _qprefix_batch(criterion_texts, embedder)
             all_texts = cv_prefixed + crit_prefixed
@@ -1026,122 +1190,143 @@ def _match_criteria_to_cv(
             logger.warning(f"Criteria evidence embedding failed: {e}")
 
     results: List[Dict[str, Any]] = []
-    # lazy cross-encoder instance for verification
     ce_reranker = None
     for j, criterion in enumerate(criteria):
         importance = _normalize_importance(criterion.get("importance"))
-        status, evidence = _find_exact_criterion_evidence(criterion, cv_skill_pool)
+        raw_status, evidence = _find_exact_criterion_evidence(criterion, cv_skill_pool)
         ce_score = None
-        # If criterion requires explicit named platform evidence and none was found,
-        # skip semantic embedding fallback to avoid matching generic mentions.
-        if status == "requires_named":
+        skip_embedding = False
+
+        # Direct match found — PERFECT
+        if raw_status in {"exact_match", "equivalent_match"}:
+            best_sim = 1.0
+            match_status = MATCH_PERFECT
+
+        # Requires named evidence but none found — MISS
+        elif raw_status == "requires_named":
             best_sim = 0.0
-            # treat as missing without embedding fallback
-            status = "missing"
+            match_status = MATCH_MISS
             evidence = ""
             skip_embedding = True
+
+        # No direct match — try semantic
         else:
-            best_sim = 1.0 if status else 0.0
-            skip_embedding = False
+            best_sim = 0.0
+            match_status = MATCH_MISS
+            if sim_matrix is not None and not skip_embedding:
+                try:
+                    category_key = str(criterion.get("category", "")).lower()
+                    col_sims = sim_matrix[:, j]
+                    
+                    if category_key in {"technical_skill", "tool", "skill"}:
+                        for idx in np.argsort(col_sims)[::-1]:
+                            ev_str = cv_evidence[idx]
+                            if ev_str in cv_data.get("soft_skills", []) and \
+                               ev_str not in cv_data.get("technical_skills", []) and \
+                               ev_str not in cv_data.get("skills", []):
+                                continue
+                            best_idx = idx
+                            break
+                        else:
+                            best_idx = int(col_sims.argmax())
+                    elif category_key in {"soft_skill", "culture"}:
+                        for idx in np.argsort(col_sims)[::-1]:
+                            ev_str = cv_evidence[idx]
+                            if ev_str in cv_data.get("technical_skills", []) and \
+                               ev_str not in cv_data.get("soft_skills", []):
+                                continue
+                            best_idx = idx
+                            break
+                        else:
+                            best_idx = int(col_sims.argmax())
+                    else:
+                        best_idx = int(col_sims.argmax())
 
-        if not status and sim_matrix is not None and not skip_embedding:
-            best_idx = int(sim_matrix[:, j].argmax())
-            raw_sim = float(np.clip(sim_matrix[best_idx, j], 0.0, 1.0))
+                    raw_sim = float(np.clip(sim_matrix[best_idx, j], 0.0, 1.0))
+                    SIM_MIN, SIM_MAX = _get_sim_calibration(embedder)
+                    span = max(SIM_MAX - SIM_MIN, 0.05)
+                    best_sim = float(np.clip((raw_sim - SIM_MIN) / span, 0.0, 1.0))
+                    evidence = cv_evidence[best_idx]
 
-            SIM_MIN, SIM_MAX = _get_sim_calibration(embedder)
-            span = max(SIM_MAX - SIM_MIN, 0.05)
-            best_sim = float(np.clip((raw_sim - SIM_MIN) / span, 0.0, 1.0))
+                    perfect_thr  = SCORING_CONFIG.PERFECT_MATCH_THRESHOLD
+                    relevant_thr = SCORING_CONFIG.RELEVANT_MATCH_THRESHOLD
 
-            evidence = cv_evidence[best_idx]
-            category = str(criterion.get("category", "")).lower()
-            source = str(criterion.get("source", "")).lower()
-            is_atomic_skill = source.startswith("skills_") or category in {"skill", "technical_skill", "tool"}
+                    if best_sim >= perfect_thr:
+                        match_status = MATCH_PERFECT
+                    elif best_sim >= relevant_thr:
+                        # Cross-category guard: tránh match nhầm giữa language và soft_skill
+                        crit_cat = category_key
+                        ev_str = evidence
+                        is_lang_crit = crit_cat == "language"
+                        is_soft_ev = ev_str in cv_data.get("soft_skills", [])
+                        is_lang_ev = any(
+                            isinstance(l, dict) and l.get("language", "").lower() in ev_str.lower()
+                            for l in cv_data.get("languages", [])
+                        )
+                        # Language criterion → phải match với language evidence
+                        if is_lang_crit and is_soft_ev and not is_lang_ev:
+                            match_status = MATCH_MISS
+                            evidence = ""
+                        # Soft_skill criterion → không match với language evidence
+                        elif crit_cat in {"soft_skill", "culture"} and is_lang_ev and not is_soft_ev:
+                            match_status = MATCH_MISS
+                            evidence = ""
+                        else:
+                            match_status = MATCH_RELEVANT
+                    else:
+                        match_status = MATCH_MISS
+                        evidence = ""
 
-            # Universal thresholds on normalized [0, 1] scale (config-driven)
-            if is_atomic_skill:
-                match_threshold = SCORING_CONFIG.ATOMIC_MATCH_THRESHOLD
-                related_threshold = SCORING_CONFIG.ATOMIC_RELATED_THRESHOLD
-            else:
-                match_threshold = SCORING_CONFIG.GENERIC_MATCH_THRESHOLD
-                related_threshold = SCORING_CONFIG.GENERIC_RELATED_THRESHOLD
+                except Exception as e:
+                    logger.debug(f"Semantic match failed for criterion {j}: {e}")
 
-            # Cross-domain guard: English atomic skill criteria are prone to false-positive
-            # semantic matches against unrelated Vietnamese CV text.
-            # e.g. "Sales Prospecting" vs "Tm Kim Khch Hng" → sim ~0.65-0.75 (similar
-            # generic semantics) but different domains. We require sim >= 0.88 (exact
-            # match bar) to accept, rejecting "related_only" false positives.
-            criterion_name_lower = str(criterion.get("name", "")).lower()
-            has_latin = bool(re.search(r'[a-z]{4,}', criterion_name_lower))
-            has_vietnamese = bool(re.search(
-                r'[àáạảãâầấậẩẫăằắặẳẵèéẹẻẽêềếệểễìíịỉĩđùúụủũôồốộổỗơờớợởỡỳýỵ]',
-                criterion_name_lower
-            ))
-            is_english_atomic = is_atomic_skill and has_latin and not has_vietnamese
-
-            if is_english_atomic and status not in {"exact_match", "equivalent_match"}:
-                # Strict: only accept if sim >= match_threshold, else missing
-                if best_sim < match_threshold:
-                    status = "missing"
-                    evidence = ""
-                    best_sim = 0.0
-                    ratio = 0.0
-                # if best_sim >= match_threshold, fall through to set as semantic_match
-            elif best_sim >= match_threshold:
-                status = "semantic_match"
-            elif best_sim >= related_threshold:
-                status = "related_only"
-            else:
-                status = "missing"
-                evidence = ""
-                best_sim = 0.0
-
-            # Cross-encoder verification: optionally verify semantic/related matches
+            # Cross-encoder verification on RELEVANT_MATCH
             if (
-                SCORING_CONFIG.CE_VERIFY_ENABLED
-                and status in {"semantic_match", "related_only"}
+                match_status == MATCH_RELEVANT
                 and evidence
+                and SCORING_CONFIG.CE_VERIFY_ENABLED
             ):
                 try:
                     if ce_reranker is None:
                         ce_reranker = CrossEncoderReranker(model_name=SCORING_CONFIG.CE_MODEL_NAME)
-                    # criterion text (query) vs evidence (passage)
                     crit_text = criterion_texts[j]
                     ce_score = ce_reranker.score(crit_text, [evidence])[0]
-                    # if CE verification fails, downgrade or mark missing
                     if ce_score < SCORING_CONFIG.CE_VERIFICATION_THRESHOLD:
-                        if status == "semantic_match" and best_sim >= related_threshold:
-                            status = "related_only"
-                        else:
-                            status = "missing"
-                            evidence = ""
-                            best_sim = 0.0
+                        match_status = MATCH_MISS
+                        evidence = ""
+                        best_sim = 0.0
                     else:
-                        # tighten confidence to reflect CE verification
                         best_sim = float(min(best_sim, ce_score))
                 except Exception as _cev:
                     logger.debug(f"CE verification error: {_cev}")
 
-        if not status:
-            status = "missing"
+        score_ratio = _SCORE_RATIO.get(match_status, 0.0)
+        
+        reason_context = ""
+        if match_status in {MATCH_PERFECT, MATCH_RELEVANT}:
+            skill_ev_dict = {
+                _normalize_skill_key(se.get("skill", "")): se.get("context", "")
+                for se in cv_data.get("skill_evidence", []) if isinstance(se, dict)
+            }
+            if evidence and _normalize_skill_key(evidence) in skill_ev_dict:
+                reason_context = skill_ev_dict[_normalize_skill_key(evidence)]
+            elif _normalize_skill_key(criterion.get("name", "")) in skill_ev_dict:
+                reason_context = skill_ev_dict[_normalize_skill_key(criterion.get("name", ""))]
 
-        ratio = {
-            "exact_match": 1.0,
-            "equivalent_match": 1.0,
-            "semantic_match": 0.85,
-            "related_only": 0.35,
-            "missing": 0.0,
-        }.get(status, 0.0)
+        reason = _build_match_reason(criterion, match_status, evidence, best_sim, best_sim, reason_context)
 
         results.append({
-            "criterion_id": criterion.get("id", _criterion_id(j + 1, criterion.get("name", ""))),
-            "name": criterion.get("name", ""),
-            "category": criterion.get("category", "requirement"),
-            "importance": importance,
-            "match_status": status,
-            "score_ratio": ratio,
-            "confidence": round(best_sim, 4),
-            "ce_score": round(ce_score, 4) if ce_score is not None else None,
-            "cv_evidence": evidence,
+            "criterion_id":    criterion.get("id", _criterion_id(j + 1, criterion.get("name", ""))),
+            # Full requirement text (sentence) — what the user sees in FE
+            "requirement":     criterion.get("name", ""),
+            "category":        criterion.get("category", "requirement"),
+            "importance":      importance,
+            "match_status":    match_status,
+            "score_ratio":     score_ratio,
+            "confidence":      round(best_sim, 4),
+            "ce_score":        round(ce_score, 4) if ce_score is not None else None,
+            "cv_evidence":     evidence,
+            "reason":          reason,
             "question_intent": criterion.get("question_intent", "validate_depth"),
         })
 
@@ -1232,21 +1417,18 @@ def _score_skills(
         }, []
 
     total_weight = sum(_criterion_weight(r["importance"]) for r in criteria_results) or 1.0
-    exact_weight = 0.0
-    semantic_weight = 0.0
-    related_weight = 0.0
-    earned_weight = 0.0
+    perfect_weight   = 0.0
+    relevant_weight  = 0.0
+    earned_weight    = 0.0
 
     for result in criteria_results:
         weight = _criterion_weight(result["importance"])
         contribution = weight * float(result.get("score_ratio", 0.0))
         earned_weight += contribution
-        if result["match_status"] in {"exact_match", "equivalent_match"}:
-            exact_weight += contribution
-        elif result["match_status"] == "semantic_match":
-            semantic_weight += contribution
-        elif result["match_status"] == "related_only":
-            related_weight += contribution
+        if result["match_status"] == MATCH_PERFECT:
+            perfect_weight += contribution
+        elif result["match_status"] == MATCH_RELEVANT:
+            relevant_weight += contribution
 
     coverage_ratio = earned_weight / total_weight
     raw_skills = min(coverage_ratio * 30.0, 30.0)
@@ -1264,40 +1446,96 @@ def _score_skills(
 
     total_score = round(min(raw_skills, max_skills), 2)
     cap_factor = total_score / raw_skills if raw_skills > 0 else 1.0
-    # Exact score = proportional share of total (respecting cap), not double-capped
-    exact_raw = (exact_weight / total_weight) * raw_skills
-    exact_capped = exact_raw * cap_factor
-    exact_score = round(min(exact_capped, total_score), 2)
-    semantic_score = round(max(0.0, total_score - exact_score), 2)
+    perfect_raw = (perfect_weight / total_weight) * raw_skills
+    perfect_capped = perfect_raw * cap_factor
+    perfect_score = round(min(perfect_capped, total_score), 2)
+    relevant_score = round(max(0.0, total_score - perfect_score), 2)
 
-    matched_display = [
-        r["name"]
+    # 3-way: build structured requirement lists with reason
+    _EXCLUDED_CATEGORIES = {"education", "degree", "academic", "soft_skill"}
+
+    # PERFECT_MATCH — use "requirement" field (the sentence), not the short keyword
+    perfect_requirements = [
+        {
+            "requirement": r["requirement"],
+            "importance": r["importance"],
+            "confidence": r["confidence"],
+            "reason": r.get("reason", ""),
+        }
         for r in criteria_results
-        if r["match_status"] in {"exact_match", "equivalent_match", "semantic_match"}
+        if r["match_status"] == MATCH_PERFECT
+        and str(r.get("category", "")).lower() not in _EXCLUDED_CATEGORIES
     ]
-    related_display = [
-        r["name"]
+
+    # RELEVANT_MATCH
+    relevant_requirements = [
+        {
+            "requirement": r["requirement"],
+            "importance": r["importance"],
+            "confidence": r["confidence"],
+            "reason": r.get("reason", ""),
+        }
         for r in criteria_results
-        if r["match_status"] == "related_only"
+        if r["match_status"] == MATCH_RELEVANT
+        and str(r.get("category", "")).lower() not in _EXCLUDED_CATEGORIES
     ]
-    # Loại criteria category='education' và 'soft_skill' khỏi missing_skills:
-    # - Education: đã được tính trong education_score riêng
-    # - Soft skill: không thể verify qua CV text, gây noise cho HR
-    _EXCLUDED_MISSING_CATEGORIES = {"education", "degree", "academic", "soft_skill"}
-    missing_display = [
-        r["name"]
+
+    # MISS_MATCH — only IMPORTANT/CRITICAL (skip BONUS for cleanliness)
+    missing_requirements = [
+        {
+            "requirement": r["requirement"],
+            "importance": r["importance"],
+            "reason": r.get("reason", ""),
+        }
         for r in criteria_results
-        if r["match_status"] == "missing"
-        and r["importance"] != "BONUS"
-        and str(r.get("category", "")).lower() not in _EXCLUDED_MISSING_CATEGORIES
+        if r["match_status"] == MATCH_MISS
+        and r["importance"] in {"CRITICAL", "IMPORTANT"}
+        and str(r.get("category", "")).lower() not in _EXCLUDED_CATEGORIES
     ]
-    missing_display.extend(
-        r["name"]
-        for r in criteria_results
-        if r["match_status"] == "missing"
-        and r["importance"] == "BONUS"
-        and str(r.get("category", "")).lower() not in _EXCLUDED_MISSING_CATEGORIES
-    )
+
+    # ── Deduplication across buckets ─────────────────────────────────────────
+    # Loại bỏ trùng lặp ngữ nghĩa giữa 3 bucket dùng substring containment.
+    # Ví dụ: "tin học văn phòng" ↔ "thành thạo tin học văn phòng" → trùng
+    def _norm_req(s: str) -> str:
+        import re as _re
+        return _re.sub(r"\s+", "", s.strip().lower())
+
+    # 1. Dedup within perfect_requirements
+    _seen_p: list = []
+    _deduped_p: list = []
+    for r in perfect_requirements:
+        n = _norm_req(r["requirement"])
+        if not any(n in s or s in n for s in _seen_p):
+            _seen_p.append(n)
+            _deduped_p.append(r)
+    perfect_requirements = _deduped_p
+
+    # 2. Dedup within relevant_requirements (also remove if covered by perfect)
+    _covered_by_perfect = [_norm_req(r["requirement"]) for r in perfect_requirements]
+    _seen_r: list = list(_covered_by_perfect)
+    _deduped_r: list = []
+    for r in relevant_requirements:
+        n = _norm_req(r["requirement"])
+        if not any(n in s or s in n for s in _seen_r):
+            _seen_r.append(n)
+            _deduped_r.append(r)
+    relevant_requirements = _deduped_r
+
+    # 3. Remove from missing anything covered by matched or related
+    _covered_norms = [
+        _norm_req(r["requirement"])
+        for r in perfect_requirements + relevant_requirements
+    ]
+    _seen_m: list = []
+    _deduped_m: list = []
+    for r in missing_requirements:
+        n = _norm_req(r["requirement"])
+        covered = any(n in cn or cn in n for cn in _covered_norms)
+        dup = any(n in s or s in n for s in _seen_m)
+        if not covered and not dup:
+            _seen_m.append(n)
+            _deduped_m.append(r)
+    missing_requirements = _deduped_m
 
     # Overall CV-JD embedding similarity for telemetry only.
     sim = 0.0
@@ -1319,22 +1557,23 @@ def _score_skills(
     critical_total = sum(1 for r in criteria_results if r["importance"] == "CRITICAL")
     critical_matched = sum(
         1 for r in criteria_results
-        if r["importance"] == "CRITICAL" and r["match_status"] != "missing"
+        if r["importance"] == "CRITICAL"
+        and r["match_status"] in {MATCH_PERFECT, MATCH_RELEVANT}
     )
     important_total = sum(1 for r in criteria_results if r["importance"] == "IMPORTANT")
     important_matched = sum(
         1 for r in criteria_results
-        if r["importance"] == "IMPORTANT" and r["match_status"] != "missing"
+        if r["importance"] == "IMPORTANT"
+        and r["match_status"] in {MATCH_PERFECT, MATCH_RELEVANT}
     )
 
     breakdown = {
         "raw_score": round(raw_skills, 2),
         "coverage_ratio": round(coverage_ratio, 4),
-        "rule_score": exact_score,
-        "semantic_score": semantic_score,
-        "exact_weight": round(exact_weight, 2),
-        "semantic_weight": round(semantic_weight, 2),
-        "related_weight": round(related_weight, 2),
+        "perfect_score": perfect_score,
+        "relevant_score": relevant_score,
+        "perfect_weight": round(perfect_weight, 2),
+        "relevant_weight": round(relevant_weight, 2),
         "total_weight": round(total_weight, 2),
         "criteria_count": len(criteria_results),
         "critical_matched": critical_matched,
@@ -1346,10 +1585,10 @@ def _score_skills(
 
     return (
         total_score,
-        _dedupe_strings(matched_display),
-        _dedupe_strings(missing_display),
+        perfect_requirements,   # matched display → structured requirements
+        missing_requirements,
         sim,
-        _dedupe_strings(related_display),
+        relevant_requirements,  # related display → structured requirements
         breakdown,
         criteria_results,
     )
@@ -2030,6 +2269,7 @@ def _score_career_objectives(
 def _score_company_fit(
     cv_data: dict,
     company_data: dict,
+    jd_data: dict,
     embedder: EmbeddingService,
 ) -> Tuple[float, str]:
     """
@@ -2049,7 +2289,7 @@ def _score_company_fit(
         values, mission, description, engineering_practices
     """
     if not company_data or not company_data.get("success"):
-        return 0.0, "Khong co du lieu cong ty."
+        return 0.0, "Không có dữ liệu công ty."
 
     rationale_parts: List[str] = []
 
@@ -2280,10 +2520,10 @@ def calculate_hybrid_score(
         )
         (
             skills_score,
-            matched_skills,
-            missing_skills_list,
+            perfect_requirements,
+            missing_requirements,
             sim,
-            related_skills,
+            relevant_requirements,
             skills_breakdown,
             criteria_match_results,
         ) = _score_skills(
@@ -2295,7 +2535,7 @@ def calculate_hybrid_score(
             cv_data, jd_data, embedder, domain_penalty
         )
         try:
-            company_score, company_rationale = _score_company_fit(cv_data, company_data, embedder)
+            company_score, company_rationale = _score_company_fit(cv_data, company_data, jd_data, embedder)
         except Exception as _ce:
             import logging as _lg
             _lg.getLogger(__name__).error(f"[COMPANY_FIT] Isolated exception: {_ce}", exc_info=True)
@@ -2317,14 +2557,14 @@ def calculate_hybrid_score(
         exp_score = skills_score = edu_score = career_obj_score = company_score = overall = 0
         exp_rationale = "Không thể tính điểm kinh nghiệm."
         exp_features = {}
-        matched_skills = []
-        related_skills = []
-        missing_skills_list = []
+        perfect_requirements = []
+        relevant_requirements = []
+        missing_requirements = []
         skills_breakdown = {
             "raw_score": 0.0,
             "coverage_ratio": 0.0,
-            "rule_score": 0.0,
-            "semantic_score": 0.0,
+            "perfect_score": 0.0,
+            "relevant_score": 0.0,
             "criteria_count": 0,
             "domain_cap_applied": False,
         }
@@ -2350,10 +2590,12 @@ def calculate_hybrid_score(
     if career_obj_score >= 7:
         main_strengths.append("Mục tiêu nghề nghiệp rõ ràng, phù hợp JD")
 
-    # Build areas
+    # Build areas — use structured requirement objects
     areas: List[str] = []
-    if missing_skills_list:
-        areas.append(f"Bổ sung kỹ năng: {', '.join(missing_skills_list[:5])}")
+    if missing_requirements:
+        # Show top 5 missing requirements as sentences
+        top_missing = [r["requirement"] for r in missing_requirements[:5]]
+        areas.append(f"Cần bổ sung: {'; '.join(top_missing)}")
     if domain_penalty >= 0.5:
         areas.append(f"Domain không phù hợp: CV thuộc {cv_domain}, JD yêu cầu {jd_domain}")
     if exp_score < 25:
@@ -2405,9 +2647,32 @@ def calculate_hybrid_score(
         },
         "embedding_similarity": round(sim, 4),
         "embedding_status": "ok" if sim > 0 else "failed_or_zero",
-        "matched_skills": matched_skills,
-        "related_skills": related_skills,
-        "missing_skills": missing_skills_list[:15],
+        "matched_skills": [
+            {
+                "skill": r.get("requirement", ""),
+                "reason": r.get("reason", ""),
+                "importance": r.get("importance", ""),
+                "confidence": r.get("confidence", 1.0),
+            }
+            for r in perfect_requirements
+        ] if perfect_requirements else [],
+        "related_skills": [
+            {
+                "skill": r.get("requirement", ""),
+                "reason": r.get("reason", ""),
+                "importance": r.get("importance", ""),
+                "confidence": r.get("confidence", 0.0),
+            }
+            for r in relevant_requirements
+        ] if relevant_requirements else [],
+        "missing_skills": [
+            {
+                "skill": r.get("requirement", ""),
+                "reason": r.get("reason", ""),
+                "importance": r.get("importance", ""),
+            }
+            for r in missing_requirements
+        ][:15] if missing_requirements else [],
         "skills_criteria_breakdown": skills_breakdown,
         "criteria_match_results": criteria_match_results,
         "experience_assessment": exp_rationale,

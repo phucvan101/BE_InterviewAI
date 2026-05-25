@@ -35,7 +35,10 @@ QUAN TRỌNG - QUY TẮC TRÍCH XUẤT SKILLS:
    - DOMAIN: nghiệp vụ chuyên môn (sales, marketing, finance, logistics, consulting...)
    - SOFT: giao tiếp, làm việc nhóm, lãnh đạo, presentation
 4. Năm hiện tại là 2026. Tính chính xác số năm kinh nghiệm.
-5. PHÂN TÍCH CHUYÊN MÔN:
+5. VỀ NGOẠI NGỮ VÀ BẰNG CHỨNG KỸ NĂNG:
+   - languages: trích xuất các ngoại ngữ (Ví dụ: English, Japanese) và trình độ (proficiency) tương ứng (Ví dụ: IELTS 7.0, N3, Giao tiếp tốt).
+   - skill_evidence: mảng chứa các bằng chứng cho kỹ năng. Mỗi object gồm "skill" (tên kỹ năng) và "context" (trích dẫn/tóm tắt bối cảnh áp dụng từ CV). VD: skill="Python", context="Sử dụng để xây dựng API tại công ty ABC".
+6. PHÂN TÍCH CHUYÊN MÔN:
    - domain: phân loại CV vào MỘT trong các nhóm (tech_ai, tech_data, tech_backend, tech_frontend, tech_mobile, tech_qa, sales, marketing, hr, finance, design, management, unknown). Dựa trên kinh nghiệm và kỹ năng.
    - is_student: true nếu ứng viên đang là sinh viên, năm 3, năm 4, hoặc vừa tốt nghiệp mà chưa có kinh nghiệm đi làm full-time thực tế (chỉ có đồ án/thực tập).
 
@@ -77,7 +80,9 @@ Schema (giữ đúng keys và types):
     "description": "",
     "technologies": []
   }}],
+  "languages": [{{"language": "", "proficiency": ""}}],
   "skills": [],
+  "skill_evidence": [{{"skill": "", "context": ""}}],
   "technical_skills": [],
   "domain_skills": [],
   "soft_skills": [],
@@ -103,7 +108,9 @@ OUTPUT:
   "education": [],
   "work_experience": [{{"company":"ABC Corp","title":"Backend Developer","start":"2020","end":"2023","highlights":["Đạt KPI 120%"]}}],
   "projects": [],
+  "languages": [],
   "skills": ["Python","FastAPI","PostgreSQL","Giao tiếp"],
+  "skill_evidence": [{{"skill": "Python", "context": "Sử dụng tại ABC Corp"}}],
   "technical_skills": ["Python","FastAPI","PostgreSQL"],
   "domain_skills": [],
   "soft_skills": ["Giao tiếp"],
@@ -164,7 +171,9 @@ def _fallback() -> Dict[str, Any]:
         "education": [],
         "work_experience": [],
         "projects": [],
+        "languages": [],
         "skills": [],
+        "skill_evidence": [],
         "technical_skills": [],
         "domain_skills": [],
         "soft_skills": [],
@@ -237,7 +246,7 @@ def llm_parser_cv(cv_text: str) -> Dict[str, Any]:
     for key in ("objective", "career_objectives"):
         if key not in result:
             result[key] = ""
-    for key in ("education", "work_experience", "projects"):
+    for key in ("education", "work_experience", "projects", "languages", "skill_evidence"):
         if key not in result:
             result[key] = []
     for key in ("technical_skills", "domain_skills", "soft_skills", "certifications"):
