@@ -62,6 +62,68 @@ def _log_parser_result(parser_name: str, started_at: float, success: bool, error
     else:
         print(f"[PARSER] {parser_name}: {status_str} ({elapsed_ms:.1f} ms) - {error or 'unknown error'}")
 
+
+def _build_skills_detail(analysis_result: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Transform matched_skills / related_skills / missing_skills arrays
+    into the structured skills_detail object that the FE expects.
+
+    Input arrays can be:
+      - list of str (legacy/LLM fallback)
+      - list of dict with keys: skill, reason, importance, confidence (from hybrid_scoring)
+
+    FE template accesses skills_detail.{matched,related,missing} as arrays of objects
+    with fields: skill, reason, evidence, severity (missing only), importance (missing only).
+    """
+    def _normalize_matched(item, idx: int) -> Dict[str, Any]:
+        if isinstance(item, dict):
+            return {
+                "skill": item.get("skill", ""),
+                "reason": item.get("reason") or "Kỹ năng được tìm thấy trong CV.",
+                "importance": item.get("importance", ""),
+                "confidence": item.get("confidence", 1.0),
+                "evidence": None,
+            }
+        return {"skill": str(item), "reason": "Kỹ năng được tìm thấy trong CV.", "evidence": None}
+
+    def _normalize_related(item, idx: int) -> Dict[str, Any]:
+        if isinstance(item, dict):
+            return {
+                "skill": item.get("skill", ""),
+                "reason": item.get("reason") or "Kỹ năng có liên quan gần với yêu cầu JD.",
+                "importance": item.get("importance", ""),
+                "confidence": item.get("confidence", 0.0),
+                "evidence": None,
+            }
+        return {"skill": str(item), "reason": "Kỹ năng có liên quan gần với yêu cầu JD.", "evidence": None}
+
+    def _normalize_missing(item, idx: int) -> Dict[str, Any]:
+        severity = "high" if idx < 5 else ("medium" if idx < 10 else "low")
+        default_importance = "CRITICAL" if idx < 3 else ("IMPORTANT" if idx < 7 else "NORMAL")
+        if isinstance(item, dict):
+            return {
+                "skill": item.get("skill", ""),
+                "severity": severity,
+                "importance": item.get("importance", default_importance),
+                "reason": item.get("reason") or "Kỹ năng yêu cầu nhưng không được tìm thấy trong CV.",
+            }
+        return {
+            "skill": str(item),
+            "severity": severity,
+            "importance": default_importance,
+            "reason": "Kỹ năng yêu cầu nhưng không được tìm thấy trong CV.",
+        }
+
+    raw_matched = analysis_result.get("matched_skills", [])
+    raw_related = analysis_result.get("related_skills", [])
+    raw_missing = analysis_result.get("missing_skills", [])
+
+    return {
+        "matched": [_normalize_matched(s, i) for i, s in enumerate(raw_matched)],
+        "related": [_normalize_related(s, i) for i, s in enumerate(raw_related)],
+        "missing": [_normalize_missing(s, i) for i, s in enumerate(raw_missing)],
+    }
+
 # Import utilities from feature_up_cv using absolute imports
 try:
     from app.feature.feature_up_cv.scoring.hybrid_scoring import calculate_hybrid_score
@@ -533,6 +595,8 @@ async def analyze_cv_jd_match(
                 cached_result = load_result_analysis(existing_session.result_analysis_file_url)
                 if cached_result and all_cache_hits:
                     print(f"[CACHE HIT] MATCH_SCORE - using cached result from session={existing_session.id_session}")
+                    # Apply skills_detail transformation even to cached results
+                    cached_result["skills_detail"] = _build_skills_detail(cached_result)
                     return {
                         "success": True,
                         "message": "Analysis completed successfully (from cache)",
@@ -598,6 +662,16 @@ async def analyze_cv_jd_match(
         _company_fit_score = detailed_scores.get("company_fit_score", 0)
         _company_fit_rationale = analysis_result.get("company_fit_rationale", "")
 
+        # ── Build response ──
+        step = "build_response"
+        detailed_scores = analysis_result.get("detailed_scores", {})
+        _company_fit_score = detailed_scores.get("company_fit_score", 0)
+        _company_fit_rationale = analysis_result.get("company_fit_rationale", "")
+
+        raw_matched = analysis_result.get("matched_skills", [])
+        raw_related = analysis_result.get("related_skills", [])
+        raw_missing = analysis_result.get("missing_skills", [])
+
         response_data = {
             "overall_score": analysis_result.get("overall_score", 0),
             "detailed_scores": {
@@ -613,9 +687,12 @@ async def analyze_cv_jd_match(
             "score_rationale": analysis_result.get("score_rationale", ""),
             "career_objectives_rationale": analysis_result.get("career_objectives_rationale", ""),
             "company_fit_rationale": _company_fit_rationale,
-            "matched_skills": analysis_result.get("matched_skills", []),
-            "related_skills": analysis_result.get("related_skills", []),
-            "missing_skills": analysis_result.get("missing_skills", []),
+            # Flat arrays kept for backward compatibility
+            "matched_skills": raw_matched,
+            "related_skills": raw_related,
+            "missing_skills": raw_missing,
+            # Structured skills_detail for FE (AnalysisPanel.vue)
+            "skills_detail": _build_skills_detail(analysis_result),
             "experience_assessment": analysis_result.get("experience_assessment", ""),
             "experience_detail": analysis_result.get("experience_detail", ""),
             "main_strengths": analysis_result.get("main_strengths", []),
