@@ -15,18 +15,17 @@ class ScoringConfig:
     EDUCATION_WEIGHT: float = 10.0
     CAREER_WEIGHT: float = 10.0
 
-    SEMANTIC_MATCH_THRESHOLD: float = 0.80
-    RELATED_MATCH_THRESHOLD: float = 0.62
+    # 3-way match thresholds (normalized [0, 1] scale)
+    PERFECT_MATCH_THRESHOLD: float = 0.80   # exact / keyword match on requirement
+    RELEVANT_MATCH_THRESHOLD: float = 0.60   # semantic match (embedding similarity)
 
-    UNDERQUALIFIED_CAP: float = 30.0
-    SEVERE_GAP_CAP: float = 25.0
-    SPECIALIZATION_MISMATCH_CAP: float = 35.0
-
-    # Criteria matching thresholds (atomic skills vs generic criteria)
-    ATOMIC_MATCH_THRESHOLD: float = 0.88
-    ATOMIC_RELATED_THRESHOLD: float = 0.68
+    # Legacy aliases kept for backward compat
+    ATOMIC_MATCH_THRESHOLD: float = 0.80
+    ATOMIC_RELATED_THRESHOLD: float = 0.60
     GENERIC_MATCH_THRESHOLD: float = 0.80
-    GENERIC_RELATED_THRESHOLD: float = 0.62
+    GENERIC_RELATED_THRESHOLD: float = 0.60
+    SEMANTIC_MATCH_THRESHOLD: float = 0.80
+    RELATED_MATCH_THRESHOLD: float = 0.60
 
     # Skills scoring caps and domain thresholds
     SKILLS_MAX: float = 30.0
@@ -39,6 +38,12 @@ class ScoringConfig:
     DOMAIN_CAP_MODERATE_COVERAGE: float = 0.25
     DOMAIN_CAP_SEMANTIC_MISMATCH_PENALTY: float = 0.5
     DOMAIN_CAP_SEMANTIC_MISMATCH_COVERAGE: float = 0.20
+    
+    # Experience caps
+    UNDERQUALIFIED_CAP: float = 30.0
+    SEVERE_GAP_CAP: float = 25.0
+    SPECIALIZATION_MISMATCH_CAP: float = 35.0
+    
     # Reranker config: when enabled, rerank top-K projects using a cross-encoder
     RERANK_TOP_K: int = 3
     # How much to trust the original hybrid relevance vs reranker (0-1)

@@ -85,11 +85,14 @@ QUAN TRỌNG - Phương pháp trích xuất:
    - Trích xuất định hướng phát triển nghề nghiệp mà JD đề cập (ví dụ: "phát triển lên Senior trong 2 năm", "định hướng Tech Lead")
    - Trích từ benefits, responsibilities hoặc description. Nếu không có, để chuỗi rỗng ""
 
-9. VỀ PHÂN TÍCH CHUYÊN MÔN:
+9. VỀ NGOẠI NGỮ (languages_required):
+   - Trích xuất yêu cầu về ngoại ngữ thành mảng các object. Mỗi object gồm "language" (Tên ngôn ngữ, VD: English, Japanese) và "proficiency" (Trình độ yêu cầu, VD: IELTS 6.5, N2, Giao tiếp tốt). Nếu JD không yêu cầu ngoại ngữ, để mảng rỗng.
+
+10. VỀ PHÂN TÍCH CHUYÊN MÔN:
    - domain: phân loại JD vào MỘT trong các nhóm (tech_ai, tech_data, tech_backend, tech_frontend, tech_mobile, tech_qa, sales, marketing, hr, finance, design, management, unknown).
    - is_entry_level: true nếu JD dành cho Thực tập sinh (Intern), Sinh viên kiến tập, Fresher, hoặc Junior yêu cầu dưới 1 năm kinh nghiệm.
 
-10. VỀ evaluation_criteria:
+11. VỀ evaluation_criteria:
    - Bổ sung danh sách tiêu chí đánh giá nguyên tử để scoring và sinh câu hỏi phỏng vấn.
    - Mỗi criterion phải là một yêu cầu có thể kiểm chứng bằng evidence trong CV.
    - Không atomize quá vụn; gom các yêu cầu thuộc cùng một năng lực nếu JD viết liền nhau.
@@ -113,6 +116,7 @@ Schema output:
   "seniority": "",
   "years_of_experience": "",
   "employment_type": "",
+  "languages_required": [{{"language": "", "proficiency": ""}}],
   "skills_required": [],
   "skills_preferred": [],
   "responsibilities": [],
@@ -165,6 +169,7 @@ OUTPUT:
   "seniority": "Mid-level",
   "years_of_experience": "3+",
   "employment_type": "",
+  "languages_required": [],
   "skills_required": ["Python", "FastAPI", "PostgreSQL", "REST API", "Git"],
   "skills_preferred": ["Docker", "AWS", "Kubernetes", "Redis", "MongoDB"],
   "responsibilities": ["Phát triển API", "Thiết kế database", "Tối ưu hiệu suất"],
@@ -217,6 +222,7 @@ def _fallback_structured() -> Dict[str, Any]:
         "seniority": "",
         "years_of_experience": "",
         "employment_type": "",
+        "languages_required": [],
         "skills_required": [],
         "skills_preferred": [],
         "responsibilities": [],
@@ -399,7 +405,7 @@ def llm_parser_jd(jd_text: str) -> Dict[str, Any]:
 
     # Ensure all list fields are lists
     for list_field in (
-        "skills_required", "skills_preferred", "responsibilities",
+        "languages_required", "skills_required", "skills_preferred", "responsibilities",
         "requirements", "benefits", "keywords", "culture_keywords",
         "evaluation_criteria",
     ):
