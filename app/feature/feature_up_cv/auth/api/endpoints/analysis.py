@@ -12,7 +12,7 @@ Flow:
 import os
 import time
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -123,6 +123,264 @@ def _build_skills_detail(analysis_result: Dict[str, Any]) -> Dict[str, Any]:
         "related": [_normalize_related(s, i) for i, s in enumerate(raw_related)],
         "missing": [_normalize_missing(s, i) for i, s in enumerate(raw_missing)],
     }
+
+
+def _build_main_strengths(response: Dict[str, Any]) -> List[Dict[str, Any]]:
+    """
+    Build main_strengths for FE.
+
+    Returns a list of dicts with human-readable fields that the FE template can render:
+    - title: the main text
+    - description: detailed explanation
+    - type/icon: for styling
+    """
+    raw = response.get("main_strengths", [])
+    if not raw:
+        return []
+
+    results = []
+    for item in raw:
+        if isinstance(item, dict):
+            title = item.get("title", "")
+            description = item.get("description", "")
+            item_type = item.get("type", "")
+            icon = item.get("icon", "")
+            # Combine title + description into a readable string for legacy FE
+            text = f"{title}. {description}" if description else title
+            results.append({
+                "type": item_type,
+                "title": title,
+                "description": description,
+                "text": text,  # combined readable text
+                "icon": icon,
+                "score_impact": item.get("score_impact"),
+            })
+        elif isinstance(item, str):
+            results.append({
+                "type": "legacy",
+                "title": item,
+                "description": item,
+                "text": item,
+                "icon": "",
+                "score_impact": None,
+            })
+    return results
+
+
+def _build_areas_for_development(response: Dict[str, Any]) -> List[Dict[str, Any]]:
+    """
+    Build areas_for_development for FE.
+
+    Returns a list of dicts with human-readable fields:
+    - title: main issue
+    - description: detailed explanation
+    - priority: high/medium/low
+    - suggestions: list of improvement suggestions
+    """
+    raw = response.get("areas_for_improvement", []) or response.get("areas_for_development", [])
+    if not raw:
+        return []
+
+    results = []
+    for item in raw:
+        if isinstance(item, dict):
+            title = item.get("title", "")
+            description = item.get("description", "")
+            priority = item.get("priority", "medium")
+            suggestions = item.get("suggestions", [])
+            # Combine all info into a readable string
+            suggestions_text = ""
+            if suggestions:
+                suggestions_text = " | Gợi ý: " + "; ".join(suggestions[:2])
+            text = f"{title}. {description}{suggestions_text}"
+            results.append({
+                "type": item.get("type", ""),
+                "title": title,
+                "description": description,
+                "text": text,
+                "priority": priority,
+                "suggestions": suggestions,
+            })
+        elif isinstance(item, str):
+            results.append({
+                "type": "legacy",
+                "title": item,
+                "description": item,
+                "text": item,
+                "priority": "medium",
+                "suggestions": [],
+            })
+    return results
+
+
+def _build_recommendation_response(response: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Build recommendation for FE — returns a structured dict.
+
+    The FE template references `analysisData.recommendation` directly.
+    We need it to be a string so it renders correctly.
+    Fallback: return a dict with a "text" field that can be used.
+    """
+    raw = response.get("recommendation")
+    if not raw:
+        return {
+            "text": "Không có khuyến nghị.",
+            "level": "unknown",
+            "summary": "Không có khuyến nghị.",
+            "action_items": [],
+            "interview_tips": [],
+        }
+
+    if isinstance(raw, dict):
+        # Build a human-readable text from structured fields
+        parts = []
+        level = raw.get("level", "unknown")
+        summary = raw.get("summary", "")
+        summary_detail = raw.get("summary_detail", "")
+        action_items = raw.get("action_items", [])
+        interview_tips = raw.get("interview_tips", [])
+
+        if summary:
+            parts.append(summary)
+        if summary_detail and summary_detail != summary:
+            parts.append(summary_detail)
+
+        # Add action items as bullet points
+        if action_items:
+            parts.append("")
+            for item in action_items[:3]:
+                parts.append(f"• {item}")
+
+        # Add interview tips
+        if interview_tips:
+            parts.append("")
+            for tip in interview_tips[:2]:
+                parts.append(f"→ {tip}")
+
+        text = " ".join(parts)
+        return {
+            "text": text,
+            "level": level,
+            "summary": summary,
+            "action_items": action_items,
+            "interview_tips": interview_tips,
+        }
+    elif isinstance(raw, str):
+        return {
+            "text": raw,
+            "level": "unknown",
+            "summary": raw,
+            "action_items": [],
+            "interview_tips": [],
+        }
+    return {
+        "text": "Không có khuyến nghị.",
+        "level": "unknown",
+        "summary": "Không có khuyến nghị.",
+        "action_items": [],
+        "interview_tips": [],
+    }
+
+
+def _build_experience_detail_response(response: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Build experience_detail for FE.
+
+    Returns a dict with:
+    - score (int): experience score
+    - score_level (str): xuất sắc/tốt/trung bình/yếu
+    - summary (str): human-readable assessment text (legacy compat)
+    - years_detail (dict): detailed years breakdown
+    - cv_level (str): detected CV seniority level
+    - jd_required_level (str): JD required level
+    - seniority_gap (int): gap between cv_level and req_level
+    - projects (list[str]): list of project names (legacy compat)
+    - project_relevance_avg (float): average project relevance score
+    """
+    raw = response.get("experience_detail")
+    detailed_scores = response.get("detailed_scores", {})
+
+    if isinstance(raw, dict):
+        years_detail = raw.get("years_detail", {})
+        score = raw.get("score", 0)
+        score_level = raw.get("score_level", "")
+        summary = raw.get("summary", "")
+
+        years_text = ""
+        if years_detail:
+            total = years_detail.get("total_years", 0)
+            work = years_detail.get("work_years", 0)
+            proj = years_detail.get("project_years", 0)
+            gap_text = years_detail.get("gap_text", "")
+            years_text = (
+                f"Years: {total:.1f}y total "
+                f"(work: {work:.1f}y, project: {proj:.1f}y). "
+                f"{gap_text}. "
+                f"Score={score}/50."
+            )
+
+        project_names = []
+        proj_scores = response.get("features", {}).get("experience", {}).get("project_relevance_scores", [])
+        for i, proj_text in enumerate(response.get("features", {}).get("experience", {}).get("project_descriptions", [])):
+            rel = proj_scores[i] if i < len(proj_scores) else 0
+            proj_name = proj_text[:60] if proj_text else f"Dự án {i+1}"
+            project_names.append(proj_name)
+        projects_text = "Projects: [" + ", ".join(project_names) + "]" if project_names else ""
+
+        legacy_string = f"{summary} {years_text} {projects_text}".strip()
+
+        cv_level = raw.get("cv_level", "")
+        seniority_gap = raw.get("seniority_gap", 0)
+        bonus_val = max(0, score - years_detail.get("total_years", 0) * 10 if years_detail else 0)
+
+        return {
+            "score": score,
+            "score_level": score_level,
+            "summary": legacy_string,
+            "cv_level": cv_level,
+            "jd_required_level": raw.get("jd_required_level", ""),
+            "seniority_gap": seniority_gap,
+            "years_detail": years_detail,
+            "project_relevance_avg": raw.get("project_relevance_avg", 0),
+            "projects": project_names,
+            "seniority_label": f"seniority={cv_level}" if cv_level else "",
+            "bonus_val": round(bonus_val, 1),
+            "years_score_val": round(score * 0.8, 1),
+        }
+
+    elif isinstance(raw, str):
+        score = detailed_scores.get("experience_score", 0)
+        return {
+            "score": score,
+            "score_level": "",
+            "summary": raw,
+            "cv_level": "",
+            "jd_required_level": "",
+            "seniority_gap": 0,
+            "years_detail": {},
+            "project_relevance_avg": 0,
+            "projects": [],
+            "seniority_label": "",
+            "bonus_val": 0,
+            "years_score_val": score,
+        }
+
+    score = detailed_scores.get("experience_score", 0)
+    return {
+        "score": score,
+        "score_level": "",
+        "summary": response.get("experience_assessment", "Không có dữ liệu."),
+        "cv_level": "",
+        "jd_required_level": "",
+        "seniority_gap": 0,
+        "years_detail": {},
+        "project_relevance_avg": 0,
+        "projects": [],
+        "seniority_label": "",
+        "bonus_val": 0,
+        "years_score_val": score,
+    }
+
 
 # Import utilities from feature_up_cv using absolute imports
 try:
@@ -674,6 +932,7 @@ async def analyze_cv_jd_match(
 
         response_data = {
             "overall_score": analysis_result.get("overall_score", 0),
+            "summary": analysis_result.get("summary", ""),
             "detailed_scores": {
                 "experience_score": detailed_scores.get("experience_score", 0),
                 "skills_keyword_score": detailed_scores.get("skills_keyword_score", detailed_scores.get("skills_score", 0)),
@@ -693,11 +952,20 @@ async def analyze_cv_jd_match(
             "missing_skills": raw_missing,
             # Structured skills_detail for FE (AnalysisPanel.vue)
             "skills_detail": _build_skills_detail(analysis_result),
+            # Experience detail — supports both new (dict) and legacy (string) formats
             "experience_assessment": analysis_result.get("experience_assessment", ""),
-            "experience_detail": analysis_result.get("experience_detail", ""),
-            "main_strengths": analysis_result.get("main_strengths", []),
-            "areas_for_development": analysis_result.get("areas_for_development", []),
-            "recommendation": analysis_result.get("recommendation", ""),
+            "experience_detail": _build_experience_detail_response(analysis_result),
+            # Main strengths — structured list from hybrid_scoring v6
+            "main_strengths": _build_main_strengths(analysis_result),
+            # Areas for development — structured list from hybrid_scoring v6
+            "areas_for_development": _build_areas_for_development(analysis_result),
+            # Recommendation — structured dict from hybrid_scoring v6
+            "recommendation": _build_recommendation_response(analysis_result),
+            # Legacy string fields (for backward compat with older FE)
+            "legacy_main_strengths": analysis_result.get("main_strengths", []),
+            "legacy_areas_for_development": analysis_result.get("areas_for_improvement", []),
+            "legacy_recommendation": analysis_result.get("recommendation", ""),
+            # cv_candidate, job_position
             "cv_candidate": analysis_result.get("cv_candidate", ""),
             "job_position": analysis_result.get("job_position", ""),
         }
