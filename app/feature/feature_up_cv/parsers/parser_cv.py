@@ -19,7 +19,7 @@ from app.feature.feature_up_cv.core.utils import extract_first_json as _extract_
 
 
 def _build_cv_prompt(cv_text: str) -> str:
-    return f"""
+    template = """
 Bạn là hệ thống trích xuất thông tin CV chuyên nghiệp.
 Mục tiêu: chuyển đổi text CV thành JSON có cấu trúc chuẩn cho CV-JD matching.
 
@@ -87,12 +87,12 @@ Schema (giữ đúng keys và types):
   "domain_skills": [],
   "soft_skills": [],
   "certifications": [],
-  "evidence": {{
-    "name": "",
-    "email": "",
-    "phone": "",
-    "skills": []
-  }}
+  "skill_metadata": {
+    "technical_skills": [],
+    "domain_skills": [],
+    "soft_skills": [],
+    "certifications": []
+  }
 }}
 
 NOTE: career_objectives là mục tiêu nghề nghiệp dài hạn/công việc mong muốn (ví dụ: "Backend Engineer với 5 năm kinh nghiệm, mong muốn phát triển sâu hơn về AI/ML"). Trích xuất chính xác từ phần "Mục tiêu nghề nghiệp" hoặc "Career Objective" của CV. Nếu không có, để chuỗi rỗng "".
@@ -115,7 +115,7 @@ OUTPUT:
   "domain_skills": [],
   "soft_skills": ["Giao tiếp"],
   "certifications": [],
-  "evidence": {{"name":"","email":"","phone":"","skills":["Python","FastAPI","PostgreSQL"]}}
+  "skill_metadata": {{"technical_skills":["Python","FastAPI","PostgreSQL"],"domain_skills":[],"soft_skills":["Giao tiếp"],"certifications":[]}}
 }}
 
 Self-check:
@@ -126,8 +126,10 @@ Self-check:
 - Không trùng lặp trong skills?
 
 CV_TEXT (có thể bị cắt ngắn):
-{cv_text[:8000]}
-""".strip()
+"""
+    return template + cv_text[:10000] + """
+
+"""
 
 
 def _is_valid_skill(val: Any) -> bool:
@@ -178,7 +180,12 @@ def _fallback() -> Dict[str, Any]:
         "domain_skills": [],
         "soft_skills": [],
         "certifications": [],
-        "evidence": {"name": "", "email": "", "phone": "", "skills": []},
+        "skill_metadata": {
+            "technical_skills": [],
+            "domain_skills": [],
+            "soft_skills": [],
+            "certifications": [],
+        },
     }
 
 
@@ -252,16 +259,6 @@ def llm_parser_cv(cv_text: str) -> Dict[str, Any]:
     for key in ("technical_skills", "domain_skills", "soft_skills", "certifications"):
         if key not in result:
             result[key] = []
-
-    # Ensure evidence exists and has skills
-    if "evidence" not in result or not isinstance(result["evidence"], dict):
-        result["evidence"] = {}
-    for field in ("name", "email", "phone", "skills"):
-        if field not in result["evidence"]:
-            result["evidence"][field] = ""
-
-    # evidence.skills = top 20 skills
-    result["evidence"]["skills"] = result["skills"][:20]
 
     # skill_metadata: mirror all skill categories
     result["skill_metadata"] = {

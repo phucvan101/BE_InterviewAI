@@ -69,7 +69,7 @@ def _build_skills_detail(analysis_result: Dict[str, Any]) -> Dict[str, Any]:
     into the structured skills_detail object that the FE expects.
 
     Input arrays can be:
-      - list of str (legacy/LLM fallback)
+      - list of str (legacy format)
       - list of dict with keys: skill, reason, importance, confidence (from hybrid_scoring)
 
     FE template accesses skills_detail.{matched,related,missing} as arrays of objects
@@ -387,7 +387,6 @@ try:
     from app.feature.feature_up_cv.scoring.hybrid_scoring import calculate_hybrid_score
     from app.feature.feature_up_cv.vector_search.embedding_service import get_embedding_service
     from app.feature.feature_up_cv.vector_search.faiss_index_manager import get_faiss_manager
-    from app.feature.feature_up_cv.scoring.score_matching import calculate_matching_score_from_payload
     from app.feature.feature_up_cv.parsers.parser_cv import llm_parser_cv
     from app.feature.feature_up_cv.parsers.parser_company import llm_parser_company
     from app.feature.feature_up_cv.core.text_extract import extract_text_auto, UnsupportedFileTypeError
@@ -396,7 +395,6 @@ try:
 except ImportError as e:
     print(f"⚠️ Warning: Could not import from feature_up_cv: {e}")
     calculate_hybrid_score = None
-    calculate_matching_score_from_payload = None
     llm_parser_cv = None
     llm_parser_company = None
     GeminiQuotaExceededError = None
@@ -710,15 +708,14 @@ async def analyze_cv_jd_match(
     Optional: include company research for additional matching context
 
     Scoring Strategy (Hybrid):
-    1. Compute embeddings for CV and JD using sentence-transformers (all-MiniLM-L6-v2)
-    2. Compute cosine similarity via FAISS for semantic matching
-    3. Apply formula-based scoring:
+    1. Parse CV and JD text via LLM (with caching)
+    2. Compute embeddings for CV and JD using sentence-transformers (with caching)
+    3. Run hybrid_scoring:
        - Experience (0-50): years match + seniority level
-       - Skills Keyword (0-30): normalized skill overlap (exact match)
-       - Skills Embedding (0-30): embedding similarity boost
+       - Skills (0-30): criteria matching + semantic embedding
        - Education (0-10): degree level + certifications
-       - Company Fit (0-10): industry/skills alignment
-    4. Fallback to LLM scoring if embeddings unavailable
+       - Career (0-10): objectives alignment
+       - Company Fit (0-10): industry/skills/culture alignment
 
     Hệ thống cache:
     - Sau khi extract text, tính SHA-256 hash
@@ -748,12 +745,6 @@ async def analyze_cv_jd_match(
         }
     }
     """
-    
-    if not calculate_matching_score_from_payload:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Score matching module not available"
-        )
     
     # Get file paths from request
     cv_file_path = Path(request_body.cv_file_path)
@@ -893,36 +884,27 @@ async def analyze_cv_jd_match(
             )
             await db.commit()
 
-        # ── Call hybrid scoring (embedding + formula) ───
+        # ── Call hybrid scoring ───
         step = "hybrid_score"
         score_started_at = time.perf_counter()
         try:
-            if cv_embedding is not None and jd_embedding is not None:
-                print(f"[SCORING] Using hybrid scoring with embeddings")
-                analysis_result = calculate_hybrid_score(
-                    cv_data, jd_data, company_data,
-                    cv_embedding=cv_embedding, jd_embedding=jd_embedding
-                )
-            else:
-                print(f"[SCORING] Falling back to LLM scoring (embeddings unavailable)")
-                analysis_result = calculate_matching_score_from_payload(cv_data, jd_data, company_data)
+            analysis_result = calculate_hybrid_score(
+                cv_data, jd_data, company_data,
+                cv_embedding=cv_embedding, jd_embedding=jd_embedding
+            )
             _log_parser_result("SCORE", score_started_at, True)
         except Exception as e:
             _log_parser_result("SCORE", score_started_at, False, str(e))
-            # Fallback to LLM if hybrid fails
-            print(f"[SCORING] Hybrid scoring failed ({e}), falling back to LLM")
-            analysis_result = calculate_matching_score_from_payload(cv_data, jd_data, company_data)
+            print(f"[SCORING] Hybrid scoring failed: {e}")
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Scoring failed: {str(e)}"
+            )
 
         # ── Build response ────────────────────────────
         step = "build_response"
         detailed_scores = analysis_result.get("detailed_scores", {})
         # company_fit_score & rationale come from hybrid_scoring._score_company_fit (4 dimensions)
-        _company_fit_score = detailed_scores.get("company_fit_score", 0)
-        _company_fit_rationale = analysis_result.get("company_fit_rationale", "")
-
-        # ── Build response ──
-        step = "build_response"
-        detailed_scores = analysis_result.get("detailed_scores", {})
         _company_fit_score = detailed_scores.get("company_fit_score", 0)
         _company_fit_rationale = analysis_result.get("company_fit_rationale", "")
 
