@@ -37,7 +37,7 @@ _GENERIC_SKILLS = {
 }
 
 def _build_jd_prompt(jd_text: str) -> str:
-    return f"""
+    template = """
 Bạn là chuyên gia phân tích JD (Job Description) hàng đầu.
 Mục tiêu: trích xuất TẤT CẢ kỹ năng từ mọi phần của JD một cách CHÍNH XÁC và ĐẦY ĐỦ.
 
@@ -140,23 +140,8 @@ Schema output:
   ],
   "experience_context": "",
   "career_expectations": "",
-  "culture_keywords": [],
-  "evidence": {{
-    "job_title": "",
-    "years_of_experience": "",
-    "skills_required": [],
-    "skills_preferred": [],
-    "responsibilities": [],
-    "requirements": []
-  }}
+  "culture_keywords": []
 }}
-
-NOTE: evidence là bản sao các trường chính, KHÔNG phải nơi để bổ sung thêm skills.
-skills_required và skills_preferred trong evidence phải giống hệt trong structured chính.
-
-QUAN TRỌNG - Không trùng lặp:
-- `evidence` phải đồng bộ với các trường chính, không thêm skills_extra
-- Mỗi skill chỉ nên xuất hiện trong đúng 1 danh sách (required HOẶC preferred, không cả 2)
 
 Ví dụ Few-shot:
 INPUT: "Backend Engineer. 3+ years. Python, FastAPI, PostgreSQL required. Docker, AWS preferred."
@@ -184,8 +169,7 @@ OUTPUT:
   ],
   "experience_context": "Cần 3+ năm kinh nghiệm backend development với Python",
   "career_expectations": "Cơ hội phát triển lên Senior Backend Engineer trong 2 năm.",
-  "culture_keywords": [],
-  "evidence": {{"job_title":"Backend Engineer","years_of_experience":"3+","skills_required":["Python","FastAPI","PostgreSQL"],"skills_preferred":["Docker","AWS"],"responsibilities":[],"requirements":[]}}
+  "culture_keywords": []
 }}
 
 Self-check:
@@ -200,8 +184,10 @@ Self-check:
 - evaluation_criteria có bao phủ các yêu cầu chính của JD nhưng không phá vỡ schema cũ không?
 
 JD_TEXT:
-{jd_text[:8000]}
-""".strip()
+"""
+    return template + jd_text[:10000] + """
+
+"""
 
 
 def _validate_jd_schema(data: Dict) -> bool:
@@ -235,14 +221,6 @@ def _fallback_structured() -> Dict[str, Any]:
         "experience_context": "",
         "career_expectations": "",
         "culture_keywords": [],
-        "evidence": {
-            "job_title": "",
-            "years_of_experience": "",
-            "skills_required": [],
-            "skills_preferred": [],
-            "responsibilities": [],
-            "requirements": [],
-        },
     }
 
 
@@ -482,18 +460,6 @@ def llm_parser_jd(jd_text: str) -> Dict[str, Any]:
         structured["skill_importance"] = skill_importance
 
     structured["evaluation_criteria"] = _normalize_evaluation_criteria(structured)
-
-    # ── Post-process: ensure evidence mirrors the structured fields exactly ─
-    evidence = structured.get("evidence", {})
-    if not isinstance(evidence, dict):
-        evidence = {}
-    evidence["skills_required"] = [s for s in structured.get("skills_required", []) if isinstance(s, str)]
-    evidence["skills_preferred"] = [s for s in structured.get("skills_preferred", []) if isinstance(s, str)]
-    evidence["responsibilities"] = [r for r in structured.get("responsibilities", []) if isinstance(r, str)]
-    evidence["requirements"] = [r for r in structured.get("requirements", []) if isinstance(r, str)]
-    evidence["job_title"] = structured.get("job_title", "")
-    evidence["years_of_experience"] = structured.get("years_of_experience", "")
-    structured["evidence"] = evidence
 
     return {
         "job_title": structured.get("job_title") or "Job Description",

@@ -15,7 +15,6 @@ from __future__ import annotations
 
 import json
 import logging
-import math
 import re
 from pathlib import Path
 from typing import Any, Dict, List, Set, Tuple
@@ -35,10 +34,8 @@ criterion_id = _criterion_id
 criterion_key = _criterion_key
 
 
-def normalize_skill_key(skill: str) -> str:
-    return _normalize_skill_key(skill)
-
 logger = logging.getLogger(__name__)
+
 
 # ── Scoring Config ──────────────────────────────────────────────────────────────────
 from dataclasses import dataclass
@@ -46,9 +43,6 @@ from dataclasses import dataclass
 
 @dataclass(frozen=True)
 class ScoringConfig:
-    """Centralized scoring configuration. Import from here, not from hybrid_scoring."""
-
-    """Centralized scoring configuration. Import from here, not from hybrid_scoring."""
 
     EXPERIENCE_WEIGHT: float = 50.0
     SKILLS_WEIGHT: float = 30.0

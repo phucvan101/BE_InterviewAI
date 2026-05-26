@@ -433,13 +433,6 @@ def post_process_cv_skills(cv_data: dict, raw_text: str = "") -> dict:
     all_skills = normalize_skills_list(list(existing | additional_skills))
     cv_data["skills"] = all_skills
 
-    # Normalize evidence skills
-    if "evidence" in cv_data and isinstance(cv_data["evidence"], dict):
-        if "skills" in cv_data["evidence"]:
-            cv_data["evidence"]["skills"] = normalize_skills_list(
-                cv_data["evidence"].get("skills", [])
-            )
-
     return cv_data
 
 
@@ -470,13 +463,6 @@ def post_process_jd_skills(jd_data: dict, raw_text: str = "") -> dict:
         if extracted:
             structured["skills_required"] = extracted[:20]
 
-    # Normalize evidence
-    if "evidence" in structured:
-        ev = structured["evidence"]
-        for field in ("skills_required", "skills_preferred"):
-            if field in ev and isinstance(ev[field], list):
-                ev[field] = normalize_skills_list(ev[field])
-
     jd_data["structured"] = structured
     return jd_data
 
@@ -495,11 +481,5 @@ def post_process_company(company_data: dict, raw_text: str = "") -> dict:
         extracted = extract_skills_from_text(text)
         if extracted:
             company_data["technologies"] = extracted[:15]
-
-    if "evidence" in company_data:
-        ev = company_data["evidence"]
-        for field in ("key_skills", "technologies"):
-            if field in ev and isinstance(ev[field], list):
-                ev[field] = normalize_skills_list(ev[field])
 
     return company_data

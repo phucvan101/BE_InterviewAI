@@ -22,7 +22,7 @@ from app.feature.feature_up_cv.core.utils import extract_first_json as _extract_
 
 
 def _build_company_prompt(text: str) -> str:
-    return f"""
+    template = """
 Bạn là chuyên gia nghiên cứu doanh nghiệp.
 Mục tiêu: trích xuất thông tin công ty thành JSON cấu trúc để phục vụ phân tích CV-JD-Company matching.
 
@@ -96,13 +96,7 @@ Schema output:
   "growth_stage": "",
   "company_culture": "",
   "key_achievements": [],
-  "engineering_practices": [],
-  "evidence": {{
-    "company_name": "",
-    "industry": "",
-    "key_skills": [],
-    "technologies": []
-  }}
+  "engineering_practices": []
 }}
 
 Few-shot:
@@ -132,8 +126,7 @@ OUTPUT:
   "growth_stage": "",
   "company_culture": "Offshore IT outsourcing",
   "key_achievements": [],
-  "engineering_practices": [],
-  "evidence": {{"company_name":"FPT Software","industry":"IT Outsourcing","key_skills":["Java",".NET","Python","AWS","GCP"],"technologies":["Java",".NET","Python","AWS","GCP"]}}
+  "engineering_practices": []
 }}
 
 Self-check:
@@ -143,8 +136,10 @@ Self-check:
 - Spelling của tech keywords đúng chưa?
 
 DOCUMENT_TEXT:
-{text[:7000]}
-""".strip()
+"""
+    return template + text[:8000] + """
+
+"""
 
 
 def _validate_company_schema(data: Dict) -> bool:
