@@ -35,7 +35,7 @@ from app.feature.feature_up_cv.auth.services.cv_profile_service import CVProfile
 from app.feature.feature_up_cv.auth.services.job_description_service import JobDescriptionService
 from app.feature.feature_up_cv.auth.services.company_info_service import CompanyInfoService
 from app.feature.feature_up_cv.auth.services.analysis_session_service import AnalysisSessionService
-from app.feature.feature_up_cv.auth.schemas.analysis_session import AnalysisSessionCreate, AnalysisSessionUpdate
+from app.feature.feature_up_cv.auth.schemas.analysis_session import AnalysisSessionCreate, AnalysisSessionUpdate, AnalysisSessionResponse
 from app.core.database import engine
 
 try:
@@ -1093,7 +1093,11 @@ async def analyze_cv_jd_match(
 )
 async def get_analysis_session(
     id_session: int,
+<<<<<<< HEAD
     current_user: User = Depends(get_current_authenticated_user),
+=======
+    current_user: User = Depends(get_current_active_user),
+>>>>>>> c2202c1 (rebase main)
     db: AsyncSession = Depends(get_db),
 ) -> AnalysisSessionResponse:
     """

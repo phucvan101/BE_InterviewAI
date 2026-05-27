@@ -6,12 +6,16 @@ from app.feature.conversation.service import ConversationService
 @pytest.mark.asyncio
 async def test_evaluate_answer_parses_json(session, test_user, monkeypatch):
     service = ConversationService(session)
+<<<<<<< HEAD
     conv = await service.create_conversation(
         user_id=test_user.id,
         job_position="Backend Engineer",
         job_description="JD",
         cv_profile="CV",
     )
+=======
+    conv = await service.create_conversation(user_id=test_user.id, job_description="JD", cv_profile="CV")
+>>>>>>> c2202c1 (rebase main)
     await service.add_message(conversation_id=conv.id, role="interviewer", content="Q1", question="Q1")
     await service.add_message(conversation_id=conv.id, role="candidate", content="A1", answer="A1")
     await session.commit()
@@ -23,3 +27,7 @@ async def test_evaluate_answer_parses_json(session, test_user, monkeypatch):
     result = await service.evaluate_answer(conv.id)
     assert result["fit_score"] == 42
     assert result["recommendation"] == "MAYBE"
+<<<<<<< HEAD
+=======
+
+>>>>>>> c2202c1 (rebase main)

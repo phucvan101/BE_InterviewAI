@@ -21,14 +21,20 @@ from app.core.config import settings
 from app.core.database import Base
 from app.core.database import get_db as prod_get_db
 from app.core.dependencies import get_current_active_user as prod_get_current_active_user
+<<<<<<< HEAD
 from app.core.dependencies import get_current_authenticated_user as prod_get_current_authenticated_user
+=======
+>>>>>>> c2202c1 (rebase main)
 from app.feature.auth.models.user import User
 from app.feature.conversation.router import api_router as conversation_router
 
 # Ensure models are imported and registered on Base.metadata
 import app.feature.conversation.model  # noqa: F401,E402
 import app.feature.admin.roles.models  # noqa: F401,E402
+<<<<<<< HEAD
 import app.feature.feature_up_cv.auth.models  # noqa: F401,E402
+=======
+>>>>>>> c2202c1 (rebase main)
 
 
 @pytest_asyncio.fixture(scope="session")
@@ -102,12 +108,17 @@ async def app(session: AsyncSession, test_user: User) -> FastAPI:
     async def override_get_current_active_user() -> User:
         return test_user
 
+<<<<<<< HEAD
     async def override_get_current_authenticated_user() -> User:
         return test_user
 
     app.dependency_overrides[prod_get_db] = override_get_db
     app.dependency_overrides[prod_get_current_active_user] = override_get_current_active_user
     app.dependency_overrides[prod_get_current_authenticated_user] = override_get_current_authenticated_user
+=======
+    app.dependency_overrides[prod_get_db] = override_get_db
+    app.dependency_overrides[prod_get_current_active_user] = override_get_current_active_user
+>>>>>>> c2202c1 (rebase main)
     return app
 
 
