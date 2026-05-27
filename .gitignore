@@ -42,3 +42,5 @@ htmlcov/
 
 # Uploads
 app/feature/feature_up_cv/uploads/
+
+.AGENTS.md

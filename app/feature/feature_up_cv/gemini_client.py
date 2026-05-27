@@ -88,10 +88,18 @@ def generate_content(
     - exponential backoff + jitter
     - step-tagged exceptions for precise debugging
     """
-    gemini_api_key_str = os.getenv("GEMINI_API_KEY", "")
+    if step == "generate_analysis_report":
+        gemini_api_key_str = (
+            os.getenv("GEMINI_REPORT_API_KEY")
+            or os.getenv("AI_REPORT_API_KEY")
+            or os.getenv("GEMINI_API_KEY", "")
+        )
+    else:
+        gemini_api_key_str = os.getenv("GEMINI_API_KEY", "")
     api_keys = [k.strip() for k in gemini_api_key_str.split(",") if k.strip()]
 
-    model_name = os.getenv("MODEL_NAME", "models/gemini-2.5-flash")
+    model_env_name = "REPORT_MODEL_NAME" if step == "generate_analysis_report" else "MODEL_NAME"
+    model_name = os.getenv(model_env_name, "models/gemini-2.5-flash")
     cfg = config or GeminiConfig(model=model_name)
 
     if not api_keys:
@@ -169,4 +177,3 @@ def generate_content(
             # If it's a completely unrecoverable error (not 429 or 503)
             print(f"❌ [step={step}] Unrecoverable error: {str(e)}")
             raise Exception("runtime error, hãy thử lại sau") from e
-

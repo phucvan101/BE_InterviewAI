@@ -1,3 +1,4 @@
+import asyncpg
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from pydantic import field_validator
 from typing import List, Optional
@@ -22,7 +23,7 @@ class Settings(BaseSettings):
     PORT: int = 8000
 
     # ── Database ─────────────────────────────
-    DATABASE_URL: str = "postgresql+asyncpg://postgres:123456@localhost:5432/postgres"
+    DATABASE_URL: str = "postgresql+asyncpg://admin:123456@localhost:5433/mydb"
 
     @field_validator("DATABASE_URL", mode="before")
     @classmethod
@@ -84,7 +85,10 @@ class Settings(BaseSettings):
     DEEPGRAM_MODEL: str = "general"
 
     GEMINI_API_KEY: Optional[str] = None
+    GEMINI_REPORT_API_KEY: Optional[str] = None
+    AI_REPORT_API_KEY: Optional[str] = None
     MODEL_NAME: str = "models/gemini-2.5-flash"
+    REPORT_MODEL_NAME: str = "models/gemini-2.5-flash"
 
 
 # Singleton instance

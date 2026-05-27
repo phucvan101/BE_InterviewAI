@@ -8,6 +8,7 @@ class CompanyInfoBase(BaseModel):
     parser_file_url: str | None = None
     raw_file_url: str | None = None
     text_hashed: str | None = None
+    text_content: str | None = None
 
 
 # ── Request ──────────────────────────────────────
@@ -20,6 +21,7 @@ class CompanyInfoUpdate(BaseModel):
     parser_file_url: str | None = None
     raw_file_url: str | None = None
     text_hashed: str | None = None
+    text_content: str | None = None
 
 
 # ── Response ─────────────────────────────────────

@@ -1,9 +1,13 @@
 from datetime import datetime, timezone
+from typing import TYPE_CHECKING
 
 from sqlalchemy import Boolean, DateTime, Integer, String, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.database import Base
+
+if TYPE_CHECKING:
+    from app.feature.conversation.model.conversation import Conversation
 
 
 class User(Base):
@@ -41,6 +45,11 @@ class User(Base):
     )
 
     # ── ORM Relationships ────────────────────
+    conversations: Mapped[list["Conversation"]] = relationship(
+        back_populates="user",
+        cascade="all, delete-orphan",
+        lazy="selectin"
+    )
 
     def __repr__(self) -> str:
         return f"<User id={self.id} email={self.email!r}>"

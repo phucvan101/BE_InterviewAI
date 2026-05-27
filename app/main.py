@@ -10,6 +10,7 @@ from app.feature.auth.api.router import api_router
 from app.feature.admin.roles.api.router import api_router as admin_roles_router
 from app.feature.admin.users.api.router import api_router as admin_users_router
 from app.feature.feature_up_cv.auth.api.router import router as cv_router
+from app.feature.conversation.router import api_router as conversation_router
 from app.core.config import settings
 from app.core.database import init_db
 
@@ -17,12 +18,18 @@ from app.scripts.ensure_admin import ensure_admin
 
 
 import logging
-logging.basicConfig(level=logging.DEBUG)
+logging.basicConfig(level=logging.INFO)
+# Disable all SQLAlchemy logging
+logging.getLogger("sqlalchemy.engine").setLevel(logging.ERROR)
+logging.getLogger("sqlalchemy.pool").setLevel(logging.ERROR)
+logging.getLogger("sqlalchemy.dialects").setLevel(logging.ERROR)
+logging.getLogger("sqlalchemy").setLevel(logging.ERROR)
 # Ensure all ORM models are registered with Base.metadata before init_db()
 import app.feature.auth.models  # noqa: F401
 import app.feature.audit.models  # noqa: F401
 import app.feature.admin.roles.models  # noqa: F401
 import app.feature.feature_up_cv.auth.models  # noqa: F401
+import app.feature.conversation.model  # noqa: F401
 
 
 
@@ -66,6 +73,7 @@ def create_app() -> FastAPI:
     app.include_router(admin_roles_router, prefix=settings.API_PREFIX)
     app.include_router(admin_users_router, prefix=settings.API_PREFIX)
     app.include_router(cv_router, prefix=settings.API_PREFIX)
+    app.include_router(conversation_router, prefix=settings.API_PREFIX)
 
     # ── Health check ─────────────────────────
     @app.get("/health", tags=["Health"])
