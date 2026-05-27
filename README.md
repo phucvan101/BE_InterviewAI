@@ -79,6 +79,9 @@ InterviewApi/
 | PATCH  | `/api/v1/users/{id}/deactivate` | 👑 Admin | Vô hiệu hoá user                             |
 | DELETE | `/api/v1/users/{id}`            | 👑 Admin | Xoá user                                     |
 | GET    | `/health`                       | ❌       | Health check                                 |
+| GET    | `/api/v1/conversations/analysis-reports` | ✅ | Danh sách báo cáo phân tích (phân trang)    |
+| POST   | `/api/v1/conversations/{session_id}/analysis-report` | ✅ | Kết thúc phỏng vấn và tạo báo cáo phân tích |
+| GET    | `/api/v1/conversations/{session_id}/analysis-report`  | ✅ | Lấy lại báo cáo phân tích đã tạo            |
 | GET    | `/api/v1/auth/google/login`     | ❌       | Redirect tới Google OAuth                    |
 | GET    | `/api/v1/auth/google/url`       | ❌       | Lấy Google OAuth consent URL                 |
 | GET    | `/api/v1/auth/google/callback`  | ❌       | Callback exchange code → token + redirect FE |
@@ -115,6 +118,8 @@ Các biến quan trọng đang dùng trong code:
 - `GOOGLE_AUTH_URI`, `GOOGLE_TOKEN_URI`, `GOOGLE_TOKENINFO_URI`
 - `GOOGLE_ALLOWED_ISSUERS`, `GOOGLE_SCOPES`
 - `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASSWORD`, `SMTP_FROM_EMAIL`, `SMTP_FROM_NAME` (đã có cấu hình, chưa dùng trong code hiện tại)
+- `GEMINI_API_KEY`, `MODEL_NAME`
+- `GEMINI_REPORT_API_KEY`, `AI_REPORT_API_KEY`, `REPORT_MODEL_NAME` (tuỳ chọn, dùng riêng cho báo cáo phân tích phỏng vấn)
 
 Ví dụ tối thiểu:
 

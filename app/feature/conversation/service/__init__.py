@@ -1,14 +1,34 @@
 import json
 import logging
+from datetime import datetime, timezone
 from typing import Optional
 
 from sqlalchemy import and_, desc, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.feature.conversation.model.conversation import Conversation, ConversationMessage, ConversationStatus, MessageRole
+from app.feature.conversation.model.conversation import (
+    Conversation,
+    ConversationAnalysisReport,
+    ConversationMessage,
+    ConversationStatus,
+    MessageRole,
+)
+from app.feature.conversation.schema import AnalysisReportPayload
 from app.feature.feature_up_cv.gemini_client import generate_content, GeminiConfig
 
 logger = logging.getLogger(__name__)
+
+
+def _ensure_aware_utc(value: datetime) -> datetime:
+    if value.tzinfo is None:
+        return value.replace(tzinfo=timezone.utc)
+    return value.astimezone(timezone.utc)
+
+
+def _calculate_duration_seconds(started_at: datetime, ended_at: datetime) -> int:
+    started_at = _ensure_aware_utc(started_at)
+    ended_at = _ensure_aware_utc(ended_at)
+    return max(0, int((ended_at - started_at).total_seconds()))
 
 
 class ConversationService:
@@ -24,8 +44,10 @@ class ConversationService:
     async def create_conversation(
         self,
         user_id: int,
+        job_position: str,
         job_description: str,
         cv_profile: str,
+        company_name: str | None = None,
         session_id: str | None = None,
     ) -> Conversation:
         """Tạo conversation mới"""
@@ -37,6 +59,8 @@ class ConversationService:
 
         conversation_kwargs = {
             "user_id": user_id,
+            "job_position": job_position,
+            "company_name": company_name,
             "job_description": job_description,
             "cv_profile": cv_profile,
             "status": ConversationStatus.ACTIVE,
@@ -115,11 +139,119 @@ class ConversationService:
             conversation.result = json.dumps(result, ensure_ascii=False)
         if score is not None:
             conversation.score = score
+        ended_at = datetime.now(timezone.utc)
+        conversation.ended_at = ended_at
+        conversation.interview_duration_seconds = _calculate_duration_seconds(
+            conversation.started_at,
+            ended_at,
+        )
 
         await self.db.flush()
         await self.db.refresh(conversation)
         logger.info(f"Ended conversation: id={conversation_id}, score={score}")
         return conversation
+
+    async def get_analysis_report_by_conversation_id(
+        self,
+        conversation_id: int,
+    ) -> Optional[ConversationAnalysisReport]:
+        """Lấy báo cáo phân tích theo conversation ID"""
+        result = await self.db.execute(
+            select(ConversationAnalysisReport).where(
+                ConversationAnalysisReport.conversation_id == conversation_id
+            )
+        )
+        return result.scalar_one_or_none()
+
+    async def get_user_analysis_reports(
+        self,
+        user_id: int,
+        page: int = 1,
+        page_size: int = 10,
+        status: Optional[str] = None,
+    ) -> tuple[list[tuple[ConversationAnalysisReport, Conversation, int]], int]:
+        """Lấy danh sách báo cáo phân tích của user (có phân trang)"""
+        offset = (page - 1) * page_size
+
+        count_stmt = (
+            select(func.count(ConversationAnalysisReport.id))
+            .join(Conversation, ConversationAnalysisReport.conversation_id == Conversation.id)
+            .where(Conversation.user_id == user_id)
+        )
+        if status:
+            count_stmt = count_stmt.where(ConversationAnalysisReport.status == status)
+
+        result = await self.db.execute(count_stmt)
+        total = result.scalar() or 0
+
+        message_count = func.count(ConversationMessage.id).label("message_count")
+        stmt = (
+            select(ConversationAnalysisReport, Conversation, message_count)
+            .join(Conversation, ConversationAnalysisReport.conversation_id == Conversation.id)
+            .outerjoin(
+                ConversationMessage,
+                ConversationMessage.conversation_id == Conversation.id,
+            )
+            .where(Conversation.user_id == user_id)
+            .group_by(ConversationAnalysisReport.id, Conversation.id)
+            .order_by(desc(ConversationAnalysisReport.created_at))
+            .offset(offset)
+            .limit(page_size)
+        )
+        if status:
+            stmt = stmt.where(ConversationAnalysisReport.status == status)
+
+        result = await self.db.execute(stmt)
+        return [(report, conversation, message_count) for report, conversation, message_count in result.all()], total
+
+    async def create_analysis_report(self, conversation_id: int) -> ConversationAnalysisReport:
+        """Tạo báo cáo phân tích nâng cao cho cuộc phỏng vấn"""
+        existing = await self.get_analysis_report_by_conversation_id(conversation_id)
+        if existing:
+            return existing
+
+        conversation = await self.get_conversation_by_id(conversation_id)
+        if not conversation:
+            raise ValueError(f"Conversation {conversation_id} not found")
+
+        payload, raw_ai_response = await self.generate_analysis_report_payload(conversation_id)
+
+        report = ConversationAnalysisReport(
+            conversation_id=conversation_id,
+            status="completed",
+            overall_score=payload.overall_score,
+            overall_grade=payload.overall_grade,
+            level=payload.level,
+            summary=payload.summary,
+            tags=payload.tags,
+            scores=payload.scores.model_dump(),
+            ai_coach_insights=[item.model_dump() for item in payload.ai_coach_insights],
+            strengths=payload.strengths,
+            weaknesses=payload.weaknesses,
+            knowledge_gaps=[item.model_dump() for item in payload.knowledge_gaps],
+            study_plan=[item.model_dump() for item in payload.study_plan],
+            raw_ai_response=raw_ai_response,
+        )
+        self.db.add(report)
+
+        conversation.status = ConversationStatus.COMPLETED
+        conversation.score = payload.overall_score
+        conversation.result = json.dumps(payload.model_dump(), ensure_ascii=False)
+        ended_at = datetime.now(timezone.utc)
+        conversation.ended_at = ended_at
+        conversation.interview_duration_seconds = _calculate_duration_seconds(
+            conversation.started_at,
+            ended_at,
+        )
+
+        await self.db.flush()
+        await self.db.refresh(report)
+        await self.db.refresh(conversation)
+        logger.info(
+            f"Created analysis report: conversation_id={conversation_id}, "
+            f"score={payload.overall_score}, grade={payload.overall_grade}"
+        )
+        return report
 
     # ──────────────────────────────────────────────────────────────
     # Message Management
@@ -330,3 +462,238 @@ Trả lời dưới định dạng JSON:
         except Exception as e:
             logger.error(f"Error evaluating answer: {str(e)}")
             raise
+
+    async def generate_analysis_report_payload(self, conversation_id: int) -> tuple[AnalysisReportPayload, str]:
+        """Gọi AI tạo payload báo cáo phân tích và validate bằng Pydantic"""
+        conversation = await self.get_conversation_by_id(conversation_id)
+        if not conversation:
+            raise ValueError(f"Conversation {conversation_id} not found")
+
+        messages = await self.get_conversation_messages(conversation_id)
+        messages_text = "\n".join(
+            f"{idx}. {msg.role.upper()}: {msg.content}"
+            for idx, msg in enumerate(messages, start=1)
+        )
+
+        prompt = self._build_analysis_report_prompt(
+            conversation=conversation,
+            messages_text=messages_text,
+        )
+
+        result_text = generate_content(
+            prompt=prompt,
+            step="generate_analysis_report",
+        )
+        payload_dict = self._extract_json_object(result_text)
+        payload = AnalysisReportPayload.model_validate(payload_dict)
+        self._apply_analysis_report_business_rules(
+            payload=payload,
+            messages=messages,
+            company_name=conversation.company_name,
+        )
+        return payload, result_text
+
+    def _apply_analysis_report_business_rules(
+        self,
+        *,
+        payload: AnalysisReportPayload,
+        messages: list[ConversationMessage],
+        company_name: str | None,
+    ) -> None:
+        if self._has_company_knowledge_question(messages=messages, company_name=company_name):
+            return
+
+        payload.scores.company_knowledge.score = 0
+        payload.scores.company_knowledge.evidence = (
+            "Không có câu hỏi nào trong phiên phỏng vấn được đặt ra để đánh giá mức độ hiểu biết "
+            "của ứng viên về công ty, sản phẩm, domain, văn hóa hoặc bối cảnh kinh doanh. "
+            "Theo quy ước chấm điểm, tiêu chí company_knowledge được tính là 0 khi không có dữ liệu đánh giá."
+        )
+        payload.overall_score = self._calculate_overall_score(payload)
+        payload.overall_grade = self._grade_from_score(payload.overall_score)
+        payload.level = self._level_from_score(payload.overall_score)
+
+    def _has_company_knowledge_question(
+        self,
+        *,
+        messages: list[ConversationMessage],
+        company_name: str | None,
+    ) -> bool:
+        company_terms = [
+            "công ty",
+            "cong ty",
+            "sản phẩm",
+            "san pham",
+            "product",
+            "domain",
+            "b2b",
+            "saas",
+            "khách hàng",
+            "khach hang",
+            "văn hóa",
+            "van hoa",
+            "sứ mệnh",
+            "su menh",
+            "giá trị",
+            "gia tri",
+            "business",
+            "thị trường",
+            "thi truong",
+        ]
+        if company_name:
+            company_terms.append(company_name.lower())
+
+        for message in messages:
+            if message.role not in {MessageRole.INTERVIEWER, MessageRole.INTERVIEWER.value}:
+                continue
+            question_text = f"{message.question or ''}\n{message.content or ''}".lower()
+            if any(term in question_text for term in company_terms):
+                return True
+        return False
+
+    def _calculate_overall_score(self, payload: AnalysisReportPayload) -> int:
+        scores = [
+            payload.scores.technical.score,
+            payload.scores.communication.score,
+            payload.scores.confidence.score,
+            payload.scores.soft_skills.score,
+            payload.scores.company_knowledge.score,
+        ]
+        return round(sum(scores) / len(scores))
+
+    def _grade_from_score(self, score: int) -> str:
+        if score >= 90:
+            return "A"
+        if score >= 80:
+            return "B+"
+        if score >= 70:
+            return "B"
+        if score >= 60:
+            return "C+"
+        if score >= 50:
+            return "C"
+        return "D"
+
+    def _level_from_score(self, score: int) -> str:
+        if score >= 80:
+            return "Tốt"
+        if score >= 65:
+            return "Khá"
+        if score >= 50:
+            return "Cần cải thiện"
+        return "Yếu"
+
+    def _build_analysis_report_prompt(
+        self,
+        *,
+        conversation: Conversation,
+        messages_text: str,
+    ) -> str:
+        return f"""
+Bạn là AI Interview Evaluator cho hệ thống InterviewAI.
+
+Hãy phân tích kết quả phỏng vấn dựa DUY NHẤT trên dữ liệu được cung cấp:
+- Job description
+- CV profile
+- Lịch sử câu hỏi và câu trả lời
+
+Không bịa thêm dữ kiện. Nếu thiếu dữ liệu để đánh giá tiêu chí nào, vẫn cho điểm nhưng phải ghi rõ trong evidence.
+Riêng company_knowledge: nếu lịch sử phỏng vấn không có câu hỏi nào trực tiếp về công ty, sản phẩm, domain, văn hóa, khách hàng, thị trường hoặc bối cảnh kinh doanh thì score bắt buộc là 0.
+
+Quy ước điểm:
+- Tất cả score là số nguyên từ 0 đến 100.
+- technical: độ đúng, độ sâu và tính thực tế của kiến thức/kỹ năng chuyên môn so với JD.
+- communication: cách trình bày, độ rõ ràng, có cấu trúc, đúng trọng tâm.
+- confidence: độ tự tin thể hiện qua câu chữ, gồm trả lời dứt khoát, có ví dụ cụ thể, ít né tránh, ít ngôn ngữ mơ hồ. Không đánh giá giọng nói/khuôn mặt.
+- soft_skills: tư duy hợp tác, xử lý xung đột, ownership, chủ động, problem-solving.
+- company_knowledge: mức độ hiểu công ty, sản phẩm, domain, yêu cầu vị trí và sự phù hợp văn hóa. Chỉ chấm điểm tiêu chí này khi interviewer đã hỏi câu liên quan công ty/sản phẩm/domain/văn hóa; nếu không có câu hỏi như vậy thì score = 0.
+
+Quy ước overall_grade:
+- 90-100: A
+- 80-89: B+
+- 70-79: B
+- 60-69: C+
+- 50-59: C
+- 0-49: D
+
+Yêu cầu output:
+- Chỉ trả về JSON hợp lệ.
+- Không trả markdown.
+- Không thêm text ngoài JSON.
+- Dùng đúng key và kiểu dữ liệu trong schema bên dưới.
+- impact chỉ được là "low", "medium" hoặc "high".
+- ai_coach_insights.type chỉ được là "positive", "warning" hoặc "improvement".
+
+Schema JSON bắt buộc:
+{{
+  "overall_score": 78,
+  "overall_grade": "B+",
+  "level": "Tốt",
+  "summary": "Tóm tắt đánh giá ngắn gọn bằng tiếng Việt.",
+  "tags": ["Kỹ thuật tốt", "Cần cải thiện kiến thức công ty"],
+  "scores": {{
+    "technical": {{"score": 0, "evidence": "Bằng chứng cụ thể từ câu trả lời."}},
+    "communication": {{"score": 0, "evidence": "Bằng chứng cụ thể từ câu trả lời."}},
+    "confidence": {{"score": 0, "evidence": "Bằng chứng cụ thể từ câu trả lời dạng text."}},
+    "soft_skills": {{"score": 0, "evidence": "Bằng chứng cụ thể từ câu trả lời."}},
+    "company_knowledge": {{"score": 0, "evidence": "Bằng chứng cụ thể từ câu trả lời."}}
+  }},
+  "ai_coach_insights": [
+    {{"type": "positive", "title": "Tiêu đề ngắn", "description": "Mô tả ngắn."}}
+  ],
+  "strengths": ["Điểm mạnh cụ thể"],
+  "weaknesses": ["Điểm yếu cụ thể"],
+  "knowledge_gaps": [
+    {{
+      "title": "Tên lỗ hổng",
+      "impact": "high",
+      "evidence": "Bằng chứng từ câu trả lời.",
+      "recommendation": "Khuyến nghị ôn tập cụ thể."
+    }}
+  ],
+  "study_plan": [
+    {{
+      "priority": 1,
+      "topic": "Chủ đề cần ôn",
+      "reason": "Lý do nên ôn chủ đề này.",
+      "actions": ["Hành động cụ thể 1", "Hành động cụ thể 2"]
+    }}
+  ]
+}}
+
+Thông tin phiên phỏng vấn:
+Vị trí: {conversation.job_position}
+Công ty: {conversation.company_name or "Không rõ"}
+
+Job Description:
+{conversation.job_description}
+
+CV Profile:
+{conversation.cv_profile}
+
+Lịch sử phỏng vấn:
+{messages_text or "Chưa có câu hỏi/câu trả lời nào."}
+"""
+
+    def _extract_json_object(self, text: str) -> dict:
+        """Trích JSON object từ output AI"""
+        if not text:
+            raise ValueError("AI returned empty analysis report")
+
+        try:
+            parsed = json.loads(text)
+            if isinstance(parsed, dict):
+                return parsed
+        except json.JSONDecodeError:
+            pass
+
+        import re
+
+        json_match = re.search(r"\{.*\}", text, re.DOTALL)
+        if not json_match:
+            raise ValueError("Could not parse analysis report JSON")
+
+        parsed = json.loads(json_match.group())
+        if not isinstance(parsed, dict):
+            raise ValueError("Analysis report JSON must be an object")
+        return parsed
