@@ -13,8 +13,11 @@ from app.feature.admin.sessions.api.router import api_router as admin_sessions_r
 from app.feature.admin.dashboard.api.router import api_router as admin_dashboard_router
 from app.feature.feature_up_cv.auth.api.router import router as cv_router
 from app.feature.conversation.router import api_router as conversation_router
+<<<<<<< HEAD
 from app.feature.speech.api.router import api_router as speech_router
 from app.feature.email.api.endpoints import router as email_router
+=======
+>>>>>>> c2202c1 (rebase main)
 from app.core.config import settings
 from app.core.database import init_db
 
@@ -80,8 +83,11 @@ def create_app() -> FastAPI:
     app.include_router(admin_dashboard_router, prefix=settings.API_PREFIX)
     app.include_router(cv_router, prefix=settings.API_PREFIX)
     app.include_router(conversation_router, prefix=settings.API_PREFIX)
+<<<<<<< HEAD
     app.include_router(speech_router, prefix=settings.API_PREFIX)
     app.include_router(email_router, prefix=settings.API_PREFIX)
+=======
+>>>>>>> c2202c1 (rebase main)
 
     # ── Health check ─────────────────────────
     @app.get("/health", tags=["Health"])
