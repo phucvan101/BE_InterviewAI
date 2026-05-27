@@ -1,3 +1,4 @@
+import asyncpg
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from pydantic import field_validator
 from typing import List, Optional
@@ -22,7 +23,7 @@ class Settings(BaseSettings):
     PORT: int = 8000
 
     # ── Database ─────────────────────────────
-    DATABASE_URL: str = "postgresql+asyncpg://postgres:123456@localhost:5432/postgres"
+    DATABASE_URL: str = "postgresql+asyncpg://admin:123456@localhost:5433/mydb"
 
     @field_validator("DATABASE_URL", mode="before")
     @classmethod

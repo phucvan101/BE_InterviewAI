@@ -131,7 +131,7 @@ async def upload_company_research(
             # ── No existing record → create new ──────
             ci_record = await ci_service.create(
                 user_id=user_id,
-                data=CompanyInfoCreate(),
+                data=CompanyInfoCreate(text_content=extracted_text),
             )
             await db.flush()
 
@@ -146,6 +146,7 @@ async def upload_company_research(
 
             ci_record.raw_file_url = str(final_path)
             ci_record.text_hashed = text_hash
+            ci_record.text_content = extracted_text
             await db.flush()
             await db.refresh(ci_record)
             print(f"[UPLOAD] CI new record created: id_ci={ci_record.id_ci}, user={user_id}")
@@ -243,7 +244,7 @@ async def upload_company_research_text(
             # ── No existing record → create new ──────
             ci_record = await ci_service.create(
                 user_id=user_id,
-                data=CompanyInfoCreate(),
+                data=CompanyInfoCreate(text_content=text_content),
             )
             await db.flush()
 
@@ -257,6 +258,7 @@ async def upload_company_research_text(
 
             ci_record.raw_file_url = str(raw_path)
             ci_record.text_hashed = text_hash
+            ci_record.text_content = text_content
             await db.flush()
             await db.refresh(ci_record)
             print(f"[UPLOAD] CI text new record created: id_ci={ci_record.id_ci}, user={user_id}")

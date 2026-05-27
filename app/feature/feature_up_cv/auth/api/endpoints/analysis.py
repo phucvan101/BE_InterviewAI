@@ -35,7 +35,7 @@ from app.feature.feature_up_cv.auth.services.cv_profile_service import CVProfile
 from app.feature.feature_up_cv.auth.services.job_description_service import JobDescriptionService
 from app.feature.feature_up_cv.auth.services.company_info_service import CompanyInfoService
 from app.feature.feature_up_cv.auth.services.analysis_session_service import AnalysisSessionService
-from app.feature.feature_up_cv.auth.schemas.analysis_session import AnalysisSessionCreate, AnalysisSessionUpdate
+from app.feature.feature_up_cv.auth.schemas.analysis_session import AnalysisSessionCreate, AnalysisSessionUpdate, AnalysisSessionResponse
 from app.core.database import engine
 
 try:
@@ -618,7 +618,7 @@ async def _parse_company_with_cache(
 
     if not record:
         from app.feature.feature_up_cv.auth.schemas.company_info import CompanyInfoCreate
-        record = await ci_service.create(user_id=user_id, data=CompanyInfoCreate(text_hashed=text_hash))
+        record = await ci_service.create(user_id=user_id, data=CompanyInfoCreate(text_hashed=text_hash, text_content=company_text))
         await db.flush()
 
     # 1. Own cache hit
@@ -665,6 +665,7 @@ async def _parse_company_with_cache(
     )
     record.parser_file_url = str(parser_path)
     record.text_hashed = text_hash
+    record.text_content = company_text
     await db.flush()
     await db.commit()
     print(f"[CACHE SAVED] Company parser result saved to id_ci={record.id_ci}")
@@ -678,6 +679,9 @@ async def analyze_cv_jd_match(
     current_user: User = Depends(get_current_active_user),
     db: AsyncSession = Depends(get_db),
 ):
+    import uuid
+    from app.core.database import engine
+    
     # Suppress SQLAlchemy Engine INFO logs temporarily
     original_echo = engine.echo
     engine.echo = False
@@ -809,6 +813,8 @@ async def analyze_cv_jd_match(
         # ── Check for existing session ────────────────
         session_service = AnalysisSessionService(db)
         existing_session = await session_service.get_by_documents(user_id, id_cv, id_jd, id_ci)
+
+        # Session ID is the primary key id_session
         
         all_cache_hits = cv_cache_hit and jd_cache_hit and ci_cache_hit
         
@@ -822,6 +828,7 @@ async def analyze_cv_jd_match(
                     return {
                         "success": True,
                         "message": "Analysis completed successfully (from cache)",
+                        "session_id": existing_session.id_session,
                         "data": cached_result
                     }
                 else:
@@ -956,6 +963,7 @@ async def analyze_cv_jd_match(
             }
             
         # ── Save Result and Session ───────────────────
+        saved_session = None
         try:
             result_file_path = save_result_analysis(response_data, user_id, id_cv, id_jd, id_ci=id_ci if id_ci else None)
 
@@ -968,9 +976,11 @@ async def analyze_cv_jd_match(
             company_fit_score = float(detailed_scores.get("company_fit_score", 0) if isinstance(detailed_scores, dict) else 0)
             
             if existing_session:
-                await session_service.update(
+                saved_session = await session_service.update(
                     id_session=existing_session.id_session,
                     data=AnalysisSessionUpdate(
+                        cv_raw_text=cv_text,
+                        jd_raw_text=jd_text,
                         score=score,
                         experience_score=experience_score,
                         skills_score=skills_score,
@@ -982,12 +992,14 @@ async def analyze_cv_jd_match(
                 )
                 print(f"[CACHE SAVED] Analysis session updated (id={existing_session.id_session}) and result saved")
             else:
-                await session_service.create(
+                saved_session = await session_service.create(
                     user_id=user_id,
                     data=AnalysisSessionCreate(
                         id_cv=id_cv,
                         id_jd=id_jd,
                         id_ci=id_ci,
+                        cv_raw_text=cv_text,
+                        jd_raw_text=jd_text,
                         score=score,
                         experience_score=experience_score,
                         skills_score=skills_score,
@@ -1005,6 +1017,7 @@ async def analyze_cv_jd_match(
         return {
             "success": True,
             "message": "Analysis completed successfully",
+            "session_id": (saved_session.id_session if saved_session else (existing_session.id_session if existing_session else None)),
             "data": response_data
         }
     
@@ -1049,3 +1062,38 @@ async def analyze_cv_jd_match(
         if 'session_start_time' in locals():
             session_elapsed_ms = (time.perf_counter() - session_start_time) * 1000
             print(f"[SESSION_END] Total time: {session_elapsed_ms:.1f} ms\n")
+
+
+@router.get(
+    "/{id_session}",
+    response_model=AnalysisSessionResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Get analysis session by ID"
+)
+async def get_analysis_session(
+    id_session: int,
+    current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_db),
+) -> AnalysisSessionResponse:
+    """
+    Get analysis session data by ID.
+    
+    Only the user who created the session or admin can access it.
+    """
+    session_service = AnalysisSessionService(db)
+    analysis_session = await session_service.get_by_id(id_session)
+    
+    if not analysis_session:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Analysis session with ID {id_session} not found"
+        )
+    
+    # Check if the current user owns this session
+    if analysis_session.user_id != current_user.id and not current_user.is_superuser:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You do not have permission to access this analysis session"
+        )
+    
+    return AnalysisSessionResponse.model_validate(analysis_session)

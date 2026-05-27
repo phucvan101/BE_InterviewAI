@@ -1,5 +1,5 @@
 from datetime import datetime
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict
 from typing import Optional
 
 
@@ -9,6 +9,9 @@ class AnalysisSessionBase(BaseModel):
     id_cv: int
     id_jd: int
     id_ci: Optional[int] = None
+    cv_raw_text: Optional[str] = None
+    jd_raw_text: Optional[str] = None
+    ci_raw_text: Optional[str] = None
     score: Optional[float] = None
     experience_score: Optional[float] = None
     skills_score: Optional[float] = None
@@ -25,6 +28,9 @@ class AnalysisSessionCreate(AnalysisSessionBase):
 
 
 class AnalysisSessionUpdate(BaseModel):
+    cv_raw_text: Optional[str] = None
+    jd_raw_text: Optional[str] = None
+    ci_raw_text: Optional[str] = None
     score: Optional[float] = None
     experience_score: Optional[float] = None
     skills_score: Optional[float] = None

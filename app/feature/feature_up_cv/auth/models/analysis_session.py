@@ -1,6 +1,7 @@
+import uuid
 from datetime import datetime
 
-from sqlalchemy import DateTime, ForeignKey, Integer, Numeric, String, func
+from sqlalchemy import DateTime, ForeignKey, Integer, Numeric, String, Text, func
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.database import Base
@@ -36,6 +37,11 @@ class AnalysisSession(Base):
         nullable=True,
         index=True
     )
+
+    # ── Raw Text Snapshots (per session) ─────
+    cv_raw_text: Mapped[str | None] = mapped_column(Text, nullable=True)
+    jd_raw_text: Mapped[str | None] = mapped_column(Text, nullable=True)
+    ci_raw_text: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     # ── Scores ───────────────────────────────
     score: Mapped[float | None] = mapped_column(Numeric(5, 2), nullable=True)

@@ -1,4 +1,5 @@
 from datetime import datetime
+from typing import Optional
 
 from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
 
@@ -10,7 +11,7 @@ BCRYPT_MAX_PASSWORD_BYTES = 72
 class UserBase(BaseModel):
     email: EmailStr
     username: str = Field(..., min_length=3, max_length=50, pattern=r"^[a-zA-Z0-9_-]+$")
-    full_name: str | None = Field(None, max_length=100)
+    full_name: Optional[str] = Field(None, max_length=100)
 
 
 # ── Request schemas ───────────────────────────────────────────────────────────
@@ -31,9 +32,9 @@ class UserCreate(UserBase):
 
 
 class UserUpdate(BaseModel):
-    full_name: str | None = Field(None, max_length=100)
-    email: EmailStr | None = None
-    username: str | None = Field(None, min_length=3, max_length=50)
+    full_name: Optional[str] = Field(None, max_length=100)
+    email: Optional[EmailStr] = None
+    username: Optional[str] = Field(None, min_length=3, max_length=50)
 
 
 class UserUpdatePassword(BaseModel):
@@ -79,7 +80,7 @@ class UserPublic(BaseModel):
 
     id: int
     username: str
-    full_name: str | None
+    full_name: Optional[str]
 
 
 # ── Auth schemas ──────────────────────────────────────────────────────────────
@@ -88,7 +89,7 @@ class TokenResponse(BaseModel):
     access_token: str
     refresh_token: str
     token_type: str = "bearer"
-    user: AuthUserResponse | None = None
+    user: Optional[AuthUserResponse] = None
 
 
 class TokenPayload(BaseModel):

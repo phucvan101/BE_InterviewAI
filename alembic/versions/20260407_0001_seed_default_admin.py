@@ -68,6 +68,7 @@ def upgrade() -> None:
         column("is_active", sa.Boolean),
         column("is_superuser", sa.Boolean),
         column("is_verified", sa.Boolean),
+        column("is_deleted", sa.Boolean),
     )
 
     admin_email = "admin@example.com"
@@ -95,6 +96,7 @@ def upgrade() -> None:
                 is_active=True,
                 is_superuser=True,
                 is_verified=True,
+                is_deleted=False,
             )
         )
 
