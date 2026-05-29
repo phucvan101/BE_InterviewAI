@@ -47,13 +47,14 @@ def clean_text_for_llm(text: str) -> str:
         return text
     
     # Keep characters in range:
-    # \u0000-\u1EFF : Basic Latin, Latin-1, Latin Extended (including Vietnamese)
+    # \u0001-\u1EFF : Basic Latin, Latin-1, Latin Extended (including Vietnamese)
     # \u2000-\u206F : General Punctuation (bullets, en-dash, em-dash, quotes)
     # \u20A0-\u20CF : Currency Symbols (₫, €, etc.)
     # \u2100-\u214F : Letterlike Symbols
     # \u25A0-\u25FF : Geometric Shapes (■, □, ▪, ▫)
     # \u2713\u2714 : Check marks (✓, ✔)
-    cleaned = re.sub(r'[^\u0000-\u1EFF\u2000-\u206F\u20A0-\u20CF\u2100-\u214F\u25A0-\u25FF\u2713\u2714\n\r\t]', '', text)
+    cleaned = re.sub(r'[^\u0001-\u1EFF\u2000-\u206F\u20A0-\u20CF\u2100-\u214F\u25A0-\u25FF\u2713\u2714\n\r\t]', '', text)
+    cleaned = cleaned.replace('\x00', '')  # Explicitly remove NULL bytes for PostgreSQL
     
     # Remove multiple spaces
     cleaned = re.sub(r'[ \t]+', ' ', cleaned)
