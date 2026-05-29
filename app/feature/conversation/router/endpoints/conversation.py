@@ -5,7 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
-from app.core.dependencies import get_current_active_user
+from app.core.dependencies import get_current_active_user, get_current_user
 from app.feature.auth.models.user import User
 from app.feature.conversation.schema import (
     ConversationResponse,
@@ -177,6 +177,7 @@ async def list_conversations(
     page: int = Query(1, ge=1),
     page_size: int = Query(10, ge=1, le=100),
     status: str | None = Query(None),
+    job_position: str | None = Query(None),
     current_user: User = Depends(get_current_active_user),
     db: AsyncSession = Depends(get_db),
 ) -> ConversationPaginatedResponse:
@@ -194,6 +195,7 @@ async def list_conversations(
         page=page,
         page_size=page_size,
         status=status,
+        job_position=job_position
     )
     
     items = []
@@ -625,3 +627,19 @@ async def get_analysis_report(
         conversation=conversation,
         total_messages=len(messages),
     )
+
+
+@router.delete("/{conversation_id}", status_code=204)
+async def delete_conversation(
+    conversation_id: int,
+    current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_db),
+):
+    service = ConversationService(db)
+    try:
+        await service.delete_conversation(conversation_id, user_id=current_user.id)
+        await db.commit()
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except PermissionError as e:
+        raise HTTPException(status_code=403, detail=str(e))
