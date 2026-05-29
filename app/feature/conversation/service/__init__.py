@@ -2,6 +2,8 @@ import json
 import logging
 from datetime import datetime, timezone
 from typing import Optional
+from sqlalchemy import delete as sa_delete
+
 
 from sqlalchemy import and_, desc, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -90,35 +92,38 @@ class ConversationService:
         return result.scalar_one_or_none()
 
     async def get_user_conversations(
-        self,
-        user_id: int,
-        page: int = 1,
-        page_size: int = 10,
-        status: Optional[str] = None,
+    self,
+    user_id: int,
+    page: int = 1,
+    page_size: int = 10,
+    status: Optional[str] = None,
+    job_position: Optional[str] = None,
     ) -> tuple[list[Conversation], int]:
         """Lấy tất cả conversations của user (có phân trang)"""
         offset = (page - 1) * page_size
 
-        # Count total
-        count_stmt = select(func.count(Conversation.id)).where(
-            Conversation.user_id == user_id
-        )
-        if status:
-            count_stmt = count_stmt.where(Conversation.status == status)
+        base_where = [Conversation.user_id == user_id]
 
-        result = await self.db.execute(count_stmt)
+        if status:
+            base_where.append(Conversation.status == status)
+
+        if job_position:
+            base_where.append(Conversation.job_position.ilike(f"%{job_position}%"))
+
+        # Count total
+        result = await self.db.execute(
+            select(func.count(Conversation.id)).where(*base_where)
+        )
         total = result.scalar() or 0
 
         # Get paginated results
-        stmt = select(Conversation).where(
-            Conversation.user_id == user_id
-        ).order_by(desc(Conversation.created_at))
-
-        if status:
-            stmt = stmt.where(Conversation.status == status)
-
-        stmt = stmt.offset(offset).limit(page_size)
-        result = await self.db.execute(stmt)
+        result = await self.db.execute(
+            select(Conversation)
+            .where(*base_where)
+            .order_by(desc(Conversation.created_at))
+            .offset(offset)
+            .limit(page_size)
+        )
         conversations = result.scalars().all()
 
         return conversations, total
@@ -253,6 +258,40 @@ class ConversationService:
         )
         return report
 
+
+    async def delete_conversation(self, conversation_id: int, user_id: int) -> bool:
+        """Xóa conversation cùng toàn bộ dữ liệu liên quan"""
+        conversation = await self.get_conversation_by_id(conversation_id)
+        if not conversation:
+            raise ValueError(f"Conversation {conversation_id} not found")
+
+        if conversation.user_id != user_id:
+            raise PermissionError(
+                f"User {user_id} does not have permission to delete conversation {conversation_id}"
+            )
+
+        # 1. Xóa analysis report (nếu có)
+        await self.db.execute(
+            sa_delete(ConversationAnalysisReport).where(
+                ConversationAnalysisReport.conversation_id == conversation_id
+            )
+        )
+
+        # 2. Xóa toàn bộ messages
+        await self.db.execute(
+            sa_delete(ConversationMessage).where(
+                ConversationMessage.conversation_id == conversation_id
+            )
+        )
+
+        # 3. Xóa conversation
+        await self.db.delete(conversation)
+        await self.db.flush()
+
+        logger.info(
+            f"Deleted conversation and related data: id={conversation_id}, user_id={user_id}"
+        )
+        return True
     # ──────────────────────────────────────────────────────────────
     # Message Management
     # ──────────────────────────────────────────────────────────────
