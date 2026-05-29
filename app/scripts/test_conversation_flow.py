@@ -124,6 +124,7 @@ async def test_conversation_flow():
         logger.info("\n[STEP 1] Creating conversation...")
         conversation = await service.create_conversation(
             user_id=user.id,
+            job_position="Sample Interview",
             job_description=SAMPLE_JOB_DESCRIPTION,
             cv_profile=SAMPLE_CV_PROFILE,
         )
@@ -189,21 +190,15 @@ async def test_conversation_flow():
         # ──────────────────────────────────────────────────────────────
         # Step 5: End interview and evaluate
         # ──────────────────────────────────────────────────────────────
-        logger.info(f"\n[STEP {len(SAMPLE_ANSWERS)+2}] Evaluating interview...")
-        evaluation = await service.evaluate_answer(conversation.id)
+        logger.info(f"\n[STEP {len(SAMPLE_ANSWERS)+2}] Creating analysis report...")
+        report = await service.create_analysis_report(conversation.id)
         
-        logger.info(f"✓ Evaluation complete:")
-        logger.info(f"  - Fit Score: {evaluation.get('fit_score')}/100")
-        logger.info(f"  - Recommendation: {evaluation.get('recommendation')}")
-        logger.info(f"  - Strengths: {', '.join(evaluation.get('strengths', [])[:2])}")
-        logger.info(f"  - Weaknesses: {', '.join(evaluation.get('weaknesses', [])[:2])}")
-        
-        # End conversation
-        await service.end_conversation(
-            conversation.id,
-            result=evaluation,
-            score=evaluation.get('fit_score'),
-        )
+        logger.info(f"✓ Analysis report complete:")
+        logger.info(f"  - Overall Score: {report.overall_score}/100")
+        logger.info(f"  - Grade: {report.overall_grade}")
+        logger.info(f"  - Strengths: {', '.join(report.strengths[:2])}")
+        logger.info(f"  - Weaknesses: {', '.join(report.weaknesses[:2])}")
+
         await db.commit()
         
         # ──────────────────────────────────────────────────────────────

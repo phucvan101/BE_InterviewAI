@@ -26,10 +26,11 @@ from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
 from sqlalchemy.orm import sessionmaker
 
 from app.feature.feature_up_cv.auth.models.analysis_session import AnalysisSession
+from app.feature.feature_up_cv.file_storage import load_result_analysis
 from app.core.config import settings
 
 
-async def _get_analysis_session_data(session_id: int) -> dict[str, str]:
+async def _get_analysis_session_data(session_id: int) -> dict[str, Any]:
     """Fetch CV and JD data from analysis_sessions table."""
     database_url = settings.DATABASE_URL
     engine = create_async_engine(database_url, echo=False)
@@ -49,10 +50,16 @@ async def _get_analysis_session_data(session_id: int) -> dict[str, str]:
             raise ValueError(
                 f"AnalysisSession {session_id} missing cv_raw_text or jd_raw_text"
             )
+
+        analysis_result = load_result_analysis(analysis_session.result_analysis_file_url) or {}
+        company_match = analysis_result.get("company_match")
+        company_name = company_match.get("company_name") if isinstance(company_match, dict) else None
         
         return {
             "job_description": analysis_session.jd_raw_text,
             "cv_profile": analysis_session.cv_raw_text,
+            "job_position": analysis_result.get("job_position") or "N/A",
+            "company_name": company_name,
         }
 
 
@@ -86,10 +93,23 @@ async def _login(client: httpx.AsyncClient, api_prefix: str, *, email: str, pass
     return token
 
 
-async def _start_conversation(client: httpx.AsyncClient, api_prefix: str, *, job_description: str, cv_profile: str) -> dict[str, Any]:
+async def _start_conversation(
+    client: httpx.AsyncClient,
+    api_prefix: str,
+    *,
+    job_position: str,
+    company_name: str | None,
+    job_description: str,
+    cv_profile: str,
+) -> dict[str, Any]:
     resp = await client.post(
         f"{api_prefix}/conversations/",
-        json={"job_description": job_description, "cv_profile": cv_profile},
+        json={
+            "job_position": job_position,
+            "company_name": company_name,
+            "job_description": job_description,
+            "cv_profile": cv_profile,
+        },
     )
     resp.raise_for_status()
     return resp.json()
@@ -107,8 +127,8 @@ async def _send_answer(client: httpx.AsyncClient, api_prefix: str, *, session_id
     return resp.json()
 
 
-async def _end_interview(client: httpx.AsyncClient, api_prefix: str, *, session_id: str) -> dict[str, Any]:
-    resp = await client.post(f"{api_prefix}/conversations/{session_id}/end")
+async def _create_analysis_report(client: httpx.AsyncClient, api_prefix: str, *, session_id: str) -> dict[str, Any]:
+    resp = await client.post(f"{api_prefix}/conversations/{session_id}/analysis-report")
     resp.raise_for_status()
     return resp.json()
 
@@ -134,11 +154,15 @@ async def run_interactive(
         session_data = await _get_analysis_session_data(analysis_session_id)
         job_description = session_data["job_description"]
         cv_profile = session_data["cv_profile"]
+        job_position = session_data["job_position"]
+        company_name = session_data["company_name"]
         print(f"✓ Loaded JD and CV from analysis_sessions table")
 
         conv = await _start_conversation(
             client,
             api_prefix,
+            job_position=job_position,
+            company_name=company_name,
             job_description=job_description.strip() or "N/A",
             cv_profile=cv_profile.strip() or "N/A",
         )
@@ -165,14 +189,15 @@ async def run_interactive(
             print(f"[AI] {nxt['question']}")
             rounds += 1
 
-        result = await _end_interview(client, api_prefix, session_id=session_id)
+        result = await _create_analysis_report(client, api_prefix, session_id=session_id)
         print("\n=== RESULT ===")
         print(f"Session ID: {result.get('session_id')}")
         print(f"Status: {result.get('status')}")
-        print(f"Score: {result.get('score')}")
+        print(f"Score: {result.get('overall_score')} ({result.get('overall_grade')})")
         print(f"Total messages: {result.get('total_messages')}")
-        print("Result JSON:")
-        print(json.dumps(result.get("result"), ensure_ascii=False, indent=2))
+        print(f"Summary: {result.get('summary')}")
+        print("Report JSON:")
+        print(json.dumps(result, ensure_ascii=False, indent=2))
         return 0
 
 

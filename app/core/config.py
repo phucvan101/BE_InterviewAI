@@ -85,7 +85,10 @@ class Settings(BaseSettings):
     DEEPGRAM_MODEL: str = "general"
 
     GEMINI_API_KEY: Optional[str] = None
+    GEMINI_REPORT_API_KEY: Optional[str] = None
+    AI_REPORT_API_KEY: Optional[str] = None
     MODEL_NAME: str = "models/gemini-2.5-flash"
+    REPORT_MODEL_NAME: str = "models/gemini-2.5-flash"
 
 
 # Singleton instance
