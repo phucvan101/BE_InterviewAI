@@ -4,8 +4,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.feature.audit.services import AuditLogService, diff_dicts
 from app.feature.admin.users.models.user import User
-from app.feature.admin.users.schemas.user import AdminPaginatedUsers, AdminUserUpdate, AdminUserCreate
+from app.feature.admin.users.schemas.user import AdminPaginatedUsers, AdminUserRow, AdminUserUpdate, AdminUserCreate
 from app.core.security import hash_password
+from app.feature.conversation.model import Conversation
 
 import logging
 logger = logging.getLogger(__name__)
@@ -29,19 +30,24 @@ class AdminUserService:
         return result.scalar_one_or_none()
 
     async def get_all(self, page: int = 1, page_size: int = 20, username: str | None = None, email: str | None = None, is_active: bool | None = None, auth_provider: str | None = None) -> AdminPaginatedUsers:
-        # ✅ Log params nhận được
         logger.debug(f"get_all params: page={page}, page_size={page_size}, username={repr(username)}, email={repr(email)}, is_active={is_active}, auth_provider={auth_provider}")
 
-        
         offset = (page - 1) * page_size
 
-        stmt = select(User)
-        filters = []
-        filters.extend([
-            User.is_superuser == False, # loại bỏ tài khoản admin
-            User.is_deleted == False # loại bỏ tài khoản đã xóa
-        ])
+        # Subquery đếm số conversation theo user_id
+        interview_sq = (
+            select(
+                Conversation.user_id,
+                func.count(Conversation.id).label("interview_count"),
+            )
+            .group_by(Conversation.user_id)
+            .subquery()
+        )
 
+        filters = [
+            User.is_superuser == False,
+            User.is_deleted == False,
+        ]
         if username:
             filters.append(User.username.ilike(f"%{username}%"))
         if email:
@@ -50,24 +56,33 @@ class AdminUserService:
             filters.append(User.is_active == is_active)
         if auth_provider is not None:
             filters.append(User.auth_provider == auth_provider)
-        if filters:
-            stmt = stmt.where(*filters)
-        
-        # ✅ Log câu SQL thực tế
+
+        stmt = (
+            select(User, func.coalesce(interview_sq.c.interview_count, 0).label("interview_count"))
+            .outerjoin(interview_sq, User.id == interview_sq.c.user_id)
+            .where(*filters)
+        )
+
         logger.debug(f"SQL: {stmt.compile(compile_kwargs={'literal_binds': True})}")
 
-        # ✅ Đếm đúng theo filter
+        # Đếm đúng theo filter
         count_stmt = select(func.count()).select_from(stmt.subquery())
-        total_result = await self.db.execute(count_stmt)
-        total = total_result.scalar_one()
+        total = (await self.db.execute(count_stmt)).scalar_one()
 
-        # ✅ Query đúng theo filter
-        users_result = await self.db.execute(
-            stmt.offset(offset).limit(page_size).order_by(User.created_at.desc())
-        )
-        users = list(users_result.scalars().all())
+        # Fetch rows
+        rows = (
+            await self.db.execute(
+                stmt.offset(offset).limit(page_size).order_by(User.created_at.desc())
+            )
+        ).all()
 
-        return AdminPaginatedUsers(total=total, page=page, page_size=page_size, items=users)
+        items = []
+        for user, interview_count in rows:
+            row = AdminUserRow.model_validate(user)
+            row.interview_count = interview_count
+            items.append(row)
+
+        return AdminPaginatedUsers(total=total, page=page, page_size=page_size, items=items)
     
     
     async def create(self, data: AdminUserCreate, actor: User | None = None) -> User:

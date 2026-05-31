@@ -19,6 +19,7 @@ class AdminUserRow(BaseModel):
     is_verified: bool
     created_at: datetime
     updated_at: datetime
+    interview_count: int = 0
 
 
 class AdminUserResponse(AdminUserRow):
