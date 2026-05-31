@@ -33,11 +33,16 @@ class Conversation(Base):
     # ── Primary key ──────────────────────────
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True, autoincrement=True)
     
+    
     # ── Session ID (UUID) ────────────────────
     session_id: Mapped[str] = mapped_column(String(36), unique=True, index=True, nullable=False, default=lambda: str(uuid.uuid4()))
 
     # ── Foreign key ──────────────────────────
     user_id: Mapped[int] = mapped_column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    
+    user: Mapped["User"] = relationship(
+        back_populates="conversations"
+    )
 
     # ── Interview Info ──────────────────────
     job_position: Mapped[str] = mapped_column(String(255), nullable=False)
