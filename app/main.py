@@ -11,6 +11,7 @@ from app.feature.admin.roles.api.router import api_router as admin_roles_router
 from app.feature.admin.users.api.router import api_router as admin_users_router
 from app.feature.feature_up_cv.auth.api.router import router as cv_router
 from app.feature.conversation.router import api_router as conversation_router
+from app.feature.email.api.endpoints import router as email_router
 from app.core.config import settings
 from app.core.database import init_db
 
@@ -74,6 +75,7 @@ def create_app() -> FastAPI:
     app.include_router(admin_users_router, prefix=settings.API_PREFIX)
     app.include_router(cv_router, prefix=settings.API_PREFIX)
     app.include_router(conversation_router, prefix=settings.API_PREFIX)
+    app.include_router(email_router, prefix=settings.API_PREFIX)
 
     # ── Health check ─────────────────────────
     @app.get("/health", tags=["Health"])
