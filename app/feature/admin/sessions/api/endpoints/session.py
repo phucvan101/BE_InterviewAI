@@ -121,46 +121,46 @@ async def get_session(
     )
 
 
-@router.patch(
-    "/{session_id}/status",
-    response_model=AdminSessionRow,
-    summary="[Admin] Update session status",
-)
-async def update_session_status(
-    session_id: int,
-    data: AdminSessionStatusUpdate,
-    current_user: User = Depends(require_permission("sessions.update")),
-    db: AsyncSession = Depends(get_db),
-) -> AdminSessionRow:
-    service = AdminSessionService(db)
-    conversation = await service.update_status(session_id, data, actor=current_user)
+# @router.patch(
+#     "/{session_id}/status",
+#     response_model=AdminSessionRow,
+#     summary="[Admin] Update session status",
+# )
+# async def update_session_status(
+#     session_id: int,
+#     data: AdminSessionStatusUpdate,
+#     current_user: User = Depends(require_permission("sessions.update")),
+#     db: AsyncSession = Depends(get_db),
+# ) -> AdminSessionRow:
+#     service = AdminSessionService(db)
+#     conversation = await service.update_status(session_id, data, actor=current_user)
 
-    # Compute message count after update
-    from sqlalchemy import func, select
-    from app.feature.conversation.model.conversation import ConversationMessage
+#     # Compute message count after update
+#     from sqlalchemy import func, select
+#     from app.feature.conversation.model.conversation import ConversationMessage
 
-    mc_result = await db.execute(
-        select(func.count(ConversationMessage.id)).where(
-            ConversationMessage.conversation_id == conversation.id
-        )
-    )
-    message_count = mc_result.scalar_one()
+#     mc_result = await db.execute(
+#         select(func.count(ConversationMessage.id)).where(
+#             ConversationMessage.conversation_id == conversation.id
+#         )
+#     )
+#     message_count = mc_result.scalar_one()
 
-    return AdminSessionRow(
-        id=conversation.id,
-        session_id=conversation.session_id,
-        user_id=conversation.user_id,
-        job_position=conversation.job_position,
-        company_name=conversation.company_name,
-        status=conversation.status,
-        score=conversation.score,
-        started_at=conversation.started_at,
-        ended_at=conversation.ended_at,
-        interview_duration_seconds=conversation.interview_duration_seconds,
-        message_count=message_count,
-        created_at=conversation.created_at,
-        updated_at=conversation.updated_at,
-    )
+#     return AdminSessionRow(
+#         id=conversation.id,
+#         session_id=conversation.session_id,
+#         user_id=conversation.user_id,
+#         job_position=conversation.job_position,
+#         company_name=conversation.company_name,
+#         status=conversation.status,
+#         score=conversation.score,
+#         started_at=conversation.started_at,
+#         ended_at=conversation.ended_at,
+#         interview_duration_seconds=conversation.interview_duration_seconds,
+#         message_count=message_count,
+#         created_at=conversation.created_at,
+#         updated_at=conversation.updated_at,
+#     )
 
 
 @router.delete(
@@ -176,22 +176,22 @@ async def delete_session(
     await AdminSessionService(db).delete(session_id, actor=current_user)
 
 
-@router.get(
-    "/{session_id}/audit-logs",
-    response_model=PaginatedAuditLogs,
-    summary="[Admin] Get session audit logs",
-)
-async def get_session_audit_logs(
-    session_id: int,
-    page: int = Query(1, ge=1),
-    page_size: int = Query(20, ge=1, le=100),
-    _: User = Depends(require_permission("sessions.read")),
-    db: AsyncSession = Depends(get_db),
-) -> PaginatedAuditLogs:
-    await AdminSessionService(db)._get_or_404(session_id)
-    return await AuditLogService(db).list_by_entity(
-        entity_type="session",
-        entity_id=session_id,
-        page=page,
-        page_size=page_size,
-    )
+# @router.get(
+#     "/{session_id}/audit-logs",
+#     response_model=PaginatedAuditLogs,
+#     summary="[Admin] Get session audit logs",
+# )
+# async def get_session_audit_logs(
+#     session_id: int,
+#     page: int = Query(1, ge=1),
+#     page_size: int = Query(20, ge=1, le=100),
+#     _: User = Depends(require_permission("sessions.read")),
+#     db: AsyncSession = Depends(get_db),
+# ) -> PaginatedAuditLogs:
+#     await AdminSessionService(db)._get_or_404(session_id)
+#     return await AuditLogService(db).list_by_entity(
+#         entity_type="session",
+#         entity_id=session_id,
+#         page=page,
+#         page_size=page_size,
+#     )
