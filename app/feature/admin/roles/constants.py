@@ -49,11 +49,7 @@ USER_MANAGEMENT_PERMISSIONS = {
         "description": "Xem danh sách và chi tiết phiên phỏng vấn",
         "module": "sessions",
     },
-    "sessions.update": {
-        "name": "Cập nhật phiên phỏng vấn",
-        "description": "Cập nhật trạng thái phiên phỏng vấn",
-        "module": "sessions",
-    },
+    
     "sessions.delete": {
         "name": "Xóa phiên phỏng vấn",
         "description": "Xóa phiên phỏng vấn và toàn bộ dữ liệu liên quan",
