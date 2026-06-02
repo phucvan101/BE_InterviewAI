@@ -14,6 +14,8 @@ from ...schemas.user import (
     UserResponse,
     UserUpdate,
     UserUpdatePassword,
+    ForgotPasswordRequest,
+    MessageResponse,
 )
 from ...services.user_service import UserService
 
@@ -57,6 +59,19 @@ async def refresh_token(
     db: AsyncSession = Depends(get_db),
 ) -> TokenResponse:
     return await UserService(db).refresh_token(data)
+
+
+@router.post(
+    "/forgot-password",
+    response_model=MessageResponse,
+    summary="Request a new password",
+)
+async def forgot_password(
+    data: ForgotPasswordRequest,
+    db: AsyncSession = Depends(get_db),
+) -> MessageResponse:
+    await UserService(db).forgot_password(data.email)
+    return MessageResponse(message="Nếu email tồn tại, mật khẩu mới đã được gửi.")
 
 
 # ── Current user ─────────────────────────────────────────────────────────────

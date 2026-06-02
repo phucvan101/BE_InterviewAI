@@ -1,5 +1,6 @@
 import re
 import secrets
+import string
 from fastapi import HTTPException, status
 from jose import JWTError
 from sqlalchemy import func, select
@@ -25,6 +26,7 @@ from ..schemas.user import (
 )
 from app.feature.auth.services.google_oauth_service import GoogleOAuthService
 from app.feature.admin.roles.models.role import Permission, Role, role_permissions, user_roles
+from app.core.email import send_email_async, generate_forgot_password_html
 
 
 class UserService:
@@ -101,6 +103,8 @@ class UserService:
 
     async def update_password(self, user_id: int, data: UserUpdatePassword) -> None:
         user = await self._get_or_404(user_id)
+        if user.auth_provider == "google":
+            raise HTTPException(status_code=400, detail="Tài khoản đăng nhập bằng Google không thể đổi mật khẩu.")
         if not verify_password(data.current_password, user.hashed_password):
             raise HTTPException(status_code=400, detail="Incorrect current password")
         try:
@@ -220,6 +224,36 @@ class UserService:
         if not id_token:
             raise HTTPException(status_code=400, detail="Google token exchange missing id_token")
         return await self.login_with_google_id_token(id_token)
+
+    async def forgot_password(self, email: str) -> None:
+        user = await self.get_by_email(email)
+        if not user:
+            raise HTTPException(status_code=404, detail="Email không tồn tại trong hệ thống")
+            
+        if user.auth_provider == "google":
+            raise HTTPException(
+                status_code=400,
+                detail="Tài khoản này được đăng ký bằng Google. Vui lòng đăng nhập bằng Google thay vì dùng mật khẩu."
+            )
+            
+        # Generate new random password (8 chars)
+        alphabet = string.ascii_letters + string.digits
+        new_password = "".join(secrets.choice(alphabet) for i in range(8))
+        
+        # Hash and update
+        user.hashed_password = hash_password(new_password)
+        await self.db.flush()
+        
+        # Send email
+        html_content = generate_forgot_password_html(new_password)
+        email_sent = await send_email_async(
+            to_email=user.email,
+            subject="InterviewAI - Khôi Phục Mật Khẩu",
+            html_content=html_content
+        )
+        
+        if not email_sent:
+            raise HTTPException(status_code=500, detail="Không thể gửi email. Vui lòng thử lại sau.")
 
     # ── Private helpers ───────────────────────────────────────────────────────
 
