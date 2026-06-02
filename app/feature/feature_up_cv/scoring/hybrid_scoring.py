@@ -70,6 +70,8 @@ def calculate_hybrid_score(
     company_data: dict = None,
     cv_embedding: np.ndarray = None,
     jd_embedding: np.ndarray = None,
+    score_overrides: dict = None, # [AGENT OVERRIDE] Thêm tham số nhận điểm ghi đè từ DB
+    learned_knowledge: dict = None, # [AGENT KNOWLEDGE] Thêm tham số nhận bài học từ RAG
 ) -> dict:
     """
     Hybrid CV-JD scoring v6 — rich structured response.
@@ -170,6 +172,20 @@ def calculate_hybrid_score(
                 f"[COMPANY_FIT] Isolated exception: {_ce}", exc_info=True
             )
             company_score, company_rationale = 0.0, f"Loi tinh company fit: {_ce}"
+
+        # ── [AGENT INJECTION] Áp dụng điểm ghi đè (Score Override) ──
+        if score_overrides:
+            if "experience_score" in score_overrides:
+                exp_score = float(score_overrides["experience_score"])
+                exp_rationale = score_overrides.get("rationale", exp_rationale + " (Đã được cập nhật bởi Agent)")
+            if "skills_score" in score_overrides:
+                skills_score = float(score_overrides["skills_score"])
+            if "education_score" in score_overrides:
+                edu_score = float(score_overrides["education_score"])
+            if "career_objectives_score" in score_overrides:
+                career_obj_score = float(score_overrides["career_objectives_score"])
+            if "company_fit_score" in score_overrides:
+                company_score = float(score_overrides["company_fit_score"])
 
         overall = round(
             min(exp_score + skills_score + edu_score + career_obj_score, 100.0)
