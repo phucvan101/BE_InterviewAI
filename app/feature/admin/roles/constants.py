@@ -44,6 +44,17 @@ USER_MANAGEMENT_PERMISSIONS = {
         "description": "Xóa vai trò",
         "module": "roles",
     },
+    "sessions.read": {
+        "name": "Xem phiên phỏng vấn",
+        "description": "Xem danh sách và chi tiết phiên phỏng vấn",
+        "module": "sessions",
+    },
+    
+    "sessions.delete": {
+        "name": "Xóa phiên phỏng vấn",
+        "description": "Xóa phiên phỏng vấn và toàn bộ dữ liệu liên quan",
+        "module": "sessions",
+    },
 }
 
 DEFAULT_PERMISSION_CODES = set(USER_MANAGEMENT_PERMISSIONS)
