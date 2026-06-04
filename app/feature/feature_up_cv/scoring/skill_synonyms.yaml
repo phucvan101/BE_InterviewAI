@@ -300,3 +300,9 @@ businessdevelopment:
   - "market analysis"
   - "phân tích thị trường"
   - "market research"
+express.js:
+  - express.js
+  - nest.js
+typeorm:
+  - typeorm
+  - prisma

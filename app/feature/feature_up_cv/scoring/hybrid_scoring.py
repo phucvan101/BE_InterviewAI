@@ -173,6 +173,12 @@ def calculate_hybrid_score(
             )
             company_score, company_rationale = 0.0, f"Loi tinh company fit: {_ce}"
 
+        # ── [AGENT INJECTION] Áp dụng bài học (Learned Rules từ FAISS) ──
+        if learned_knowledge and "rules" in learned_knowledge and learned_knowledge["rules"]:
+            rules_text = " | ".join(learned_knowledge["rules"])
+            # Ghi nhận vào rationale để FE / User thấy hệ thống đã học bài học này
+            exp_rationale += f"\n[Hệ thống AI đã tự động tham khảo bài học: {rules_text}]"
+
         # ── [AGENT INJECTION] Áp dụng điểm ghi đè (Score Override) ──
         if score_overrides:
             if "experience_score" in score_overrides:

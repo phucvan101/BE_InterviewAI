@@ -385,6 +385,7 @@ def _build_experience_detail_response(response: Dict[str, Any]) -> Dict[str, Any
 # Import utilities from feature_up_cv using absolute imports
 try:
     from app.feature.feature_up_cv.scoring.hybrid_scoring import calculate_hybrid_score
+    from app.feature.feature_up_cv.feedback_agent.memory_faiss import agent_memory
     from app.feature.feature_up_cv.vector_search.embedding_service import get_embedding_service
     from app.feature.feature_up_cv.vector_search.faiss_index_manager import get_faiss_manager
     from app.feature.feature_up_cv.parsers.parser_cv import llm_parser_cv
@@ -884,13 +885,31 @@ async def analyze_cv_jd_match(
             )
             await db.commit()
 
+        # ── Get Agent Learned Knowledge (RAG) ───
+        try:
+            # Query by combining texts
+            # Using strings from CV and JD if available, otherwise just use names
+            query_text = ""
+            if isinstance(cv_data, dict):
+                query_text += cv_data.get("objective", "") + " "
+            if isinstance(jd_data, dict):
+                query_text += jd_data.get("job_title", "")
+            
+            # get rules from FAISS
+            relevant_rules = agent_memory.get_relevant_rules(query=query_text, top_k=3, threshold=0.75) if agent_memory else []
+            learned_knowledge = {"rules": relevant_rules} if relevant_rules else None
+        except Exception as e:
+            print(f"[SCORING] Failed to query agent memory: {e}")
+            learned_knowledge = None
+
         # ── Call hybrid scoring ───
         step = "hybrid_score"
         score_started_at = time.perf_counter()
         try:
             analysis_result = calculate_hybrid_score(
                 cv_data, jd_data, company_data,
-                cv_embedding=cv_embedding, jd_embedding=jd_embedding
+                cv_embedding=cv_embedding, jd_embedding=jd_embedding,
+                learned_knowledge=learned_knowledge
             )
             _log_parser_result("SCORE", score_started_at, True)
         except Exception as e:
