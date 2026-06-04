@@ -49,18 +49,22 @@ class ConversationCreate(ConversationBase):
 
 class ConversationStartRequest(ConversationBase):
     """Schema để bắt đầu phiên phỏng vấn mới"""
+    analysis_session_id: Optional[int] = Field(
+        default=None,
+        description="ID của analysis_sessions để lấy JD/CV raw text và liên kết CV gốc",
+    )
     session_id: Optional[str] = Field(
         default=None,
-        description="Session ID trung gian (từ analysis_sessions.session_id) để lấy JD/CV raw text",
+        description="Deprecated: ID analysis session dạng chuỗi, giữ để tương thích client cũ",
     )
 
     @model_validator(mode="after")
     def _validate_source(self):
-        # Ưu tiên session_id; nếu không có thì bắt buộc nhập trực tiếp JD + CV (backward compatibility)
-        if self.session_id:
+        # Ưu tiên analysis_session_id; session_id chỉ giữ để tương thích client cũ.
+        if self.analysis_session_id or self.session_id:
             return self
         if not self.job_description or not self.cv_profile:
-            raise ValueError("Cần cung cấp `session_id` hoặc cả `job_description` và `cv_profile`")
+            raise ValueError("Cần cung cấp `analysis_session_id` hoặc cả `job_description` và `cv_profile`")
         return self
 
 
@@ -70,6 +74,7 @@ class ConversationResponse(BaseModel):
 
     id: int
     session_id: str = Field(..., description="Unique session ID")
+    analysis_session_id: Optional[int] = None
     user_id: int
     job_position: str
     company_name: Optional[str] = None
@@ -92,6 +97,7 @@ class ConversationListResponse(BaseModel):
 
     id: int
     session_id: str
+    analysis_session_id: Optional[int] = None
     user_id: int
     job_position: str
     company_name: Optional[str] = None
@@ -191,6 +197,14 @@ class AnalysisReportPayload(BaseModel):
     study_plan: list[StudyPlanItem] = Field(default_factory=list)
 
 
+class CVPreview(BaseModel):
+    """Thông tin để FE preview file CV gốc trong báo cáo phỏng vấn"""
+    id_cv: int
+    file_name: str
+    content_type: str = "application/pdf"
+    preview_url: str
+
+
 class ConversationAnalysisReportResponse(AnalysisReportPayload):
     """Response báo cáo phân tích kết quả phỏng vấn"""
     model_config = ConfigDict(from_attributes=True)
@@ -198,14 +212,17 @@ class ConversationAnalysisReportResponse(AnalysisReportPayload):
     id: int
     session_id: str
     conversation_id: int
+    analysis_session_id: Optional[int] = None
     user_id: int
     job_position: str
     company_name: Optional[str] = None
+    job_description: str = Field(default="", description="Mô tả công việc gốc (text hoặc trích xuất từ file upload)")
     status: str
     total_messages: int
     started_at: datetime
     ended_at: Optional[datetime] = None
     interview_duration_seconds: Optional[int] = None
+    cv_preview: Optional[CVPreview] = None
     created_at: datetime
     updated_at: datetime
 

@@ -50,9 +50,18 @@ class ConversationService:
         job_description: str,
         cv_profile: str,
         company_name: str | None = None,
+        analysis_session_id: int | None = None,
         session_id: str | None = None,
     ) -> Conversation:
         """Tạo conversation mới"""
+        if analysis_session_id:
+            existing = await self.get_conversation_by_analysis_session_id(
+                user_id=user_id,
+                analysis_session_id=analysis_session_id,
+            )
+            if existing:
+                return existing
+
         # Idempotent: nếu session_id đã có conversation thì trả về luôn
         if session_id:
             existing = await self.get_conversation_by_session_id(session_id)
@@ -65,6 +74,7 @@ class ConversationService:
             "company_name": company_name,
             "job_description": job_description,
             "cv_profile": cv_profile,
+            "analysis_session_id": analysis_session_id,
             "status": ConversationStatus.ACTIVE,
         }
         if session_id:
@@ -88,6 +98,20 @@ class ConversationService:
         """Lấy conversation theo session ID"""
         result = await self.db.execute(
             select(Conversation).where(Conversation.session_id == session_id)
+        )
+        return result.scalar_one_or_none()
+
+    async def get_conversation_by_analysis_session_id(
+        self,
+        user_id: int,
+        analysis_session_id: int,
+    ) -> Optional[Conversation]:
+        """Lấy conversation đã tạo từ một analysis session của user."""
+        result = await self.db.execute(
+            select(Conversation).where(
+                Conversation.user_id == user_id,
+                Conversation.analysis_session_id == analysis_session_id,
+            )
         )
         return result.scalar_one_or_none()
 

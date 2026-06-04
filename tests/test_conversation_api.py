@@ -2,6 +2,9 @@ import json
 
 import pytest
 
+from app.feature.feature_up_cv.auth.models.analysis_session import AnalysisSession
+from app.feature.feature_up_cv.auth.models.cv_profile import CVProfile
+from app.feature.feature_up_cv.auth.models.job_description import JobDescription
 from app.feature.conversation.schema import AnalysisReportPayload
 from app.feature.conversation.service import ConversationService
 
@@ -215,3 +218,78 @@ async def test_list_analysis_reports_returns_paginated_reports(client, monkeypat
     assert data["items"][0]["started_at"] is not None
     assert data["items"][0]["ended_at"] is not None
     assert data["items"][0]["interview_duration_seconds"] >= 0
+
+
+@pytest.mark.asyncio
+async def test_analysis_report_returns_original_cv_preview(client, session, test_user, tmp_path, monkeypatch):
+    async def fake_report_payload(self, conversation_id: int):  # noqa: ARG001
+        payload = AnalysisReportPayload.model_validate(
+            {
+                "overall_score": 82,
+                "overall_grade": "B+",
+                "level": "Tốt",
+                "summary": "Ứng viên phù hợp.",
+                "tags": [],
+                "scores": {
+                    "technical": {"score": 88, "evidence": "Nắm vững API."},
+                    "communication": {"score": 80, "evidence": "Trả lời rõ."},
+                    "confidence": {"score": 82, "evidence": "Tự tin."},
+                    "soft_skills": {"score": 76, "evidence": "Có tinh thần hợp tác."},
+                    "company_knowledge": {"score": 70, "evidence": "Có tìm hiểu công ty."},
+                },
+                "ai_coach_insights": [],
+                "strengths": [],
+                "weaknesses": [],
+                "knowledge_gaps": [],
+                "study_plan": [],
+            }
+        )
+        return payload, '{"overall_score":82}'
+
+    monkeypatch.setattr(ConversationService, "generate_analysis_report_payload", fake_report_payload)
+
+    cv_path = tmp_path / "candidate.pdf"
+    cv_content = b"%PDF-1.4\n% test cv\n"
+    cv_path.write_bytes(cv_content)
+
+    cv = CVProfile(user_id=test_user.id, raw_file_url=str(cv_path), text_hashed="cv-hash")
+    jd = JobDescription(user_id=test_user.id, raw_file_url=str(tmp_path / "jd.pdf"), text_hashed="jd-hash")
+    session.add_all([cv, jd])
+    await session.flush()
+
+    analysis_session = AnalysisSession(
+        user_id=test_user.id,
+        id_cv=cv.id_cv,
+        id_jd=jd.id_jd,
+        cv_raw_text="CV raw text",
+        jd_raw_text="JD raw text",
+    )
+    session.add(analysis_session)
+    await session.commit()
+    await session.refresh(analysis_session)
+
+    start = await client.post(
+        "/api/v1/conversations",
+        json={"analysis_session_id": analysis_session.id_session, "job_position": "Backend Engineer"},
+    )
+    assert start.status_code == 201
+    start_data = start.json()
+    assert start_data["analysis_session_id"] == analysis_session.id_session
+    assert start_data["session_id"] != str(analysis_session.id_session)
+    session_id = start_data["session_id"]
+
+    report = await client.post(f"/api/v1/conversations/{session_id}/analysis-report")
+    assert report.status_code == 200
+    data = report.json()
+    assert data["analysis_session_id"] == analysis_session.id_session
+    assert data["cv_preview"] == {
+        "id_cv": cv.id_cv,
+        "file_name": "candidate.pdf",
+        "content_type": "application/pdf",
+        "preview_url": f"/api/v1/conversations/{session_id}/cv-preview",
+    }
+
+    preview = await client.get(data["cv_preview"]["preview_url"])
+    assert preview.status_code == 200
+    assert preview.headers["content-type"] == "application/pdf"
+    assert preview.content == cv_content

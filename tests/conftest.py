@@ -27,6 +27,7 @@ from app.feature.conversation.router import api_router as conversation_router
 # Ensure models are imported and registered on Base.metadata
 import app.feature.conversation.model  # noqa: F401,E402
 import app.feature.admin.roles.models  # noqa: F401,E402
+import app.feature.feature_up_cv.auth.models  # noqa: F401,E402
 
 
 @pytest_asyncio.fixture(scope="session")
