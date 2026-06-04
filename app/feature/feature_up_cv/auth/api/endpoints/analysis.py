@@ -146,6 +146,7 @@ async def _parse_cv_with_cache(
     text_hash: str,
     user_id: int,
     db: AsyncSession,
+    raw_file_url: str | None = None,
 ) -> tuple[Dict[str, Any], int, bool]:
     cv_service = CVProfileService(db)
     
@@ -155,13 +156,23 @@ async def _parse_cv_with_cache(
     
     if not record:
         from app.feature.feature_up_cv.auth.schemas.cv_profile import CVProfileCreate
-        record = await cv_service.create(user_id=user_id, data=CVProfileCreate(text_hashed=text_hash))
+        record = await cv_service.create(
+            user_id=user_id,
+            data=CVProfileCreate(text_hashed=text_hash, raw_file_url=raw_file_url),
+        )
+        await db.flush()
+    elif raw_file_url and record.raw_file_url != raw_file_url:
+        record.raw_file_url = raw_file_url
         await db.flush()
         
     # 1. Own cache hit
     if record.text_hashed == text_hash and record.parser_file_url:
         cached = load_parser_result(record.parser_file_url)
         if cached:
+            if raw_file_url and record.raw_file_url != raw_file_url:
+                record.raw_file_url = raw_file_url
+                await db.flush()
+                await db.commit()
             print(f"[CACHE HIT] CV parser - using user's own cache id_cv={record.id_cv}")
             return cached, record.id_cv, True
 
@@ -173,6 +184,8 @@ async def _parse_cv_with_cache(
             print(f"[CACHE HIT] CV parser - using global cache from id_cv={global_existing.id_cv}")
             record.parser_file_url = global_existing.parser_file_url
             record.text_hashed = text_hash
+            if raw_file_url:
+                record.raw_file_url = raw_file_url
             await db.flush()
             await db.commit()
             return cached, record.id_cv, False
@@ -196,6 +209,8 @@ async def _parse_cv_with_cache(
     )
     record.parser_file_url = str(parser_path)
     record.text_hashed = text_hash
+    if raw_file_url:
+        record.raw_file_url = raw_file_url
     await db.flush()
     await db.commit()
     print(f"[CACHE SAVED] CV parser result saved to id_cv={record.id_cv}")
@@ -425,7 +440,13 @@ async def analyze_cv_jd_match(
         # ── Compute hash & parse CV (with cache) ─────
         step = "llm_parser_cv"
         cv_hash = compute_text_hash(cv_text)
-        cv_data, id_cv, cv_cache_hit = await _parse_cv_with_cache(cv_text, cv_hash, user_id, db)
+        cv_data, id_cv, cv_cache_hit = await _parse_cv_with_cache(
+            cv_text,
+            cv_hash,
+            user_id,
+            db,
+            raw_file_url=str(cv_file_path),
+        )
 
         # ── Text extract: JD ───────────────────────
         step = "extract_jd_text"

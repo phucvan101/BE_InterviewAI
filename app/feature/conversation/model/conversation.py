@@ -10,6 +10,7 @@ from app.core.database import Base
 
 if TYPE_CHECKING:
     from app.feature.auth.models.user import User
+    from app.feature.feature_up_cv.auth.models.analysis_session import AnalysisSession
 
 
 class ConversationStatus(str, Enum):
@@ -39,6 +40,12 @@ class Conversation(Base):
 
     # ── Foreign key ──────────────────────────
     user_id: Mapped[int] = mapped_column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    analysis_session_id: Mapped[Optional[int]] = mapped_column(
+        Integer,
+        ForeignKey("analysis_sessions.id_session", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
     
     user: Mapped["User"] = relationship(
         back_populates="conversations"
@@ -102,6 +109,10 @@ class Conversation(Base):
         cascade="all, delete-orphan",
         lazy="selectin",
         uselist=False,
+    )
+
+    analysis_session: Mapped[Optional["AnalysisSession"]] = relationship(
+        lazy="selectin",
     )
 
     def __repr__(self) -> str:

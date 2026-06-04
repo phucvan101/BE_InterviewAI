@@ -1,13 +1,17 @@
 import logging
 import re
+from pathlib import Path
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi.responses import FileResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.config import settings
 from app.core.database import get_db
-from app.core.dependencies import get_current_active_user, get_current_user
+from app.core.dependencies import get_current_active_user
 from app.feature.auth.models.user import User
 from app.feature.conversation.schema import (
+    CVPreview,
     ConversationResponse,
     ConversationStartRequest,
     ConversationListResponse,
@@ -18,6 +22,9 @@ from app.feature.conversation.schema import (
     GetNextQuestionResponse,
 )
 from app.feature.conversation.service import ConversationService
+from app.feature.feature_up_cv.auth.models.cv_profile import CVProfile
+from app.feature.feature_up_cv.auth.models.analysis_session import AnalysisSession
+from app.feature.feature_up_cv.auth.services.cv_profile_service import CVProfileService
 from app.feature.feature_up_cv.auth.services.analysis_session_service import AnalysisSessionService
 from app.feature.feature_up_cv.file_storage import load_result_analysis
 
@@ -89,6 +96,77 @@ def _extract_interview_metadata(result_file_url: str | None) -> tuple[str | None
     return job_position, company_name
 
 
+async def _get_conversation_cv_profile(
+    *,
+    conversation,
+    db: AsyncSession,
+) -> tuple[CVProfile, AnalysisSession] | tuple[None, None]:
+    logger.debug(
+        f"[cv_profile] session_id={conversation.session_id} "
+        f"analysis_session_id={conversation.analysis_session_id}"
+    )
+    if not conversation.analysis_session_id:
+        logger.debug("[cv_profile] SKIP: analysis_session_id is null → cv_preview=None")
+        return None, None
+
+    session_service = AnalysisSessionService(db)
+    analysis_session = await session_service.get_by_id(conversation.analysis_session_id)
+    if not analysis_session:
+        logger.warning(
+            f"[cv_profile] SKIP: analysis_session {conversation.analysis_session_id} not found"
+        )
+        return None, None
+    if analysis_session.user_id != conversation.user_id:
+        logger.warning(
+            f"[cv_profile] SKIP: analysis_session.user_id={analysis_session.user_id} "
+            f"!= conversation.user_id={conversation.user_id}"
+        )
+        return None, None
+
+    logger.debug(
+        f"[cv_profile] analysis_session found: id_session={analysis_session.id_session} "
+        f"id_cv={analysis_session.id_cv}"
+    )
+    cv_profile = await CVProfileService(db).get_by_id(analysis_session.id_cv)
+    if not cv_profile:
+        logger.warning(
+            f"[cv_profile] SKIP: cv_profile with id_cv={analysis_session.id_cv} not found"
+        )
+        return None, None
+
+    logger.debug(
+        f"[cv_profile] cv_profile found: id_cv={cv_profile.id_cv} "
+        f"raw_file_url={cv_profile.raw_file_url!r}"
+    )
+    return cv_profile, analysis_session
+
+
+async def _build_cv_preview(
+    *,
+    conversation,
+    db: AsyncSession,
+) -> CVPreview | None:
+    cv_profile, _ = await _get_conversation_cv_profile(conversation=conversation, db=db)
+    if not cv_profile:
+        logger.debug("[cv_preview] cv_profile is None → cv_preview=None")
+        return None
+    if not cv_profile.raw_file_url:
+        logger.warning(
+            f"[cv_preview] cv_profile.id_cv={cv_profile.id_cv} has no raw_file_url → cv_preview=None"
+        )
+        return None
+
+    file_path = Path(cv_profile.raw_file_url)
+    logger.debug(
+        f"[cv_preview] built: id_cv={cv_profile.id_cv} file={file_path.name}"
+    )
+    return CVPreview(
+        id_cv=cv_profile.id_cv,
+        file_name=file_path.name,
+        preview_url=f"{settings.API_PREFIX}/conversations/{conversation.session_id}/cv-preview",
+    )
+
+
 @router.post(
     "/",
     response_model=ConversationResponse,
@@ -113,10 +191,19 @@ async def start_interview(
     cv_profile = request.cv_profile
     job_position = request.job_position
     company_name = request.company_name
+    analysis_session_id = request.analysis_session_id
 
-    if request.session_id:
+    if analysis_session_id is None and request.session_id:
+        if not request.session_id.isdigit():
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="`session_id` cũ phải là ID số của analysis_sessions; hãy dùng `analysis_session_id`",
+            )
+        analysis_session_id = int(request.session_id)
+
+    if analysis_session_id:
         session_service = AnalysisSessionService(db)
-        analysis_session = await session_service.get_by_session_id(request.session_id)
+        analysis_session = await session_service.get_by_id(analysis_session_id)
         if not analysis_session:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -161,7 +248,7 @@ async def start_interview(
         company_name=company_name,
         job_description=job_description or "",
         cv_profile=cv_profile or "",
-        session_id=request.session_id,
+        analysis_session_id=analysis_session_id,
     )
     logger.info(f"[start_interview] Created conversation: session_id={conversation.session_id}, id={conversation.id}")
     await db.commit()
@@ -203,6 +290,7 @@ async def list_conversations(
         items.append(ConversationListResponse(
             id=conv.id,
             session_id=conv.session_id,
+            analysis_session_id=conv.analysis_session_id,
             user_id=conv.user_id,
             job_position=conv.job_position,
             company_name=conv.company_name,
@@ -479,19 +567,23 @@ def _build_analysis_report_response(
     report,
     conversation,
     total_messages: int,
+    cv_preview: CVPreview | None = None,
 ) -> ConversationAnalysisReportResponse:
     return ConversationAnalysisReportResponse(
         id=report.id,
         session_id=conversation.session_id,
         conversation_id=conversation.id,
+        analysis_session_id=conversation.analysis_session_id,
         user_id=conversation.user_id,
         job_position=conversation.job_position,
         company_name=conversation.company_name,
+        job_description=conversation.job_description,
         status=report.status,
         total_messages=total_messages,
         started_at=conversation.started_at,
         ended_at=conversation.ended_at,
         interview_duration_seconds=conversation.interview_duration_seconds,
+        cv_preview=cv_preview,
         overall_score=report.overall_score,
         overall_grade=report.overall_grade,
         level=report.level,
@@ -505,6 +597,55 @@ def _build_analysis_report_response(
         study_plan=report.study_plan,
         created_at=report.created_at,
         updated_at=report.updated_at,
+    )
+
+
+@router.get(
+    "/{session_id}/cv-preview",
+    summary="Preview file CV gốc của báo cáo phỏng vấn",
+)
+async def preview_conversation_cv(
+    session_id: str,
+    current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_db),
+) -> FileResponse:
+    """
+    Trả file CV gốc ở dạng inline để FE render preview PDF.
+    """
+    service = ConversationService(db)
+    conversation = await service.get_conversation_by_session_id(session_id)
+
+    if not conversation:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Phiên phỏng vấn không tìm thấy",
+        )
+
+    if conversation.user_id != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Bạn không có quyền truy cập phiên phỏng vấn này",
+        )
+
+    cv_profile, _ = await _get_conversation_cv_profile(conversation=conversation, db=db)
+    if not cv_profile or not cv_profile.raw_file_url:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Không tìm thấy file CV gốc cho báo cáo này",
+        )
+
+    file_path = Path(cv_profile.raw_file_url)
+    if not file_path.exists() or not file_path.is_file():
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="File CV gốc không còn tồn tại trên hệ thống",
+        )
+
+    return FileResponse(
+        path=file_path,
+        media_type="application/pdf",
+        filename=file_path.name,
+        headers={"Content-Disposition": f'inline; filename="{file_path.name}"'},
     )
 
 
@@ -548,6 +689,7 @@ async def create_analysis_report(
             report=existing_report,
             conversation=conversation,
             total_messages=len(messages),
+            cv_preview=await _build_cv_preview(conversation=conversation, db=db),
         )
 
     if conversation.status not in {"active", "completed"}:
@@ -575,6 +717,7 @@ async def create_analysis_report(
             report=report,
             conversation=conversation,
             total_messages=len(messages),
+            cv_preview=await _build_cv_preview(conversation=conversation, db=db),
         )
     except Exception as e:
         await db.rollback()
@@ -626,6 +769,7 @@ async def get_analysis_report(
         report=report,
         conversation=conversation,
         total_messages=len(messages),
+        cv_preview=await _build_cv_preview(conversation=conversation, db=db),
     )
 
 

@@ -83,8 +83,10 @@ InterviewApi/
 | DELETE | `/api/v1/users/{id}`                                 | 👑 Admin | Xoá user                                     |
 | GET    | `/health`                                            | ❌       | Health check                                 |
 | GET    | `/api/v1/conversations/analysis-reports`             | ✅       | Danh sách báo cáo phân tích (phân trang)     |
+| POST   | `/api/v1/conversations`                              | ✅       | Tạo phiên phỏng vấn; dùng `analysis_session_id` nếu lấy JD/CV từ analysis session |
 | POST   | `/api/v1/conversations/{session_id}/analysis-report` | ✅       | Kết thúc phỏng vấn và tạo báo cáo phân tích  |
 | GET    | `/api/v1/conversations/{session_id}/analysis-report` | ✅       | Lấy lại báo cáo phân tích đã tạo             |
+| GET    | `/api/v1/conversations/{session_id}/cv-preview`      | ✅       | Preview file CV gốc dạng PDF inline          |
 | GET    | `/api/v1/auth/google/login`                          | ❌       | Redirect tới Google OAuth                    |
 | GET    | `/api/v1/auth/google/url`                            | ❌       | Lấy Google OAuth consent URL                 |
 | GET    | `/api/v1/auth/google/callback`                       | ❌       | Callback exchange code → token + redirect FE |
