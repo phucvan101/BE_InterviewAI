@@ -71,6 +71,10 @@ class Settings(BaseSettings):
     SMTP_PASSWORD: Optional[str] = None
     SMTP_FROM_EMAIL: Optional[str] = None
     SMTP_FROM_NAME: Optional[str] = None
+    SMTP_TLS: bool = True
+
+    # ── Email Verification API ───────────────
+    ZEROBOUNCE_API_KEY: Optional[str] = None
 
     # ── Frontend ─────────────────────────────
     FRONTEND_URL: Optional[str] = None

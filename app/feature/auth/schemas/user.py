@@ -63,6 +63,7 @@ class UserResponse(UserBase):
     is_deleted: bool
     is_superuser: bool
     is_verified: bool
+    auth_provider: str
     created_at: datetime
     updated_at: datetime
 
@@ -113,6 +114,15 @@ class GoogleCodeRequest(BaseModel):
 
 class GoogleAuthUrlResponse(BaseModel):
     url: str
+
+
+# ── Password Recovery ─────────────────────────────────────────────────────────
+
+class ForgotPasswordRequest(BaseModel):
+    email: EmailStr
+
+class MessageResponse(BaseModel):
+    message: str
 
 
 # ── Pagination wrapper ────────────────────────────────────────────────────────
