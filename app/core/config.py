@@ -11,6 +11,16 @@ class Settings(BaseSettings):
         env_file_encoding="utf-8",
         case_sensitive=False,
     )
+    
+    # TTS 
+    # FPT TTS
+    FPT_API_KEY: Optional[str] = None
+    FPT_TTS_URL: str = "https://api.fpt.ai/hmi/tts/v5"
+    FPT_DEFAULT_VOICE: str = "banmai"
+    
+    ELEVEN_API_KEY: Optional[str] = None
+
+
 
     # ── App ──────────────────────────────────
     APP_NAME: str = "FastAPI Project"

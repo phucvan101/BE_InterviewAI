@@ -18,6 +18,9 @@ from app.core.database import init_db
 
 from app.scripts.ensure_admin import ensure_admin
 
+from app.feature.tts.api import router as tts_router
+
+
 
 import logging
 logging.basicConfig(level=logging.INFO)
@@ -78,6 +81,7 @@ def create_app() -> FastAPI:
     app.include_router(admin_dashboard_router, prefix=settings.API_PREFIX)
     app.include_router(cv_router, prefix=settings.API_PREFIX)
     app.include_router(conversation_router, prefix=settings.API_PREFIX)
+    app.include_router(tts_router, prefix=settings.API_PREFIX)
 
     # ── Health check ─────────────────────────
     @app.get("/health", tags=["Health"])
