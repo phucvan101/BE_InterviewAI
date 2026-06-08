@@ -18,6 +18,9 @@ from app.feature.conversation.model.conversation import (
 from app.feature.conversation.schema import AnalysisReportPayload
 from app.feature.feature_up_cv.gemini_client import generate_content, GeminiConfig
 
+from app.core.ml_models import get_hallucination_guard
+
+
 logger = logging.getLogger(__name__)
 
 
@@ -244,6 +247,19 @@ class ConversationService:
             raise ValueError(f"Conversation {conversation_id} not found")
 
         payload, raw_ai_response = await self.generate_analysis_report_payload(conversation_id)
+        
+        # Hallucination check
+        
+        # Lấy lại messages để dùng cho HallucinationGuard
+        messages = await self.get_conversation_messages(conversation_id)
+
+        guard = get_hallucination_guard()
+        warnings = guard.validate_evidence(payload, messages)
+        if warnings:
+            logger.warning(
+                f"[HallucinationGuard] conversation_id={conversation_id} "
+                f"warnings={warnings}"
+            )
 
         report = ConversationAnalysisReport(
             conversation_id=conversation_id,
