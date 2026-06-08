@@ -902,6 +902,22 @@ async def analyze_cv_jd_match(
             print(f"[SCORING] Failed to query agent memory: {e}")
             learned_knowledge = None
 
+        # ── Get Agent Score Overrides from Database ───
+        score_overrides = None
+        try:
+            from app.feature.feature_up_cv.auth.models.score_override import ScoreOverride
+            override_stmt = select(ScoreOverride).where(
+                ScoreOverride.cv_id == str(id_cv),
+                ScoreOverride.jd_id == str(id_jd)
+            )
+            override_res = await db.execute(override_stmt)
+            override_record = override_res.scalar_one_or_none()
+            if override_record and override_record.overridden_scores:
+                score_overrides = override_record.overridden_scores
+                print(f"[SCORING] Found score overrides in DB: {score_overrides}")
+        except Exception as e:
+            print(f"[SCORING] Failed to query score overrides: {e}")
+
         # ── Call hybrid scoring ───
         step = "hybrid_score"
         score_started_at = time.perf_counter()
@@ -909,6 +925,7 @@ async def analyze_cv_jd_match(
             analysis_result = calculate_hybrid_score(
                 cv_data, jd_data, company_data,
                 cv_embedding=cv_embedding, jd_embedding=jd_embedding,
+                score_overrides=score_overrides,
                 learned_knowledge=learned_knowledge
             )
             _log_parser_result("SCORE", score_started_at, True)
