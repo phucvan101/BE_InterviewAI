@@ -1,6 +1,6 @@
 import asyncpg
 from pydantic_settings import BaseSettings, SettingsConfigDict
-from pydantic import field_validator
+from pydantic import field_validator, Field
 from typing import List, Optional
 
 
@@ -93,6 +93,9 @@ class Settings(BaseSettings):
     AI_REPORT_API_KEY: Optional[str] = None
     MODEL_NAME: str = "models/gemini-2.5-flash"
     REPORT_MODEL_NAME: str = "models/gemini-2.5-flash"
+    
+    SENDGRID_API_KEY: Optional[str] = Field(None, env="SENDGRID_API_KEY")
+
 
 
 # Singleton instance
