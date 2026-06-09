@@ -18,13 +18,32 @@ pymupdf==1.27.2
 pillow==12.1.1 
 langchain==1.2.12
 langchain-community==0.4.1
+langchain-core>=0.3.0
 pypdf==6.9.1
 langchain-openai==1.1.11
 google-generativeai==0.8.6
 google-genai==1.47.0
 # google-genai==1.68.0
 openai==2.29.0
+<<<<<<< HEAD
 sentence-transformers==2.2.2
 aiosmtplib>=2.0.0
 sendgrid==6.12.5
 
+=======
+# ── Embedding & Vector Search ─────────────
+sentence-transformers>=2.7.0
+faiss-cpu>=1.8.0
+numpy>=1.26.0
+PyYAML>=6.0
+ruamel.yaml>=0.18.0
+
+
+# Deep learning backend and Transformers (for sentence-transformers / cross-encoder)
+torch>=2.2.0
+transformers>=4.34.0
+accelerate>=1.12.0
+
+# Optional: install spaCy language model separately if needed
+# python -m spacy download en_core_web_sm
+>>>>>>> 7a94a79 (thay đổi workflow conversation)

@@ -18,7 +18,7 @@ from app.feature.auth import models as _auth_models  # noqa: F401,E402
 from app.feature.audit import models as _audit_models  # noqa: F401,E402
 from app.feature.admin.roles import models as _role_models  # noqa: F401,E402
 from app.feature.feature_up_cv.auth import models as _cv_models  # noqa: F401,E402
-from app.feature.conversation.model import Conversation, ConversationMessage  # noqa: F401,E402
+from app.feature.conversation.auth.models import Conversation, ConversationAnalysisReport, ConversationMessage  # noqa: F401,E402
 
 config = context.config
 

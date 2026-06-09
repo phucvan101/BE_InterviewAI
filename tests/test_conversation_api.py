@@ -1,7 +1,6 @@
-import json
-
 import pytest
 
+<<<<<<< HEAD
 <<<<<<< HEAD
 from app.feature.feature_up_cv.auth.models.analysis_session import AnalysisSession
 from app.feature.feature_up_cv.auth.models.cv_profile import CVProfile
@@ -31,13 +30,21 @@ async def test_start_interview_creates_conversation(client):
     payload = {"job_position": "Backend Engineer", "company_name": "Acme", "job_description": "JD", "cv_profile": "CV"}
 =======
 from app.feature.conversation.service import ConversationService
+=======
+from app.feature.conversation.auth.services import ConversationService
+from app.feature.conversation.interview_agent.agent import interview_agent
+>>>>>>> 7a94a79 (thay đổi workflow conversation)
 
 
 @pytest.mark.asyncio
 async def test_start_interview_creates_conversation(client):
     payload = {"job_description": "JD", "cv_profile": "CV"}
+<<<<<<< HEAD
 >>>>>>> c2202c1 (rebase main)
     resp = await client.post("/api/v1/conversations", json=payload)
+=======
+    resp = await client.post("/api/v1/conversations/", json=payload)
+>>>>>>> 7a94a79 (thay đổi workflow conversation)
     assert resp.status_code == 201
     data = resp.json()
     assert data["id"] >= 1
@@ -76,11 +83,12 @@ async def test_start_interview_extracts_metadata_from_job_description(client):
 =======
 >>>>>>> c2202c1 (rebase main)
 async def test_get_next_question_creates_message(client, monkeypatch):
-    async def fake_initial_question(self, conversation_id: int) -> str:  # noqa: ARG001
+    async def fake_generate_question(self, job_description, cv_profile, conversation_id, previous_answer=None):
         return "Q1?"
 
-    monkeypatch.setattr(ConversationService, "generate_initial_question", fake_initial_question)
+    monkeypatch.setattr(type(interview_agent), "generate_question", fake_generate_question)
 
+<<<<<<< HEAD
 <<<<<<< HEAD
     start = await client.post(
         "/api/v1/conversations",
@@ -89,6 +97,9 @@ async def test_get_next_question_creates_message(client, monkeypatch):
 =======
     start = await client.post("/api/v1/conversations", json={"job_description": "JD", "cv_profile": "CV"})
 >>>>>>> c2202c1 (rebase main)
+=======
+    start = await client.post("/api/v1/conversations/", json={"job_description": "JD", "cv_profile": "CV"})
+>>>>>>> 7a94a79 (thay đổi workflow conversation)
     session_id = start.json()["session_id"]
 
     resp = await client.get(f"/api/v1/conversations/{session_id}/next-question")
@@ -101,13 +112,14 @@ async def test_get_next_question_creates_message(client, monkeypatch):
 
 @pytest.mark.asyncio
 async def test_send_answer_saves_candidate_and_returns_next_question(client, monkeypatch):
-    async def fake_initial_question(self, conversation_id: int) -> str:  # noqa: ARG001
+    async def fake_generate_question(self, job_description, cv_profile, conversation_id, previous_answer=None):
+        if previous_answer == "My answer":
+            return "Q2?"
         return "Q1?"
 
-    async def fake_next_question(self, conversation_id: int, previous_answer: str | None = None) -> str:
-        assert previous_answer == "My answer"
-        return "Q2?"
+    monkeypatch.setattr(type(interview_agent), "generate_question", fake_generate_question)
 
+<<<<<<< HEAD
     monkeypatch.setattr(ConversationService, "generate_initial_question", fake_initial_question)
     monkeypatch.setattr(ConversationService, "generate_next_question", fake_next_question)
 
@@ -119,6 +131,9 @@ async def test_send_answer_saves_candidate_and_returns_next_question(client, mon
 =======
     start = await client.post("/api/v1/conversations", json={"job_description": "JD", "cv_profile": "CV"})
 >>>>>>> c2202c1 (rebase main)
+=======
+    start = await client.post("/api/v1/conversations/", json={"job_description": "JD", "cv_profile": "CV"})
+>>>>>>> 7a94a79 (thay đổi workflow conversation)
     session_id = start.json()["session_id"]
 
     await client.get(f"/api/v1/conversations/{session_id}/next-question")
@@ -469,16 +484,16 @@ async def test_retry_interview_creates_new_conversation_without_reupload(client,
     assert data["messages"] == []
 =======
 async def test_end_interview_returns_evaluation(client, monkeypatch):
-    async def fake_initial_question(self, conversation_id: int) -> str:  # noqa: ARG001
+    async def fake_generate_question(self, job_description, cv_profile, conversation_id, previous_answer=None):
         return "Q1?"
 
-    async def fake_evaluate(self, conversation_id: int) -> dict:
+    async def fake_evaluate(self, job_description, cv_profile, conversation_id):
         return {"fit_score": 80, "recommendation": "PASS", "strengths": ["a"], "weaknesses": ["b"], "comments": "ok"}
 
-    monkeypatch.setattr(ConversationService, "generate_initial_question", fake_initial_question)
-    monkeypatch.setattr(ConversationService, "evaluate_answer", fake_evaluate)
+    monkeypatch.setattr(type(interview_agent), "generate_question", fake_generate_question)
+    monkeypatch.setattr(type(interview_agent), "evaluate_interview", fake_evaluate)
 
-    start = await client.post("/api/v1/conversations", json={"job_description": "JD", "cv_profile": "CV"})
+    start = await client.post("/api/v1/conversations/", json={"job_description": "JD", "cv_profile": "CV"})
     session_id = start.json()["session_id"]
 
     await client.get(f"/api/v1/conversations/{session_id}/next-question")
@@ -490,5 +505,8 @@ async def test_end_interview_returns_evaluation(client, monkeypatch):
     assert data["score"] == 80
     assert data["result"]["recommendation"] == "PASS"
     assert data["total_messages"] >= 1
+<<<<<<< HEAD
 
 >>>>>>> c2202c1 (rebase main)
+=======
+>>>>>>> 7a94a79 (thay đổi workflow conversation)
