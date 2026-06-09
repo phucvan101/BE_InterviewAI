@@ -3,7 +3,7 @@ from typing import Any, List, Optional, Dict, Type
 from pydantic import BaseModel, Field
 from langchain_core.language_models.llms import LLM
 from langchain_core.callbacks.manager import CallbackManagerForLLMRun
-from langchain.prompts import PromptTemplate
+from langchain_core.prompts import PromptTemplate
 from langchain_core.output_parsers import PydanticOutputParser
 from langchain_core.tools import BaseTool
 

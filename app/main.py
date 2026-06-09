@@ -12,12 +12,16 @@ from app.feature.admin.users.api.router import api_router as admin_users_router
 from app.feature.admin.sessions.api.router import api_router as admin_sessions_router
 from app.feature.admin.dashboard.api.router import api_router as admin_dashboard_router
 from app.feature.feature_up_cv.auth.api.router import router as cv_router
+<<<<<<< HEAD
 from app.feature.conversation.router import api_router as conversation_router
 <<<<<<< HEAD
 from app.feature.speech.api.router import api_router as speech_router
 from app.feature.email.api.endpoints import router as email_router
 =======
 >>>>>>> c2202c1 (rebase main)
+=======
+from app.feature.conversation.auth.api.router import router as conversation_router
+>>>>>>> 7a94a79 (thay đổi workflow conversation)
 from app.core.config import settings
 from app.core.database import init_db
 
@@ -36,7 +40,7 @@ import app.feature.auth.models  # noqa: F401
 import app.feature.audit.models  # noqa: F401
 import app.feature.admin.roles.models  # noqa: F401
 import app.feature.feature_up_cv.auth.models  # noqa: F401
-import app.feature.conversation.model  # noqa: F401
+import app.feature.conversation.auth.models  # noqa: F401
 
 
 

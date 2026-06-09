@@ -26,10 +26,10 @@ from app.core.dependencies import get_current_authenticated_user as prod_get_cur
 =======
 >>>>>>> c2202c1 (rebase main)
 from app.feature.auth.models.user import User
-from app.feature.conversation.router import api_router as conversation_router
+from app.feature.conversation.auth.api.router import router as conversation_router
 
 # Ensure models are imported and registered on Base.metadata
-import app.feature.conversation.model  # noqa: F401,E402
+import app.feature.conversation.auth.models  # noqa: F401,E402
 import app.feature.admin.roles.models  # noqa: F401,E402
 <<<<<<< HEAD
 import app.feature.feature_up_cv.auth.models  # noqa: F401,E402
@@ -37,10 +37,9 @@ import app.feature.feature_up_cv.auth.models  # noqa: F401,E402
 >>>>>>> c2202c1 (rebase main)
 
 
-@pytest_asyncio.fixture(scope="session")
+@pytest_asyncio.fixture(scope="function")
 async def engine(tmp_path_factory):
-    # Use a dedicated schema inside Postgres (e.g. Docker) to avoid touching real data,
-    # and to avoid needing extra deps like aiosqlite.
+    # Use a dedicated schema inside Postgres to avoid touching real data.
     import uuid
 
     schema = f"test_{uuid.uuid4().hex}"
@@ -55,7 +54,7 @@ async def engine(tmp_path_factory):
             await conn.execute(sa.text(f'CREATE SCHEMA "{schema}"'))
             await conn.execute(sa.text(f'SET search_path TO "{schema}"'))
             await conn.run_sync(Base.metadata.create_all)
-    except Exception as e:  # pragma: no cover
+    except Exception as e:
         await engine.dispose()
         pytest.skip(f"Postgres not available for tests: {e}")
     try:
