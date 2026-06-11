@@ -14,6 +14,8 @@ from ...schemas.user import (
     UserResponse,
     UserUpdate,
     UserUpdatePassword,
+    ForgotPasswordRequest,
+    MessageResponse,
 )
 from ...services.user_service import UserService
 
@@ -57,6 +59,61 @@ async def refresh_token(
     db: AsyncSession = Depends(get_db),
 ) -> TokenResponse:
     return await UserService(db).refresh_token(data)
+
+
+@router.post(
+    "/forgot-password",
+    response_model=MessageResponse,
+    summary="Request a new password",
+)
+async def forgot_password(
+    data: ForgotPasswordRequest,
+    db: AsyncSession = Depends(get_db),
+) -> MessageResponse:
+    await UserService(db).forgot_password(data.email)
+    return MessageResponse(message="Nếu email tồn tại, mật khẩu mới đã được gửi.")
+
+
+# ── Email Verification ─────────────────────────────────────────────────────────
+
+import httpx
+from fastapi import HTTPException
+
+@router.get(
+    "/verify-email",
+    summary="Verify if an email exists using ZeroBounce API",
+)
+async def verify_email(
+    email: str = Query(..., description="Email address to verify")
+):
+    from app.core.config import settings
+    
+    if not settings.ZEROBOUNCE_API_KEY:
+        raise HTTPException(status_code=400, detail="Chưa cấu hình API Key cho ZeroBounce (ZEROBOUNCE_API_KEY).")
+        
+    url = f"https://api.zerobounce.net/v2/validate?api_key={settings.ZEROBOUNCE_API_KEY}&email={email}&ip_address="
+    try:
+        async with httpx.AsyncClient() as client:
+            response = await client.get(url, timeout=10.0)
+            response.raise_for_status()
+            data = response.json()
+            
+            # ZeroBounce trả về status: "valid", "invalid", "catch-all", "unknown", "spamtrap", "abuse", "do_not_mail"
+            if "error" in data:
+                raise HTTPException(status_code=400, detail=f"Lỗi từ ZeroBounce: {data['error']}")
+                
+            status = data.get("status")
+            if status in ["valid", "catch-all"]:
+                return {"deliverability": "DELIVERABLE", "status": status}
+            elif status == "invalid":
+                return {"deliverability": "UNDELIVERABLE", "status": status}
+            else:
+                return {"deliverability": "UNKNOWN", "status": status}
+                
+    except httpx.HTTPStatusError as e:
+        raise HTTPException(status_code=e.response.status_code, detail="Lỗi kết nối tới dịch vụ ZeroBounce.")
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Lỗi hệ thống khi kiểm tra email: {str(e)}")
 
 
 # ── Current user ─────────────────────────────────────────────────────────────

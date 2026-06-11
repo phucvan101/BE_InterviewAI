@@ -27,3 +27,6 @@ google-genai==1.47.0
 # google-genai==1.68.0
 openai==2.29.0
 sentence-transformers==2.2.2
+aiosmtplib>=2.0.0
+sendgrid==6.12.5
+
