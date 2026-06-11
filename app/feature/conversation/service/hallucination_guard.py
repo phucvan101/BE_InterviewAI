@@ -1,6 +1,6 @@
 # services/hallucination_guard.py
 from sentence_transformers import SentenceTransformer, util
-from app.feature.conversation.schema import AnalysisReportPayload
+from app.feature.conversation.schema import AnalysisReportPayload, ScoreCriterion
 from app.feature.conversation.model.conversation import ConversationMessage
 
 
@@ -31,30 +31,46 @@ class HallucinationGuard:
             if m.content and m.content.strip()
         ]
 
+    def calculate_evidence_similarities(
+        self,
+        payload: AnalysisReportPayload,
+        messages: list[ConversationMessage],
+    ) -> dict[str, float]:
+        transcript_chunks = self._build_transcript_chunks(messages)
+        if not transcript_chunks:
+            return {}
+
+        similarities = {}
+        for criterion, score_item in self._score_items(payload):
+            if criterion == "company_knowledge" and score_item.score == 0:
+                continue
+
+            evidence = score_item.evidence or ""
+            if not evidence.strip():
+                similarities[criterion] = 0.0
+                continue
+
+            similarities[criterion] = self.evidence_similarity(evidence, transcript_chunks)
+
+        return similarities
+
     def validate_evidence(
         self,
         payload: AnalysisReportPayload,
         messages: list[ConversationMessage],
+        evidence_similarities: dict[str, float] | None = None,
     ) -> list[dict]:
         """
         Trả về list các warning với score cụ thể để dễ debug.
         [{"criterion": "technical", "score": 0.21, "evidence": "..."}]
         """
-        transcript_chunks = self._build_transcript_chunks(messages)
         warnings = []
-
-        if not transcript_chunks:
+        if evidence_similarities is None:
+            evidence_similarities = self.calculate_evidence_similarities(payload, messages)
+        if not evidence_similarities:
             return warnings
 
-        criteria = [
-            ("technical",         payload.scores.technical),
-            ("communication",     payload.scores.communication),
-            ("confidence",        payload.scores.confidence),
-            ("soft_skills",       payload.scores.soft_skills),
-            ("company_knowledge", payload.scores.company_knowledge),
-        ]
-
-        for criterion, score_item in criteria:
+        for criterion, score_item in self._score_items(payload):
             # Bỏ qua company_knowledge nếu đã bị force về 0 bởi business rule
             if criterion == "company_knowledge" and score_item.score == 0:
                 continue
@@ -69,7 +85,10 @@ class HallucinationGuard:
                 })
                 continue
 
-            sim_score = self.evidence_similarity(evidence, transcript_chunks)
+            if criterion not in evidence_similarities:
+                continue
+
+            sim_score = evidence_similarities[criterion]
 
             if sim_score < self.SIMILARITY_THRESHOLD:
                 warnings.append({
@@ -80,3 +99,15 @@ class HallucinationGuard:
                 })
 
         return warnings
+
+    def _score_items(
+        self,
+        payload: AnalysisReportPayload,
+    ) -> list[tuple[str, ScoreCriterion]]:
+        return [
+            ("technical",         payload.scores.technical),
+            ("communication",     payload.scores.communication),
+            ("confidence",        payload.scores.confidence),
+            ("soft_skills",       payload.scores.soft_skills),
+            ("company_knowledge", payload.scores.company_knowledge),
+        ]
