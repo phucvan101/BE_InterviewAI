@@ -22,6 +22,7 @@ from app.feature.conversation.schema import (
     GetNextQuestionResponse,
 )
 from app.feature.conversation.service import ConversationService
+from app.feature.conversation.service import MIN_CANDIDATE_ANSWERS_FOR_ANALYSIS_REPORT
 from app.feature.feature_up_cv.auth.models.cv_profile import CVProfile
 from app.feature.feature_up_cv.auth.models.analysis_session import AnalysisSession
 from app.feature.feature_up_cv.auth.services.cv_profile_service import CVProfileService
@@ -94,6 +95,16 @@ def _extract_interview_metadata(result_file_url: str | None) -> tuple[str | None
         company_name = company_match.get("company_name") or None
 
     return job_position, company_name
+
+
+def _next_retry_job_position(job_position: str) -> str:
+    retry_match = re.search(r"\s*-\s*lần\s*(\d+)\s*$", job_position, re.IGNORECASE)
+    if not retry_match:
+        return f"{job_position} - lần 2"
+
+    retry_number = int(retry_match.group(1)) + 1
+    base_position = job_position[: retry_match.start()].strip()
+    return f"{base_position} - lần {retry_number}"
 
 
 async def _get_conversation_cv_profile(
@@ -390,6 +401,80 @@ async def get_conversation(
     
     logger.info(f"[get_conversation] Retrieved conversation: session_id={session_id}, status={conversation.status}")
     return ConversationResponse.model_validate(conversation)
+
+
+@router.post(
+    "/{session_id}/retry",
+    response_model=ConversationResponse,
+    status_code=status.HTTP_201_CREATED,
+    summary="Tạo vòng phỏng vấn lại từ phiên cũ",
+)
+async def retry_interview(
+    session_id: str,
+    current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_db),
+) -> ConversationResponse:
+    """
+    Tạo một phiên phỏng vấn mới từ JD/CV đã dùng ở phiên cũ.
+
+    Dùng khi người dùng không hài lòng với báo cáo phân tích và muốn phỏng vấn lại
+    mà không upload lại CV/JD. Phiên mới sẽ có session_id mới, chưa có messages,
+    và giữ liên kết analysis_session_id nếu phiên gốc có.
+    """
+    logger.info(f"[retry_interview] User {current_user.id} retrying session_id={session_id}")
+    service = ConversationService(db)
+    conversation = await service.get_conversation_by_session_id(session_id)
+
+    if not conversation:
+        logger.warning(f"[retry_interview] Conversation not found: session_id={session_id}")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Phiên phỏng vấn không tìm thấy",
+        )
+
+    if conversation.user_id != current_user.id:
+        logger.warning(f"[retry_interview] Unauthorized access by user {current_user.id}")
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Bạn không có quyền truy cập phiên phỏng vấn này",
+        )
+
+    if conversation.status != "completed":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Chỉ có thể phỏng vấn lại sau khi phiên cũ đã hoàn thành và có kết quả phân tích",
+        )
+
+    existing_report = await service.get_analysis_report_by_conversation_id(conversation.id)
+    if not existing_report:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Phiên cũ chưa có báo cáo phân tích để bắt đầu phỏng vấn lại",
+        )
+
+    try:
+        new_conversation = await service.create_conversation(
+            user_id=current_user.id,
+            job_position=_next_retry_job_position(conversation.job_position),
+            company_name=conversation.company_name,
+            job_description=conversation.job_description,
+            cv_profile=conversation.cv_profile,
+            analysis_session_id=conversation.analysis_session_id,
+            force_new=True,
+        )
+        await db.commit()
+        logger.info(
+            f"[retry_interview] Created retry conversation: "
+            f"old_session_id={session_id}, new_session_id={new_conversation.session_id}"
+        )
+        return ConversationResponse.model_validate(new_conversation)
+    except Exception as e:
+        await db.rollback()
+        logger.error(f"[retry_interview] Error creating retry conversation: {str(e)}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Lỗi khi tạo phiên phỏng vấn lại: {str(e)}",
+        )
 
 
 @router.post(
@@ -700,6 +785,20 @@ async def create_analysis_report(
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Không thể tạo báo cáo cho trạng thái phiên phỏng vấn hiện tại",
+        )
+
+    valid_answer_count = await service.count_valid_candidate_answers(conversation.id)
+    if valid_answer_count < MIN_CANDIDATE_ANSWERS_FOR_ANALYSIS_REPORT:
+        logger.warning(
+            f"[analysis_report] Not enough candidate answers: "
+            f"session_id={session_id}, answers={valid_answer_count}"
+        )
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=(
+                "Cần trả lời ít nhất "
+                f"{MIN_CANDIDATE_ANSWERS_FOR_ANALYSIS_REPORT} câu hỏi trước khi tạo báo cáo phân tích"
+            ),
         )
     
     try:
