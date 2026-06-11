@@ -16,9 +16,14 @@ from app.feature.conversation.model.conversation import (
     MessageRole,
 )
 from app.feature.conversation.schema import AnalysisReportPayload
+from app.feature.conversation.service.score_anomaly_detector import ScoreAnomalyDetector
 from app.feature.feature_up_cv.gemini_client import generate_content, GeminiConfig
 
+from app.core.ml_models import get_hallucination_guard
+
+
 logger = logging.getLogger(__name__)
+MIN_CANDIDATE_ANSWERS_FOR_ANALYSIS_REPORT = 3
 
 
 def _ensure_aware_utc(value: datetime) -> datetime:
@@ -52,9 +57,10 @@ class ConversationService:
         company_name: str | None = None,
         analysis_session_id: int | None = None,
         session_id: str | None = None,
+        force_new: bool = False,
     ) -> Conversation:
         """Tạo conversation mới"""
-        if analysis_session_id:
+        if analysis_session_id and not force_new:
             existing = await self.get_conversation_by_analysis_session_id(
                 user_id=user_id,
                 analysis_session_id=analysis_session_id,
@@ -63,7 +69,7 @@ class ConversationService:
                 return existing
 
         # Idempotent: nếu session_id đã có conversation thì trả về luôn
-        if session_id:
+        if session_id and not force_new:
             existing = await self.get_conversation_by_session_id(session_id)
             if existing:
                 return existing
@@ -243,7 +249,42 @@ class ConversationService:
         if not conversation:
             raise ValueError(f"Conversation {conversation_id} not found")
 
+        valid_answer_count = await self.count_valid_candidate_answers(conversation_id)
+        if valid_answer_count < MIN_CANDIDATE_ANSWERS_FOR_ANALYSIS_REPORT:
+            raise ValueError(
+                "Not enough candidate answers to create analysis report: "
+                f"{valid_answer_count}/{MIN_CANDIDATE_ANSWERS_FOR_ANALYSIS_REPORT}"
+            )
+
         payload, raw_ai_response = await self.generate_analysis_report_payload(conversation_id)
+        
+        # Hallucination check
+        
+        # Lấy lại messages để dùng cho HallucinationGuard
+        messages = await self.get_conversation_messages(conversation_id)
+
+        guard = get_hallucination_guard()
+        evidence_similarities = guard.calculate_evidence_similarities(payload, messages)
+        hallucination_warnings = guard.validate_evidence(
+            payload,
+            messages,
+            evidence_similarities=evidence_similarities,
+        )
+        if hallucination_warnings:
+            logger.warning(
+                f"[HallucinationGuard] conversation_id={conversation_id} "
+                f"warnings={hallucination_warnings}"
+            )
+
+        score_warnings = ScoreAnomalyDetector().validate(
+            payload,
+            evidence_similarities=evidence_similarities,
+        )
+        if score_warnings:
+            logger.warning(
+                f"[ScoreAnomalyDetector] conversation_id={conversation_id} "
+                f"warnings={score_warnings}"
+            )
 
         report = ConversationAnalysisReport(
             conversation_id=conversation_id,
@@ -382,6 +423,14 @@ class ConversationService:
             ).order_by(ConversationMessage.created_at)
         )
         return result.scalars().all()
+
+    async def count_valid_candidate_answers(self, conversation_id: int) -> int:
+        """Đếm số câu trả lời ứng viên có nội dung thực sự."""
+        messages = await self.get_messages_by_role(
+            conversation_id=conversation_id,
+            role=MessageRole.CANDIDATE.value,
+        )
+        return sum(1 for message in messages if (message.answer or message.content or "").strip())
 
     # ──────────────────────────────────────────────────────────────
     # AI Interview Logic
