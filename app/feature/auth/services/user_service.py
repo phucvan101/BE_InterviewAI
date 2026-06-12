@@ -137,8 +137,6 @@ class UserService:
             )
         if user.is_deleted:
             raise HTTPException(status_code=400, detail="Tài khoản đã bị xóa")
-        if not user.is_active:
-            raise HTTPException(status_code=400, detail="Tài khoản đã bị khóa")
 
         return TokenResponse(
             access_token=create_access_token(user.id),
@@ -158,8 +156,6 @@ class UserService:
         user = await self._get_or_404(user_id)
         if user.is_deleted:
             raise HTTPException(status_code=400, detail="Tài khoản đã bị xóa")
-        if not user.is_active:
-            raise HTTPException(status_code=400, detail="Tài khoản đã bị khóa")
 
         return TokenResponse(
             access_token=create_access_token(user.id),
@@ -184,8 +180,6 @@ class UserService:
         if user:
             if user.is_deleted:
                 raise HTTPException(status_code=400, detail="Tài khoản đã bị xóa")
-            if not user.is_active:
-                raise HTTPException(status_code=400, detail="Tài khoản đã bị khóa")
             if not user.google_id:
                 user.google_id = google_sub
                 if not user.avatar_url:

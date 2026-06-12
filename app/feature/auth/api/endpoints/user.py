@@ -2,7 +2,11 @@ from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
-from app.core.dependencies import get_current_active_user, get_current_superuser
+from app.core.dependencies import (
+    get_current_active_user,
+    get_current_authenticated_user,
+    get_current_superuser,
+)
 from ...models.user import User
 from ...schemas.user import (
     AuthUserResponse,
@@ -124,7 +128,7 @@ async def verify_email(
     summary="Get current authenticated user",
 )
 async def get_me(
-    current_user: User = Depends(get_current_active_user),
+    current_user: User = Depends(get_current_authenticated_user),
     db: AsyncSession = Depends(get_db),
 ) -> AuthUserResponse:
     return await UserService(db).build_auth_user_response(current_user)

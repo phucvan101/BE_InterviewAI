@@ -14,7 +14,7 @@ class AnalysisSessionRepository:
         Return: {jd_raw_text, cv_file_path} hoặc None
         """
         query = text("""
-            SELECT as1.jd_raw_text, as1.id_cv
+            SELECT as1.jd_raw_text, as1.id_cv, as1.user_id
             FROM analysis_sessions as1
             WHERE as1.id_session = :session_id
         """)
@@ -24,7 +24,7 @@ class AnalysisSessionRepository:
         if not session:
             return None
 
-        jd_text, cv_id = session
+        jd_text, cv_id, user_id = session
 
         cv_query = select(CVProfile).where(CVProfile.id_cv == cv_id)
         cv_result = await self.db.execute(cv_query)
@@ -37,4 +37,5 @@ class AnalysisSessionRepository:
             "jd_raw_text": jd_text,
             "cv_file_path": cv_profile.raw_file_url,
             "session_id": session_id,
+            "user_id": user_id,
         }

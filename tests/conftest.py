@@ -21,6 +21,7 @@ from app.core.config import settings
 from app.core.database import Base
 from app.core.database import get_db as prod_get_db
 from app.core.dependencies import get_current_active_user as prod_get_current_active_user
+from app.core.dependencies import get_current_authenticated_user as prod_get_current_authenticated_user
 from app.feature.auth.models.user import User
 from app.feature.conversation.router import api_router as conversation_router
 
@@ -101,8 +102,12 @@ async def app(session: AsyncSession, test_user: User) -> FastAPI:
     async def override_get_current_active_user() -> User:
         return test_user
 
+    async def override_get_current_authenticated_user() -> User:
+        return test_user
+
     app.dependency_overrides[prod_get_db] = override_get_db
     app.dependency_overrides[prod_get_current_active_user] = override_get_current_active_user
+    app.dependency_overrides[prod_get_current_authenticated_user] = override_get_current_authenticated_user
     return app
 
 

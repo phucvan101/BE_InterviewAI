@@ -88,6 +88,8 @@ InterviewApi/
 | POST   | `/api/v1/conversations/{session_id}/analysis-report` | ✅       | Kết thúc phỏng vấn và tạo báo cáo phân tích  |
 | GET    | `/api/v1/conversations/{session_id}/analysis-report` | ✅       | Lấy lại báo cáo phân tích đã tạo             |
 | GET    | `/api/v1/conversations/{session_id}/cv-preview`      | ✅       | Preview file CV gốc dạng PDF inline          |
+| POST   | `/api/v1/speech/stt`                                 | ✅       | STT bằng OpenAI `gpt-4o-mini-transcribe`     |
+| POST   | `/api/v1/speech/tts`                                 | ✅       | TTS bằng OpenAI `gpt-4o-mini-tts`            |
 | GET    | `/api/v1/auth/google/login`                          | ❌       | Redirect tới Google OAuth                    |
 | GET    | `/api/v1/auth/google/url`                            | ❌       | Lấy Google OAuth consent URL                 |
 | GET    | `/api/v1/auth/google/callback`                       | ❌       | Callback exchange code → token + redirect FE |
@@ -124,6 +126,7 @@ Các biến quan trọng đang dùng trong code:
 - `GOOGLE_AUTH_URI`, `GOOGLE_TOKEN_URI`, `GOOGLE_TOKENINFO_URI`
 - `GOOGLE_ALLOWED_ISSUERS`, `GOOGLE_SCOPES`
 - `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASSWORD`, `SMTP_FROM_EMAIL`, `SMTP_FROM_NAME` (đã có cấu hình, chưa dùng trong code hiện tại)
+- `OPENAI_API_KEY`, `OPENAI_STT_MODEL`, `OPENAI_TTS_MODEL`
 - `GEMINI_API_KEY`, `MODEL_NAME`
 - `GEMINI_REPORT_API_KEY`, `AI_REPORT_API_KEY`, `REPORT_MODEL_NAME` (tuỳ chọn, dùng riêng cho báo cáo phân tích phỏng vấn)
 
@@ -153,6 +156,10 @@ DEFAULT_ADMIN_FULL_NAME=Admin 2
 GOOGLE_CLIENT_ID=your-client-id
 GOOGLE_CLIENT_SECRET=your-client-secret
 GOOGLE_REDIRECT_URI=http://localhost:8000/api/v1/auth/google/callback
+
+OPENAI_API_KEY=your-openai-api-key
+OPENAI_STT_MODEL=gpt-4o-mini-transcribe
+OPENAI_TTS_MODEL=gpt-4o-mini-tts
 ```
 
 Tạo hoặc khôi phục tài khoản admin từ cấu hình `.env`:

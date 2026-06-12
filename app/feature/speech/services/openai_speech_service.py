@@ -1,0 +1,97 @@
+import inspect
+from io import BytesIO
+
+from app.core.config import settings
+
+
+class SpeechServiceConfigurationError(RuntimeError):
+    pass
+
+
+class OpenAISpeechService:
+    def __init__(self) -> None:
+        self.stt_model = settings.OPENAI_STT_MODEL
+        self.tts_model = settings.OPENAI_TTS_MODEL
+
+    def _client(self):
+        if not settings.OPENAI_API_KEY:
+            raise SpeechServiceConfigurationError("Thiếu OPENAI_API_KEY")
+
+        try:
+            from openai import AsyncOpenAI
+        except ImportError as exc:
+            raise SpeechServiceConfigurationError(
+                "Chưa cài dependency openai; hãy chạy `pip install -r requirements.txt`"
+            ) from exc
+
+        return AsyncOpenAI(api_key=settings.OPENAI_API_KEY)
+
+    async def transcribe(
+        self,
+        *,
+        audio_bytes: bytes,
+        filename: str,
+        content_type: str,
+        language: str | None = None,
+        prompt: str | None = None,
+    ) -> str:
+        client = self._client()
+        audio_file = (filename, BytesIO(audio_bytes), content_type)
+        params = {
+            "model": self.stt_model,
+            "file": audio_file,
+            "response_format": "json",
+        }
+        if language:
+            params["language"] = language
+        if prompt:
+            params["prompt"] = prompt
+
+        transcription = await client.audio.transcriptions.create(**params)
+        text = getattr(transcription, "text", None)
+        if text is None and isinstance(transcription, dict):
+            text = transcription.get("text")
+        return (text or "").strip()
+
+    async def create_speech(
+        self,
+        *,
+        text: str,
+        voice: str,
+        response_format: str,
+        instructions: str | None = None,
+    ) -> bytes:
+        client = self._client()
+        params = {
+            "model": self.tts_model,
+            "voice": voice,
+            "input": text,
+            "response_format": response_format,
+        }
+        if instructions:
+            params["instructions"] = instructions
+
+        response = await client.audio.speech.create(**params)
+        return await self._read_response_bytes(response)
+
+    async def _read_response_bytes(self, response) -> bytes:
+        if isinstance(response, bytes):
+            return response
+
+        if hasattr(response, "aread"):
+            data = response.aread()
+            if inspect.isawaitable(data):
+                return await data
+            return data
+
+        if hasattr(response, "read"):
+            data = response.read()
+            if inspect.isawaitable(data):
+                return await data
+            return data
+
+        content = getattr(response, "content", None)
+        if content is not None:
+            return content
+
+        raise TypeError("Unsupported OpenAI speech response type")
