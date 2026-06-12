@@ -1,4 +1,5 @@
 import inspect
+from collections.abc import AsyncIterator
 from io import BytesIO
 
 from app.core.config import settings
@@ -9,6 +10,8 @@ class SpeechServiceConfigurationError(RuntimeError):
 
 
 class OpenAISpeechService:
+    speech_stream_chunk_size = 64 * 1024
+
     def __init__(self) -> None:
         self.stt_model = settings.OPENAI_STT_MODEL
         self.tts_model = settings.OPENAI_TTS_MODEL
@@ -73,6 +76,59 @@ class OpenAISpeechService:
 
         response = await client.audio.speech.create(**params)
         return await self._read_response_bytes(response)
+
+    def create_speech_stream(
+        self,
+        *,
+        text: str,
+        voice: str,
+        response_format: str,
+        instructions: str | None = None,
+    ) -> AsyncIterator[bytes]:
+        client = self._client()
+        params = {
+            "model": self.tts_model,
+            "voice": voice,
+            "input": text,
+            "response_format": response_format,
+        }
+        if instructions:
+            params["instructions"] = instructions
+
+        return self._stream_speech_response(client, params)
+
+    async def _stream_speech_response(self, client, params: dict) -> AsyncIterator[bytes]:
+        streaming_response = getattr(client.audio.speech, "with_streaming_response", None)
+        if streaming_response is not None:
+            async with streaming_response.create(**params) as response:
+                async for chunk in self._iter_response_chunks(response):
+                    yield chunk
+            return
+
+        response = await client.audio.speech.create(**params)
+        async for chunk in self._iter_response_chunks(response):
+            yield chunk
+
+    async def _iter_response_chunks(self, response) -> AsyncIterator[bytes]:
+        if isinstance(response, bytes):
+            yield response
+            return
+
+        if hasattr(response, "iter_bytes"):
+            chunks = response.iter_bytes(chunk_size=self.speech_stream_chunk_size)
+            if inspect.isasyncgen(chunks) or hasattr(chunks, "__aiter__"):
+                async for chunk in chunks:
+                    if chunk:
+                        yield chunk
+            else:
+                for chunk in chunks:
+                    if chunk:
+                        yield chunk
+            return
+
+        data = await self._read_response_bytes(response)
+        if data:
+            yield data
 
     async def _read_response_bytes(self, response) -> bytes:
         if isinstance(response, bytes):
