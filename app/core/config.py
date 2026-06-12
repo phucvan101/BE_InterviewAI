@@ -85,6 +85,10 @@ class Settings(BaseSettings):
     GOOGLE_REDIRECT_URI: Optional[str] = None
 
     # ── AI / Speech ──────────────────────────
+    OPENAI_API_KEY: Optional[str] = None
+    OPENAI_STT_MODEL: str = "gpt-4o-mini-transcribe"
+    OPENAI_TTS_MODEL: str = "gpt-4o-mini-tts"
+
     DEEPGRAM_API_KEY: Optional[str] = None
     DEEPGRAM_MODEL: str = "general"
 

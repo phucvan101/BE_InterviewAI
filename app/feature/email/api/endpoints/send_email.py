@@ -1,7 +1,8 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.dependencies import get_db
+from app.core.dependencies import get_current_active_user, get_db
+from app.feature.auth.models.user import User
 from app.feature.email.schema import SendEmailRequest, SendEmailResponse
 from app.feature.email.service import EmailApplicationService
 
@@ -14,6 +15,7 @@ router = APIRouter(
 @router.post("/send-job-application", response_model=SendEmailResponse)
 async def send_job_application(
     request: SendEmailRequest,
+    current_user: User = Depends(get_current_active_user),
     db: AsyncSession = Depends(get_db),
 ) -> SendEmailResponse:
     """
@@ -27,7 +29,10 @@ async def send_job_application(
     """
     try:
         service = EmailApplicationService(db)
-        success, message = await service.send_job_application(request.session_id)
+        success, message = await service.send_job_application(
+            request.session_id,
+            user_id=current_user.id,
+        )
 
         return SendEmailResponse(success=success, message=message)
 

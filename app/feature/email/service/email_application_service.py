@@ -22,7 +22,7 @@ class EmailApplicationService:
             except ImportError:
                 pass
 
-    async def send_job_application(self, session_id: int) -> tuple[bool, str]:
+    async def send_job_application(self, session_id: int, user_id: int | None = None) -> tuple[bool, str]:
         """
         Gửi email xin việc cho công ty dựa vào analysis session.
         Flow:
@@ -38,6 +38,9 @@ class EmailApplicationService:
 
             if not session_data:
                 return False, "Analysis session not found"
+
+            if user_id is not None and session_data.get("user_id") != user_id:
+                return False, "You do not have permission to send this CV"
 
             jd_text = session_data.get("jd_raw_text")
             cv_file_path = session_data.get("cv_file_path")

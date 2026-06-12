@@ -8,7 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
 from app.core.database import get_db
-from app.core.dependencies import get_current_active_user
+from app.core.dependencies import get_current_active_user, get_current_authenticated_user
 from app.feature.auth.models.user import User
 from app.feature.conversation.schema import (
     CVPreview,
@@ -276,7 +276,7 @@ async def list_conversations(
     page_size: int = Query(10, ge=1, le=100),
     status: str | None = Query(None),
     job_position: str | None = Query(None),
-    current_user: User = Depends(get_current_active_user),
+    current_user: User = Depends(get_current_authenticated_user),
     db: AsyncSession = Depends(get_db),
 ) -> ConversationPaginatedResponse:
     """
@@ -333,7 +333,7 @@ async def list_analysis_reports(
     page: int = Query(1, ge=1),
     page_size: int = Query(10, ge=1, le=100),
     status: str | None = Query(None),
-    current_user: User = Depends(get_current_active_user),
+    current_user: User = Depends(get_current_authenticated_user),
     db: AsyncSession = Depends(get_db),
 ) -> ConversationAnalysisReportPaginatedResponse:
     """
@@ -377,7 +377,7 @@ async def list_analysis_reports(
 )
 async def get_conversation(
     session_id: str,
-    current_user: User = Depends(get_current_active_user),
+    current_user: User = Depends(get_current_authenticated_user),
     db: AsyncSession = Depends(get_db),
 ) -> ConversationResponse:
     """Lấy thông tin chi tiết về một phiên phỏng vấn"""
@@ -691,7 +691,7 @@ def _build_analysis_report_response(
 )
 async def preview_conversation_cv(
     session_id: str,
-    current_user: User = Depends(get_current_active_user),
+    current_user: User = Depends(get_current_authenticated_user),
     db: AsyncSession = Depends(get_db),
 ) -> FileResponse:
     """
@@ -834,7 +834,7 @@ async def create_analysis_report(
 )
 async def get_analysis_report(
     session_id: str,
-    current_user: User = Depends(get_current_active_user),
+    current_user: User = Depends(get_current_authenticated_user),
     db: AsyncSession = Depends(get_db),
 ) -> ConversationAnalysisReportResponse:
     """
