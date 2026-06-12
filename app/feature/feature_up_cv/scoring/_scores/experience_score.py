@@ -26,6 +26,13 @@ from ._shared import (
     get_sim_calibration,
     qprefix,
     safe_cap,
+    is_overqualified,
+    compute_overqualified_penalty,
+    analyze_career_change,
+    compute_career_change_experience_penalty,
+    analyze_experience_quality,
+    validate_skills_context,
+    CareerChangeAnalysis,
 )
 
 logger = logging.getLogger(__name__)
@@ -530,6 +537,40 @@ def score_experience(
     penalty_factor = 1.0 - (domain_penalty * 0.6)  # Less aggressive penalty
     total_exp = round(min(raw_total * penalty_factor, 50.0), 2)
 
+    # ── v2: APPLY OVERQUALIFIED DETECTION ────────────────────────────────────────
+    # Fix for 90% cases where overqualified candidates get inflated scores
+    is_ovq, ovq_severity, ovq_reason = is_overqualified(
+        cv_data, jd_data, total_work_years, years_req
+    )
+    if is_ovq:
+        total_exp, ovq_penalty_reason = compute_overqualified_penalty(
+            is_ovq, ovq_severity, total_exp
+        )
+        logger.info(f"[OVERQUALIFIED] {ovq_reason} -> {ovq_penalty_reason}")
+
+    # ── v2: APPLY CAREER CHANGE DETECTION ────────────────────────────────────────
+    # Fix for 20% cases where career changers don't get proper penalty
+    career_change = analyze_career_change(cv_data, jd_data, skill_overlap)
+    if career_change.is_career_change:
+        exp_before_cc = total_exp
+        total_exp, cc_penalty_reason = compute_career_change_experience_penalty(
+            career_change, total_exp, skill_overlap
+        )
+        logger.info(f"[CAREER_CHANGE] {career_change.reason} -> {cc_penalty_reason}")
+        total_exp = max(0, min(total_exp, 50.0))
+
+    # ── v2: APPLY EXPERIENCE QUALITY ANALYSIS ────────────────────────────────────
+    # Quality over Quantity - don't just count years
+    quality_mult, quality_indicators, quality_concerns = analyze_experience_quality(
+        cv_data, jd_data, cv_domain, jd_domain
+    )
+    if quality_mult < 1.0:
+        # Apply quality adjustment
+        quality_adjusted = total_exp * (0.5 + 0.5 * quality_mult)
+        # Don't reduce too much, but signal the concern
+        if quality_concerns and total_exp > 30:
+            logger.info(f"[EXP_QUALITY] Concerns: {quality_concerns}")
+
     # ── 12. Features ───────────────────────────────────────────────
     try:
         features = build_experience_features(
@@ -550,37 +591,51 @@ def score_experience(
     # ── 13. Rationale ──────────────────────────────────────────────
     cert_info = f" (chứng chỉ liên quan: +{cert_bonus:.1f}đ)" if cert_bonus > 0 else ""
 
+    # Build rationale with v2 enhancements
+    rationale_parts = []
+
+    # Add overqualified info
+    if is_ovq:
+        rationale_parts.append(f"⚠️ {ovq_reason}")
+
+    # Add career change info
+    if career_change.is_career_change:
+        rationale_parts.append(f"⚠️ {career_change.reason}")
+
+    # Original domain/rationale logic
     if domain_penalty >= 0.7:
-        rationale = (
+        rationale_parts.append(
             f"Domain không phù hợp ({cv_domain} vs {jd_domain}). "
             f"Kinh nghiệm bị giảm mạnh ({int(domain_penalty*100)}% penalty). "
             f"{penalty_reason}{cert_info}"
         )
     elif domain_penalty >= 0.4:
-        rationale = (
+        rationale_parts.append(
             f"Domain lệch một phần ({cv_domain} vs {jd_domain}). "
             f"Kinh nghiệm bị giảm {int(domain_penalty*100)}%. "
             f"{penalty_reason}{cert_info}"
         )
     elif domain_penalty > 0:
-        rationale = f"Domain gần nhau, penalty nhẹ {int(domain_penalty*100)}%. {penalty_reason}{cert_info}"
+        rationale_parts.append(f"Domain gần nhau, penalty nhẹ {int(domain_penalty*100)}%. {penalty_reason}{cert_info}")
     elif is_entry_level and project_years > 0:
         avg_rel = (
             sum(project_relevance_scores) / len(project_relevance_scores)
             if project_relevance_scores else 0.0
         )
-        rationale = (
+        rationale_parts.append(
             f"JD Intern/Fresher — dự án cá nhân là bằng chứng chính "
             f"(relevance trung bình: {avg_rel:.0%}).{cert_info}"
         )
     elif seniority_score >= 10:
-        rationale = f"Kinh nghiệm và cấp độ đạt yêu cầu.{cert_info}"
+        rationale_parts.append(f"Kinh nghiệm và cấp độ đạt yêu cầu.{cert_info}")
     elif seniority_score >= 5:
-        rationale = f"Kinh nghiệm gần đạt yêu cầu.{cert_info}"
+        rationale_parts.append(f"Kinh nghiệm gần đạt yêu cầu.{cert_info}")
     elif total_work_years > 0 or project_years > 0:
-        rationale = f"Kinh nghiệm thấp hơn yêu cầu (fresh grad / dự án cá nhân).{cert_info}"
+        rationale_parts.append(f"Kinh nghiệm thấp hơn yêu cầu (fresh grad / dự án cá nhân).{cert_info}")
     else:
-        rationale = f"Chưa có kinh nghiệm làm việc hoặc dự án liên quan.{cert_info}"
+        rationale_parts.append(f"Chưa có kinh nghiệm làm việc hoặc dự án liên quan.{cert_info}")
+
+    rationale = " | ".join(rationale_parts)
 
     return (
         total_exp,

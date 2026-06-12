@@ -13,6 +13,7 @@ from app.feature.admin.sessions.api.router import api_router as admin_sessions_r
 from app.feature.admin.dashboard.api.router import api_router as admin_dashboard_router
 from app.feature.feature_up_cv.auth.api.router import router as cv_router
 <<<<<<< HEAD
+<<<<<<< HEAD
 from app.feature.conversation.router import api_router as conversation_router
 <<<<<<< HEAD
 from app.feature.speech.api.router import api_router as speech_router
@@ -22,6 +23,8 @@ from app.feature.email.api.endpoints import router as email_router
 =======
 from app.feature.conversation.auth.api.router import router as conversation_router
 >>>>>>> 7a94a79 (thay đổi workflow conversation)
+=======
+>>>>>>> e65ccdf (Cải thiện agent feedback)
 from app.core.config import settings
 from app.core.database import init_db
 
@@ -40,7 +43,6 @@ import app.feature.auth.models  # noqa: F401
 import app.feature.audit.models  # noqa: F401
 import app.feature.admin.roles.models  # noqa: F401
 import app.feature.feature_up_cv.auth.models  # noqa: F401
-import app.feature.conversation.auth.models  # noqa: F401
 
 
 
@@ -86,12 +88,15 @@ def create_app() -> FastAPI:
     app.include_router(admin_sessions_router, prefix=settings.API_PREFIX)
     app.include_router(admin_dashboard_router, prefix=settings.API_PREFIX)
     app.include_router(cv_router, prefix=settings.API_PREFIX)
+<<<<<<< HEAD
     app.include_router(conversation_router, prefix=settings.API_PREFIX)
 <<<<<<< HEAD
     app.include_router(speech_router, prefix=settings.API_PREFIX)
     app.include_router(email_router, prefix=settings.API_PREFIX)
 =======
 >>>>>>> c2202c1 (rebase main)
+=======
+>>>>>>> e65ccdf (Cải thiện agent feedback)
 
     # ── Health check ─────────────────────────
     @app.get("/health", tags=["Health"])

@@ -61,6 +61,7 @@ from .response_builder import (
     AreaItem,
     RecommendationItem,
 )
+from ._rules_engine import apply_learned_rules
 
 
 # ── Main Entry Point ──────────────────────────────────────────────────────────────────
@@ -175,9 +176,26 @@ def calculate_hybrid_score(
 
         # ── [AGENT INJECTION] Áp dụng bài học (Learned Rules từ FAISS) ──
         if learned_knowledge and "rules" in learned_knowledge and learned_knowledge["rules"]:
-            rules_text = " | ".join(learned_knowledge["rules"])
-            # Ghi nhận vào rationale để FE / User thấy hệ thống đã học bài học này
-            exp_rationale += f"\n[Hệ thống AI đã tự động tham khảo bài học: {rules_text}]"
+            # Áp dụng learned rules để điều chỉnh scores
+            (
+                exp_score,
+                skills_score,
+                domain_penalty,
+                domain_penalty_reason,
+                rules_applied,
+            ) = apply_learned_rules(
+                cv_data=cv_data,
+                jd_data=jd_data,
+                learned_knowledge=learned_knowledge,
+                exp_score=exp_score,
+                skills_score=skills_score,
+                domain_penalty=domain_penalty,
+                domain_penalty_reason=domain_penalty_reason,
+                total_work_years=total_work_years,
+                project_years=project_years,
+            )
+            if rules_applied:
+                exp_rationale += f"\n[Hệ thống AI đã tự động điều chỉnh theo bài học: {rules_applied}]"
 
         # ── [AGENT INJECTION] Áp dụng điểm ghi đè (Score Override) ──
         if score_overrides:
@@ -360,6 +378,8 @@ def calculate_hybrid_score(
         "perfect_count": len(perfect_requirements),
         "relevant_count": len(relevant_requirements),
         "missing_count": len(missing_requirements),
+        # v2: Skills context validation info
+        "context_validation": skills_breakdown.get("context_validation", {}),
     }
 
     # ── 5. Build Final Response ──────────────────────────────────────────

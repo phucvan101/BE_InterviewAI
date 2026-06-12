@@ -9,6 +9,9 @@ Centralizes:
 - Domain penalty computation
 - SIM calibration cache
 - Scoring constants
+|- OVERQUALIFIED DETECTION (v2)
+|- CAREER CHANGE DETECTION (v2)
+|- EXPERIENCE QUALITY ANALYSIS (v2)
 """
 
 from __future__ import annotations
@@ -17,7 +20,7 @@ import json
 import logging
 import re
 from pathlib import Path
-from typing import Any, Dict, List, Set, Tuple
+from typing import Any, Dict, List, Set, Tuple, Optional
 
 import numpy as np
 
@@ -76,6 +79,26 @@ class ScoringConfig:
 
     RERANK_TOP_K: int = 3
     RERANK_WEIGHT: float = 0.60
+
+    # ── OVERQUALIFIED THRESHOLDS (v2) ────────────────────────────────────────────
+    OVERQUALIFIED_SCORE_CAP: float = 75.0  # FIXED: Increased from 70 to 75 for better scoring
+    OVERQUALIFIED_EXPERIENCE_RATIO: float = 2.0  # 2x more exp than required
+    OVERQUALIFIED_PENALTY: float = 0.15  # FIXED: Reduced from 0.20 to 0.15
+    OVERQUALIFIED_ABSOLUTE_CAP: float = 70.0  # FIXED: Increased from 65 to 70
+
+    # ── CAREER CHANGE PENALTIES (v2) ────────────────────────────────────────────
+    CAREER_CHANGE_SEVERE_PENALTY: float = 0.70  # Non-tech -> Tech
+    CAREER_CHANGE_MODERATE_PENALTY: float = 0.50  # Tech cross-field
+    CAREER_CHANGE_MILD_PENALTY: float = 0.20  # Within business domain
+
+    # ── EXPERIENCE QUALITY WEIGHTS (v2) ─────────────────────────────────────────
+    EXP_QUALITY_SAME_FIELD: float = 1.0  # Full weight
+    EXP_QUALITY_CROSS_FIELD: float = 0.6  # 60% weight for cross-field
+    EXP_QUALITY_CAREER_CHANGE: float = 0.3  # 30% weight for career change
+
+    # ── SKILLS CONTEXT PENALTIES (v2) ──────────────────────────────────────────
+    SKILLS_FROM_COURSE_PENALTY: float = 0.5  # Skills only from courses
+    SKILLS_FROM_PROJECT_PENALTY: float = 0.3  # Skills only from school projects
 
 
 SCORING_CONFIG = ScoringConfig()
@@ -349,6 +372,7 @@ def compute_domain_penalty(
     Compute domain penalty based on:
     - Industry domain match/mismatch
     - Skill overlap ratio
+    - v2: Enhanced for career change detection
 
     Returns (penalty_ratio, reason_string).
     penalty_ratio: 0.0 (no penalty) → 1.0 (full penalty).
@@ -359,6 +383,8 @@ def compute_domain_penalty(
         "tech_data": "tech",
         "tech_devops": "tech",
         "tech_security": "tech",
+        "tech_mobile": "tech",
+        "tech_qa": "tech",
         "sales": "business",
         "marketing": "business",
         "finance": "business",
@@ -367,16 +393,19 @@ def compute_domain_penalty(
         "healthcare": "business",
         "education": "business",
         "design": "business",
+        "management": "business",
     }
     cv_family = _DOMAIN_FAMILY.get(cv_domain, cv_domain)
     jd_family = _DOMAIN_FAMILY.get(jd_domain, jd_domain)
 
     _TECH_SUBFAMILY = {
         "tech_ai": {"tech_ai"},
-        "tech_software": {"tech_software"},
+        "tech_software": {"tech_software", "tech_backend", "tech_frontend", "tech_fullstack"},
         "tech_data": {"tech_data"},
         "tech_devops": {"tech_devops"},
         "tech_security": {"tech_security"},
+        "tech_mobile": {"tech_mobile"},
+        "tech_qa": {"tech_qa"},
     }
     cv_sub = _TECH_SUBFAMILY.get(cv_domain, set())
     jd_sub = _TECH_SUBFAMILY.get(jd_domain, set())
@@ -391,10 +420,28 @@ def compute_domain_penalty(
         "healthcare": {"healthcare"},
         "education": {"education"},
         "design": {"design"},
+        "management": {"management"},
     }
     cv_bus = _BUSINESS_SUBFAMILY.get(cv_domain, set())
     jd_bus = _BUSINESS_SUBFAMILY.get(jd_domain, set())
     same_business_sub = bool(cv_bus and jd_bus and cv_bus == jd_bus)
+
+    # ── v2: ENHANCED CAREER CHANGE DETECTION ──────────────────────────────────
+    # Special handling for severe career changes
+    _NON_TECH_TO_TECH = {
+        "sales", "marketing", "finance", "hr", "operations",
+        "healthcare", "education", "design", "unknown"
+    }
+
+    if cv_domain in _NON_TECH_TO_TECH and jd_domain in _TECH_SUBFAMILY:
+        # NON-TECH -> TECH: Severe career change
+        if skill_overlap < 0.10:
+            return 0.85, f"[CRITICAL] Career change nghiêm trọng: {cv_domain} -> {jd_domain}, skill overlap rất thấp ({skill_overlap:.0%})."
+        if skill_overlap < 0.20:
+            return 0.75, f"[SEVERE] Career change: {cv_domain} -> {jd_domain}, skill overlap thấp ({skill_overlap:.0%})."
+        if skill_overlap < 0.35:
+            return 0.60, f"[MODERATE] Career change: {cv_domain} -> {jd_domain}, có một phần skill chung ({skill_overlap:.0%})."
+        return 0.40, f"[MILD] Career change: {cv_domain} -> {jd_domain}, có transferable skills ({skill_overlap:.0%})."
 
     if cv_domain == "unknown" and jd_domain == "unknown":
         return 0.0, "Không đủ dữ liệu để xác định domain; không áp dụng phạt domain."
@@ -417,11 +464,12 @@ def compute_domain_penalty(
 
     if cv_family == jd_family:
         if skill_overlap < 0.15:
-            return 0.85, f"Domain tech khac chuc nang ({cv_domain} vs {jd_domain}), skill overlap thap ({skill_overlap:.0%})."
+            return 0.85, f"Domain tech khác chức năng ({cv_domain} vs {jd_domain}), skill overlap thấp ({skill_overlap:.0%})."
         if skill_overlap < 0.30:
-            return 0.70, f"Domain tech khac chuc nang ({cv_domain} vs {jd_domain}), skill overlap thap ({skill_overlap:.0%})."
-        return 0.50, f"Domain tech khac chuc nang ({cv_domain} vs {jd_domain}), co mot phan skill chung ({skill_overlap:.0%})."
+            return 0.70, f"Domain tech khác chức năng ({cv_domain} vs {jd_domain}), skill overlap thấp ({skill_overlap:.0%})."
+        return 0.50, f"Domain tech khác chức năng ({cv_domain} vs {jd_domain}), có một phần skill chung ({skill_overlap:.0%})."
 
+    # Cross-family: Tech -> Business or Business -> Tech
     if skill_overlap < 0.1:
         return 0.85, f"Domain hoàn toàn khác ({cv_domain} vs {jd_domain}), skill overlap rất thấp ({skill_overlap:.0%})."
     if skill_overlap < 0.2:
@@ -483,3 +531,444 @@ _SCORE_RATIO = {
     MATCH_RELEVANT: 0.7,
     MATCH_MISS: 0.0,
 }
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# v2: OVERQUALIFIED DETECTION - Fix loi 90% cases
+# ══════════════════════════════════════════════════════════════════════════════
+
+def is_overqualified(
+    cv_data: dict,
+    jd_data: dict,
+    total_work_years: float,
+    years_req: float,
+) -> Tuple[bool, float, str]:
+    """
+    Detect if candidate is overqualified for the position.
+
+    Returns: (is_overqualified, severity, reason)
+
+    Severity:
+    - 0.0: Not overqualified
+    - 0.5: Mildly overqualified (1.5x-2x exp)
+    - 1.0: Severely overqualified (2x+ exp)
+    """
+    if years_req <= 0:
+        return False, 0.0, ""
+
+    jd_struct = jd_data.get("structured", jd_data)
+    seniority = (jd_struct.get("seniority") or "").lower()
+
+    # JD levels that are sensitive to overqualification
+    entry_level_keywords = ["intern", "fresher", "junior", "entry"]
+    mid_level_keywords = ["mid", "ii", "trung cấp"]
+
+    is_sensitive_level = any(kw in seniority for kw in entry_level_keywords + mid_level_keywords)
+
+    if not is_sensitive_level:
+        return False, 0.0, ""
+
+    exp_ratio = total_work_years / years_req if years_req > 0 else 0
+
+    # Determine severity
+    if exp_ratio >= 3.0:
+        severity = 1.0
+        reason = f"Severely overqualified: {total_work_years:.0f} năm kinh nghiệm (yêu cầu ~{years_req:.0f} năm, ratio={exp_ratio:.1f}x)"
+    elif exp_ratio >= 2.0:
+        severity = 0.7
+        reason = f"Overqualified: {total_work_years:.0f} năm kinh nghiệm (yêu cầu ~{years_req:.0f} năm, ratio={exp_ratio:.1f}x)"
+    elif exp_ratio >= 1.5:
+        severity = 0.5
+        reason = f"Mildly overqualified: {total_work_years:.0f} năm kinh nghiệm (yêu cầu ~{years_req:.0f} năm, ratio={exp_ratio:.1f}x)"
+    else:
+        return False, 0.0, ""
+
+    return True, severity, reason
+
+
+def compute_overqualified_penalty(
+    is_overqualified: bool,
+    severity: float,
+    base_score: float,
+) -> Tuple[float, str]:
+    """
+    Compute penalty for overqualified candidates.
+
+    Returns: (adjusted_score, reason)
+    """
+    if not is_overqualified:
+        return base_score, ""
+
+    config = SCORING_CONFIG
+
+    # Progressive penalty based on severity
+    if severity >= 1.0:
+        # Severe: cap at 65
+        capped_score = min(base_score, config.OVERQUALIFIED_ABSOLUTE_CAP)
+        penalty = base_score - capped_score
+        reason = f"Overqualified penalty: -{penalty:.1f} điểm (capped to {config.OVERQUALIFIED_ABSOLUTE_CAP})"
+    elif severity >= 0.7:
+        # Significant: cap at 70
+        capped_score = min(base_score, config.OVERQUALIFIED_SCORE_CAP)
+        penalty = base_score - capped_score
+        reason = f"Overqualified penalty: -{penalty:.1f} điểm (capped to {config.OVERQUALIFIED_SCORE_CAP})"
+    else:
+        # Mild: apply 15% penalty
+        penalty_ratio = config.OVERQUALIFIED_PENALTY * severity
+        adjusted = base_score * (1 - penalty_ratio)
+        capped_score = min(adjusted, config.OVERQUALIFIED_SCORE_CAP + 5)
+        reason = f"Overqualified penalty: -{penalty_ratio*100:.0f}% ({severity*100:.0f}% severity)"
+
+    return capped_score, reason
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# v2: CAREER CHANGE DETECTION - Fix loi 20% cases
+# ══════════════════════════════════════════════════════════════════════════════
+
+_CAREER_CHANGE_SEVERE_DOMAINS = {
+    "sales", "marketing", "finance", "hr", "operations",
+    "healthcare", "education", "design", "unknown"
+}
+
+_CAREER_CHANGE_TECH_DOMAINS = {
+    "tech_ai", "tech_backend", "tech_frontend", "tech_data",
+    "tech_devops", "tech_security", "tech_mobile", "tech_qa"
+}
+
+
+@dataclass
+class CareerChangeAnalysis:
+    """Result of career change detection."""
+    is_career_change: bool
+    severity: str  # "none", "mild", "moderate", "severe"
+    cv_domain: str
+    jd_domain: str
+    penalty_ratio: float
+    reason: str
+    transferable_skills: List[str]
+    gaps: List[str]
+
+
+def analyze_career_change(
+    cv_data: dict,
+    jd_data: dict,
+    skill_overlap: float,
+) -> CareerChangeAnalysis:
+    """
+    Analyze if this is a career change scenario and compute appropriate penalty.
+
+    Returns: CareerChangeAnalysis with severity and penalty ratio.
+    """
+    cv_domain = cv_data.get("domain", "unknown")
+    jd_struct = jd_data.get("structured", jd_data)
+    jd_domain = jd_struct.get("domain", "unknown")
+
+    # Determine career change type
+    cv_is_non_tech = cv_domain in _CAREER_CHANGE_SEVERE_DOMAINS
+    cv_is_tech = cv_domain in _CAREER_CHANGE_TECH_DOMAINS
+    jd_is_tech = jd_domain in _CAREER_CHANGE_TECH_DOMAINS
+
+    # Check for career change scenarios
+    if cv_is_non_tech and jd_is_tech:
+        # NON-TECH -> TECH (Most severe)
+        if skill_overlap < 0.15:
+            severity = "severe"
+            penalty_ratio = SCORING_CONFIG.CAREER_CHANGE_SEVERE_PENALTY
+            reason = f"Career change nghiêm trọng: {cv_domain} -> {jd_domain}, skill overlap rất thấp ({skill_overlap:.0%})"
+            gaps = ["Không có kinh nghiệm tech thực sự", "Skills chỉ từ khóa học/course", "Domain hoàn toàn khác"]
+        elif skill_overlap < 0.30:
+            severity = "moderate"
+            penalty_ratio = 0.55
+            reason = f"Career change vừa: {cv_domain} -> {jd_domain}, skill overlap thấp ({skill_overlap:.0%})"
+            gaps = ["Thiếu kinh nghiệm dev chính thức", "Skills từ tự học"]
+        else:
+            severity = "mild"
+            penalty_ratio = 0.30
+            reason = f"Career change nhẹ: {cv_domain} -> {jd_domain}, có một phần skill chung ({skill_overlap:.0%})"
+            gaps = ["Cần xác minh kinh nghiệm tech"]
+        transferable = ["Problem Solving", "Communication", "Leadership", "Project Management"]
+
+    elif cv_is_tech and jd_domain in ["sales", "marketing", "finance", "hr", "management"]:
+        # TECH -> BUSINESS (Moderate)
+        severity = "moderate"
+        penalty_ratio = 0.30
+        reason = f"Tech sang business: {cv_domain} -> {jd_domain}"
+        gaps = ["Thiếu kinh nghiệm nghiệp vụ chuyên môn"]
+        transferable = ["Technical Thinking", "System Design", "Data Analysis"]
+
+    elif cv_is_tech and jd_is_tech and cv_domain != jd_domain:
+        # TECH CROSS-FIELD (Mild to Moderate)
+        severity = "mild"
+        penalty_ratio = 0.15
+        reason = f"Tech cross-field: {cv_domain} -> {jd_domain}, có transferable skills"
+        gaps = []
+        transferable = ["Programming Logic", "System Architecture", "DevOps Practices"]
+
+    else:
+        # No significant career change
+        severity = "none"
+        penalty_ratio = 0.0
+        reason = ""
+        gaps = []
+        transferable = []
+
+    return CareerChangeAnalysis(
+        is_career_change=severity != "none",
+        severity=severity,
+        cv_domain=cv_domain,
+        jd_domain=jd_domain,
+        penalty_ratio=penalty_ratio,
+        reason=reason,
+        transferable_skills=transferable,
+        gaps=gaps
+    )
+
+
+def compute_career_change_experience_penalty(
+    career_change: CareerChangeAnalysis,
+    experience_score: float,
+    skill_overlap: float,
+) -> Tuple[float, str]:
+    """
+    Compute experience score adjustment for career change.
+
+    Returns: (adjusted_score, reason)
+    """
+    if not career_change.is_career_change:
+        return experience_score, ""
+
+    severity = career_change.severity
+    base_penalty = career_change.penalty_ratio
+
+    # Additional penalty based on skill overlap
+    if skill_overlap < 0.10:
+        # Very low overlap - increase penalty
+        adjusted_penalty = min(base_penalty + 0.15, 0.85)
+    elif skill_overlap < 0.20:
+        adjusted_penalty = base_penalty
+    else:
+        # Higher overlap - reduce penalty slightly
+        adjusted_penalty = base_penalty * 0.8
+
+    adjusted_score = experience_score * (1 - adjusted_penalty)
+
+    # Absolute caps based on severity
+    if severity == "severe":
+        adjusted_score = min(adjusted_score, 25.0)
+    elif severity == "moderate":
+        adjusted_score = min(adjusted_score, 35.0)
+    else:
+        adjusted_score = min(adjusted_score, 45.0)
+
+    reason = f"Career change penalty: -{adjusted_penalty*100:.0f}% ({severity})"
+
+    return adjusted_score, reason
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# v2: EXPERIENCE QUALITY ANALYSIS - Quality over Quantity
+# ══════════════════════════════════════════════════════════════════════════════
+
+_EXP_QUALITY_TECH_KEYWORDS = {
+    "developer", "engineer", "programmer", "architect",
+    "devops", "sre", "data engineer", "ml engineer", "ai engineer",
+    "backend", "frontend", "fullstack", "mobile", "qa", "test"
+}
+
+_EXP_QUALITY_CONTEXT_KEYWORDS = {
+    # Tech context keywords in work experience
+    "production", "deployment", "api", "microservice", "database",
+    "pipeline", "infrastructure", "architecture", "performance",
+    # Non-tech context (weak evidence)
+    "customer", "sales", "marketing", "hr", "accounting",
+    "recruitment", "training", "presentation"
+}
+
+
+def analyze_experience_quality(
+    cv_data: dict,
+    jd_data: dict,
+    cv_domain: str,
+    jd_domain: str,
+) -> Tuple[float, List[str], List[str]]:
+    """
+    Analyze the quality of experience (not just quantity).
+
+    Returns: (quality_multiplier, quality_indicators, concerns)
+    """
+    work_experience = cv_data.get("work_experience", [])
+
+    if not work_experience:
+        return 0.5, [], ["Không có kinh nghiệm làm việc"]
+
+    quality_indicators = []
+    concerns = []
+
+    # 1. Check if job titles contain tech keywords
+    tech_title_count = 0
+    for exp in work_experience:
+        title = exp.get("title", "").lower()
+        highlights = " ".join(exp.get("highlights", [])).lower()
+
+        has_tech_title = any(kw in title for kw in _EXP_QUALITY_TECH_KEYWORDS)
+        has_tech_context = any(kw in highlights for kw in _EXP_QUALITY_TECH_KEYWORDS)
+        has_weak_context = any(kw in highlights for kw in _EXP_QUALITY_CONTEXT_KEYWORDS)
+
+        if has_tech_title:
+            tech_title_count += 1
+            quality_indicators.append(f"Job title '{title}' chứa keywords tech")
+
+        if has_tech_context and not has_weak_context:
+            quality_indicators.append(f"Highlights chứa ngữ cảnh tech: {title}")
+
+        if has_weak_context and not has_tech_context:
+            concerns.append(f"Kinh nghiệm ở '{title}' không có ngữ cảnh tech rõ ràng")
+
+    # 2. Check domain alignment of experience
+    exp_domains = set()
+    for exp in work_experience:
+        # Infer domain from title
+        title = exp.get("title", "").lower()
+        if any(kw in title for kw in ["data", "analytics"]):
+            exp_domains.add("tech_data")
+        elif any(kw in title for kw in ["frontend", "ui", "ux", "web"]):
+            exp_domains.add("tech_frontend")
+        elif any(kw in title for kw in ["backend", "server", "api"]):
+            exp_domains.add("tech_backend")
+        elif any(kw in title for kw in ["devops", "sre", "infrastructure"]):
+            exp_domains.add("tech_devops")
+        elif any(kw in title for kw in ["ml", "ai", "machine learning"]):
+            exp_domains.add("tech_ai")
+        elif any(kw in title for kw in ["qa", "test", "quality"]):
+            exp_domains.add("tech_qa")
+        elif any(kw in title for kw in ["sales", "account", "customer"]):
+            exp_domains.add("sales")
+        elif any(kw in title for kw in ["market", "campaign", "brand"]):
+            exp_domains.add("marketing")
+
+    # 3. Compute quality multiplier
+    jd_struct = jd_data.get("structured", jd_data)
+    jd_domain_actual = jd_struct.get("domain", "unknown")
+
+    tech_ratio = tech_title_count / max(len(work_experience), 1)
+
+    # Base quality multiplier
+    if jd_domain_actual in _CAREER_CHANGE_TECH_DOMAINS:
+        # JD is tech role
+        if tech_ratio >= 0.8:
+            quality_multiplier = 1.0  # Full quality
+        elif tech_ratio >= 0.5:
+            quality_multiplier = 0.7  # Partial tech
+        else:
+            quality_multiplier = 0.4  # Mostly non-tech
+
+        if jd_domain_actual not in exp_domains and exp_domains:
+            # Experience in different tech subfield
+            quality_multiplier *= 0.8
+
+    elif jd_domain_actual in ["sales", "marketing", "finance", "hr", "management"]:
+        # JD is business role
+        if exp_domains & _CAREER_CHANGE_TECH_DOMAINS:
+            # Has tech experience
+            quality_multiplier = 0.8
+            quality_indicators.append("Có kinh nghiệm tech, có thể transfer sang business")
+        else:
+            quality_multiplier = 1.0  # Full quality for business role
+
+    else:
+        quality_multiplier = 1.0  # Default
+
+    return quality_multiplier, quality_indicators, concerns
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# v2: SKILLS CONTEXT VALIDATION - Validate skill context
+# ══════════════════════════════════════════════════════════════════════════════
+
+_SKILLS_FROM_COURSE_PATTERNS = [
+    "khóa học", "course", "training", "online", "certification",
+    "học viên", "student", "bootcamp", "self-taught", "tự học"
+]
+
+_SKILLS_STRONG_CONTEXT_PATTERNS = [
+    "production", "deployed", "implemented", "developed", "built",
+    "maintained", "led", "architected", "optimized", "scaled"
+]
+
+
+def validate_skills_context(
+    cv_data: dict,
+    jd_data: dict,
+) -> Tuple[float, List[str], List[str]]:
+    """
+    Validate if skills are from real work context or just courses/projects.
+
+    Returns: (context_multiplier, validations, warnings)
+    """
+    validations = []
+    warnings = []
+
+    work_experience = cv_data.get("work_experience", [])
+    projects = cv_data.get("projects", [])
+    # Normalize skills before comparison
+    skills = set(normalize_skill_key(s) for s in cv_data.get("skills", []))
+    # Remove empty strings
+    skills = {s for s in skills if s}
+
+    # 1. Check if skills appear in work experience (with normalization)
+    skills_in_work = set()
+    for exp in work_experience:
+        exp_text = " ".join([
+            exp.get("title", ""),
+            exp.get("company", ""),
+            " ".join(exp.get("highlights", []))
+        ]).lower()
+
+        for skill in skills:
+            # Check both exact match and partial match for better coverage
+            if skill in exp_text:
+                skills_in_work.add(skill)
+
+    # 2. Check if skills only from projects/courses
+    skills_from_projects = set()
+    for proj in projects:
+        proj_text = " ".join([
+            proj.get("name", ""),
+            proj.get("description", ""),
+            " ".join(proj.get("technologies", []))
+        ]).lower()
+
+        for skill in skills:
+            if skill in proj_text:
+                skills_from_projects.add(skill)
+
+    # 3. Compute context multiplier
+    total_skills = len(skills)
+    work_covered = len(skills_in_work)
+    project_only = len(skills_from_projects - skills_in_work)
+
+    if total_skills == 0:
+        return 0.5, [], ["Không có skills nào"]
+
+    work_ratio = work_covered / total_skills
+    project_ratio = project_only / total_skills
+
+    # v2 FIX: Reduced penalties for better accuracy
+    # Determine context quality with more lenient thresholds
+    if work_ratio >= 0.5:
+        # FIXED: Changed from 0.7 to 0.5 for better senior candidate scoring
+        context_multiplier = 1.0
+        validations.append(f"Skills chủ yếu từ kinh nghiệm làm việc ({work_ratio:.0%})")
+    elif work_ratio >= 0.3:
+        # FIXED: Changed from 0.4 to 0.3, and penalty from 0.85 to 0.95
+        context_multiplier = 0.95
+        validations.append(f"Skills một phần từ kinh nghiệm ({work_ratio:.0%})")
+        if project_ratio > 0.3:
+            warnings.append(f"Một số skills chỉ từ projects ({project_ratio:.0%})")
+    else:
+        # FIXED: Changed from 0.7 to 0.85 for better scoring
+        context_multiplier = 0.85
+        warnings.append(f"Nhiều skills có thể chỉ từ khóa học/dự án ({1-work_ratio:.0%} không có trong work experience)")
+
+    return context_multiplier, validations, warnings

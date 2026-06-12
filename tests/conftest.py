@@ -26,10 +26,8 @@ from app.core.dependencies import get_current_authenticated_user as prod_get_cur
 =======
 >>>>>>> c2202c1 (rebase main)
 from app.feature.auth.models.user import User
-from app.feature.conversation.auth.api.router import router as conversation_router
 
 # Ensure models are imported and registered on Base.metadata
-import app.feature.conversation.auth.models  # noqa: F401,E402
 import app.feature.admin.roles.models  # noqa: F401,E402
 <<<<<<< HEAD
 import app.feature.feature_up_cv.auth.models  # noqa: F401,E402
@@ -94,7 +92,6 @@ async def test_user(session: AsyncSession) -> User:
 @pytest_asyncio.fixture()
 async def app(session: AsyncSession, test_user: User) -> FastAPI:
     app = FastAPI()
-    app.include_router(conversation_router, prefix=settings.API_PREFIX)
 
     async def override_get_db() -> AsyncIterator[AsyncSession]:
         try:

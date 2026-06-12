@@ -659,6 +659,21 @@ def score_skills(
     perfect_score = round(min(perfect_capped, total_score), 2)
     relevant_score = round(max(0.0, total_score - perfect_score), 2)
 
+    # ── v2: APPLY SKILLS CONTEXT VALIDATION ──────────────────────────────────────
+    # Fix for cases where skills match but context is wrong (e.g., Designer with JS)
+    from ._shared import validate_skills_context
+    context_mult, context_validations, context_warnings = validate_skills_context(cv_data, jd_data)
+    if context_mult < 1.0:
+        # Apply context penalty
+        total_score = total_score * (0.5 + 0.5 * context_mult)
+        perfect_score = perfect_score * (0.5 + 0.5 * context_mult)
+        relevant_score = relevant_score * (0.5 + 0.5 * context_mult)
+        total_score = round(min(total_score, max_skills), 2)
+        perfect_score = round(min(perfect_score, total_score), 2)
+        relevant_score = round(max(0.0, total_score - perfect_score), 2)
+        logger.info(f"[SKILLS_CONTEXT] Validations: {context_validations}")
+        logger.warning(f"[SKILLS_CONTEXT] Warnings: {context_warnings}")
+
     # Build structured requirement lists
     _EXCLUDED_CATEGORIES = {"education", "degree", "academic", "soft_skill"}
 
@@ -755,6 +770,12 @@ def score_skills(
         "important_matched": important_matched,
         "important_total": important_total,
         "domain_cap_applied": total_score < round(raw_skills, 2),
+        # v2: Skills context validation
+        "context_validation": {
+            "context_multiplier": context_mult if 'context_mult' in dir() else 1.0,
+            "validations": context_validations if 'context_validations' in dir() else [],
+            "warnings": context_warnings if 'context_warnings' in dir() else [],
+        }
     }
 
     return (
