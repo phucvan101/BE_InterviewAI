@@ -18,7 +18,7 @@ from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
-from app.core.dependencies import get_current_active_user
+from app.core.dependencies import get_current_active_user, get_current_authenticated_user
 from app.feature.auth.models.user import User
 from app.feature.feature_up_cv.file_storage import (
     compute_text_hash,
@@ -667,7 +667,7 @@ async def analyze_cv_jd_match(
 )
 async def get_analysis_session(
     id_session: int,
-    current_user: User = Depends(get_current_active_user),
+    current_user: User = Depends(get_current_authenticated_user),
     db: AsyncSession = Depends(get_db),
 ) -> AnalysisSessionResponse:
     """

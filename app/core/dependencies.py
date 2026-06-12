@@ -52,6 +52,14 @@ async def get_current_active_user(
     return current_user
 
 
+async def get_current_authenticated_user(
+    current_user: User = Depends(get_current_user),
+) -> User:
+    if current_user.is_deleted:
+        raise HTTPException(status_code=400, detail="Deleted user")
+    return current_user
+
+
 async def get_current_superuser(
     current_user: User = Depends(get_current_active_user),
 ) -> User:
