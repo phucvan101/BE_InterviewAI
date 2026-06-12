@@ -54,6 +54,11 @@ class SynonymManager:
             if updated:
                 with open(self.yaml_path, 'w', encoding='utf-8') as f:
                     self.yaml.dump(data, f)
+                try:
+                    from app.feature.feature_up_cv.scoring._scores._shared import reload_skill_synonyms
+                    reload_skill_synonyms()
+                except Exception as e:
+                    logger.warning(f"[SynonymManager] Could not reload runtime synonyms: {e}")
                 logger.info(f"[SynonymManager] Successfully updated {self.yaml_path.name}")
                 return True
             

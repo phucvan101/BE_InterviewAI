@@ -6,6 +6,7 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
 class ConversationBase(BaseModel):
+    job_position: Optional[str] = Field(default=None, description="Vị trí ứng tuyển")
     job_description: Optional[str] = Field(default=None, description="Job description")
     cv_profile: Optional[str] = Field(default=None, description="CV profile của ứng viên")
 
@@ -35,6 +36,7 @@ class ConversationResponse(BaseModel):
     id: int
     session_id: str = Field(..., description="Unique session ID")
     user_id: int
+    job_position: str
     job_description: str
     cv_profile: str
     status: str
@@ -51,6 +53,7 @@ class ConversationListResponse(BaseModel):
     id: int
     session_id: str
     user_id: int
+    job_position: str
     status: str
     score: Optional[float] = None
     created_at: datetime

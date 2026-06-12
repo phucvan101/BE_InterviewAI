@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 import logging
+from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -7,11 +8,27 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.database import get_db
 from app.core.dependencies import get_current_active_user
 from app.feature.auth.models.user import User
+from app.feature.conversation.auth.models.conversation import ConversationStatus
+from app.feature.conversation.auth.models.conversation_analysis_report import ConversationAnalysisReport
 from app.feature.conversation.auth.schemas import InterviewResultResponse
 from app.feature.conversation.auth.services import ConversationService
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
+
+
+def _calculate_grade(score: float) -> tuple[str, str]:
+    """Calculate grade and level from score."""
+    if score >= 85:
+        return "A", "Xuất sắc"
+    elif score >= 70:
+        return "B", "Tốt"
+    elif score >= 50:
+        return "C", "Trung bình"
+    elif score >= 30:
+        return "D", "Yếu"
+    else:
+        return "F", "Không đạt"
 
 
 @router.post(
@@ -42,11 +59,11 @@ async def end_interview(
             detail="Bạn không có quyền truy cập phiên phỏng vấn này",
         )
 
-    if conversation.status != "active":
-        logger.warning(f"[end_interview] Conversation not active: session_id={session_id}")
+    if conversation.status == ConversationStatus.COMPLETED:
+        logger.warning(f"[end_interview] Interview already completed: session_id={session_id}")
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Phiên phỏng vấn không còn hoạt động",
+            detail="Phiên phỏng vấn đã kết thúc",
         )
 
     try:
@@ -57,15 +74,56 @@ async def end_interview(
             job_description=conversation.job_description,
             cv_profile=conversation.cv_profile,
             conversation_id=conversation.id,
+            db=db,
+            analysis_result=conversation.analysis_data,
         )
 
         score = evaluation.get("fit_score", 0)
-        logger.info(f"[end_interview] Interview evaluation complete: score={score}")
-        await service.end_conversation(
-            conversation.id,
-            result=evaluation,
-            score=score,
+        grade, level = _calculate_grade(score)
+
+        logger.info(f"[end_interview] Interview evaluation complete: score={score}, grade={grade}")
+
+        conversation.status = ConversationStatus.COMPLETED
+        conversation.ended_at = datetime.now(timezone.utc)
+        if conversation.started_at:
+            duration_seconds = int((conversation.ended_at - conversation.started_at).total_seconds())
+            conversation.interview_duration_seconds = duration_seconds
+
+        if conversation.result:
+            existing_result = conversation.result
+            try:
+                import json
+                existing_dict = json.loads(existing_result) if isinstance(existing_result, str) else existing_result
+                evaluation = {**existing_dict, **evaluation}
+            except:
+                pass
+
+        conversation.result = evaluation if isinstance(evaluation, str) else str(evaluation)
+        conversation.score = score
+
+        conversation_report = ConversationAnalysisReport(
+            conversation_id=conversation.id,
+            status="completed",
+            overall_score=int(score),
+            overall_grade=grade,
+            level=level,
+            summary=evaluation.get("comments", evaluation.get("recommendation", "")),
+            tags=[],
+            scores={
+                "fit_score": score,
+                "cv_jd_score": conversation.analysis_data.get("overall_score", 0) if conversation.analysis_data else 0,
+            },
+            ai_coach_insights=[],
+            strengths=[{"text": s} for s in evaluation.get("strengths", [])],
+            weaknesses=[{"text": w} for w in evaluation.get("weaknesses", [])],
+            knowledge_gaps=[],
+            study_plan=[],
+            raw_ai_response=str(evaluation),
         )
+        db.add(conversation_report)
+
+        await db.flush()
+        await db.refresh(conversation)
         await db.commit()
 
         messages = await service.get_conversation_messages(conversation.id)

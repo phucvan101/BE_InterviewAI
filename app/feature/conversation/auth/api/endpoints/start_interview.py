@@ -31,6 +31,7 @@ async def start_interview(
 
     job_description = request.job_description
     cv_profile = request.cv_profile
+    analysis_data = None
 
     if request.session_id:
         session_service = AnalysisSessionService(db)
@@ -53,12 +54,22 @@ async def start_interview(
         job_description = analysis_session.jd_raw_text
         cv_profile = analysis_session.cv_raw_text
 
+        if analysis_session.result_analysis_file_url:
+            from app.feature.feature_up_cv.core.file_storage import load_result_analysis
+            import os
+            if os.path.exists(analysis_session.result_analysis_file_url):
+                analysis_data = load_result_analysis(analysis_session.result_analysis_file_url)
+                if analysis_data:
+                    logger.info(f"[start_interview] Loaded analysis data for session: {request.session_id}")
+
     conversation = await service.create_conversation(
         user_id=current_user.id,
         job_description=job_description or "",
         cv_profile=cv_profile or "",
         session_id=request.session_id,
+        analysis_data=analysis_data,
     )
     logger.info(f"[start_interview] Created conversation: session_id={conversation.session_id}, id={conversation.id}")
+    await db.flush()
     await db.commit()
     return ConversationResponse.model_validate(conversation)

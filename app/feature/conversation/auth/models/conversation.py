@@ -32,20 +32,21 @@ class ConversationStatus(str, Enum):
 class Conversation(Base):
     __tablename__ = "conversations"
 
-    # ── Primary key ──────────────────────────
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True, autoincrement=True)
 <<<<<<< HEAD:app/feature/conversation/model/conversation.py
     
     
 =======
 
+<<<<<<< HEAD
 >>>>>>> 7a94a79 (thay đổi workflow conversation):app/feature/conversation/auth/models/conversation.py
     # ── Session ID (UUID) ────────────────────
+=======
+>>>>>>> 3b04d59 (Cải thiện agent_feedback)
     session_id: Mapped[str] = mapped_column(
         String(36), unique=True, index=True, nullable=False, default=lambda: str(uuid.uuid4())
     )
 
-    # ── Foreign key ──────────────────────────
     user_id: Mapped[int] = mapped_column(Integer, ForeignKey("users.id"), nullable=False, index=True)
     analysis_session_id: Mapped[Optional[int]] = mapped_column(
         Integer,
@@ -61,20 +62,17 @@ class Conversation(Base):
 =======
 >>>>>>> 7a94a79 (thay đổi workflow conversation):app/feature/conversation/auth/models/conversation.py
 
-    # ── Interview Info ──────────────────────
     job_position: Mapped[str] = mapped_column(String(255), nullable=False)
     company_name: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     job_description: Mapped[str] = mapped_column(Text, nullable=False)
     cv_profile: Mapped[str] = mapped_column(Text, nullable=False)
 
-    # ── Status ──────────────────────────────
     status: Mapped[str] = mapped_column(String(20), default=ConversationStatus.ACTIVE, nullable=False)
 
-    # ── Interview result ────────────────────
     result: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     score: Mapped[Optional[float]] = mapped_column(nullable=True)
+    analysis_data: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)
 
-    # ── Interview timing ────────────────────
     started_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         default=lambda: datetime.now(timezone.utc),
@@ -90,6 +88,7 @@ class Conversation(Base):
         nullable=True,
     )
 
+<<<<<<< HEAD
     # ── Interview timing ────────────────────
     started_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
@@ -107,6 +106,8 @@ class Conversation(Base):
     )
 
     # ── Timestamps ──────────────────────────
+=======
+>>>>>>> 3b04d59 (Cải thiện agent_feedback)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         server_default=func.now(),
@@ -119,7 +120,6 @@ class Conversation(Base):
         nullable=False,
     )
 
-    # ── ORM Relationships ────────────────────
     user: Mapped["User"] = relationship(back_populates="conversations")
     messages: Mapped[list["ConversationMessage"]] = relationship(
         back_populates="conversation",

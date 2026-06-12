@@ -89,8 +89,37 @@ class SelfCorrectingFeedbackAgent:
         self.synonym_tool = YAMLAddingSynonymTool()
         self.faiss_tool = FAISSAddingRuleTool()
 
-    async def run(self, cv_text: str, jd_text: str, feedback_text: str) -> FeedbackEvaluation:
-        """Runs the LangChain agent loop to evaluate feedback and invoke tools."""
+    def apply_learning(self, evaluation: FeedbackEvaluation, feedback_text: str) -> bool:
+        """Persist learned synonyms/rules after the caller has accepted the feedback."""
+        if not evaluation.is_valid_complaint:
+            logger.info("[LangChain Agent] Complaint is invalid. Skipping learning tools.")
+            return False
+
+        applied = False
+
+        if evaluation.new_synonyms:
+            tool_result = self.synonym_tool.run(evaluation.new_synonyms)
+            logger.info(f"[LangChain Agent] Tool: {tool_result}")
+            applied = True
+
+        if evaluation.learned_rule:
+            tool_result = self.faiss_tool.run(
+                rule_text=evaluation.learned_rule,
+                context=feedback_text,
+            )
+            logger.info(f"[LangChain Agent] Tool: {tool_result}")
+            applied = True
+
+        return applied
+
+    async def run(
+        self,
+        cv_text: str,
+        jd_text: str,
+        feedback_text: str,
+        apply_learning: bool = False,
+    ) -> FeedbackEvaluation:
+        """Evaluate feedback; optionally persist learning after parsing."""
         logger.info("[LangChain Agent] Starting feedback analysis...")
         
         # 1. Format prompt
@@ -107,25 +136,12 @@ class SelfCorrectingFeedbackAgent:
         # 3. Parse output to structured Pydantic model
         parsed_output: FeedbackEvaluation = self.parser.parse(raw_response)
         
-        # 4. Trigger Tools conditionally based on Agent's decisions
-        if parsed_output.is_valid_complaint:
-            logger.info("[LangChain Agent] Complaint is valid! Executing tools...")
-            
-            # Action A: Add Synonyms if proposed
-            if parsed_output.new_synonyms:
-                tool_result = self.synonym_tool.run(parsed_output.new_synonyms)
-                logger.info(f"[LangChain Agent] Tool: {tool_result}")
-            
-            # Action B: Add Learned Rule to FAISS if proposed
-            if parsed_output.learned_rule:
-                tool_result = self.faiss_tool.run(
-                    rule_text=parsed_output.learned_rule,
-                    context=feedback_text
-                )
-                logger.info(f"[LangChain Agent] Tool: {tool_result}")
-                
+        if apply_learning:
+            self.apply_learning(parsed_output, feedback_text)
+        elif parsed_output.is_valid_complaint:
+            logger.info("[LangChain Agent] Complaint is valid. Learning is deferred to caller.")
         else:
-            logger.info("[LangChain Agent] Complaint is marked invalid by LLM. Skipping tools.")
+            logger.info("[LangChain Agent] Complaint is marked invalid by LLM.")
             
         return parsed_output
 

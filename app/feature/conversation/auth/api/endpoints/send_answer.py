@@ -6,6 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
 from app.core.dependencies import get_current_active_user
+from app.feature.conversation.auth.api.endpoints.rate_limiter import require_question_rate_limit
 from app.feature.auth.models.user import User
 from app.feature.conversation.auth.schemas import SendCandidateAnswerRequest, GetNextQuestionResponse
 from app.feature.conversation.auth.services import ConversationService
@@ -25,6 +26,8 @@ async def send_answer(
     current_user: User = Depends(get_current_active_user),
     db: AsyncSession = Depends(get_db),
 ) -> GetNextQuestionResponse:
+    require_question_rate_limit(current_user.id)
+
     logger.debug(f"[send_answer] Receiving answer for session_id={session_id}")
     service = ConversationService(db)
     conversation = await service.get_conversation_by_session_id(session_id)
@@ -65,6 +68,8 @@ async def send_answer(
             job_description=conversation.job_description,
             cv_profile=conversation.cv_profile,
             conversation_id=conversation.id,
+            db=db,
+            analysis_result=conversation.analysis_data,
             previous_answer=request.answer,
         )
 
