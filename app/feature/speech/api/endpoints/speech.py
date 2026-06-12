@@ -1,7 +1,7 @@
 import logging
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
-from fastapi.responses import Response
+from fastapi.responses import StreamingResponse
 
 from app.core.dependencies import get_current_active_user
 from app.feature.auth.models.user import User
@@ -65,11 +65,11 @@ async def speech_to_text(
 async def text_to_speech(
     request: TextToSpeechRequest,
     current_user: User = Depends(get_current_active_user),
-) -> Response:
+) -> StreamingResponse:
     del current_user
     service = OpenAISpeechService()
     try:
-        audio_bytes = await service.create_speech(
+        audio_chunks = service.create_speech_stream(
             text=request.text,
             voice=request.voice,
             response_format=request.response_format,
@@ -88,10 +88,11 @@ async def text_to_speech(
         ) from exc
 
     media_type = request.media_type
-    return Response(
-        content=audio_bytes,
+    return StreamingResponse(
+        audio_chunks,
         media_type=media_type,
         headers={
+            "Cache-Control": "no-store",
             "Content-Disposition": f'inline; filename="speech.{request.response_format}"',
             "X-Speech-Model": service.tts_model,
         },
