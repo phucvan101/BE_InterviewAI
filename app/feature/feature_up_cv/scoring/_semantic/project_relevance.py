@@ -19,7 +19,6 @@ import numpy as np
 from app.feature.feature_up_cv.vector_search.embedding_service import EmbeddingService
 
 from .._scores._shared import (
-    SCORING_CONFIG,
     _PROJECT_TECH_EQUIVALENTS,
     expand_proj_tech,
     get_sim_calibration,
@@ -166,50 +165,12 @@ def compute_project_relevance(
         relevance_scores.append(float(np.clip(relevance, 0.0, 1.0)))
         descriptions.append(proj_texts[i])
 
-    # ── Optional: cross-encoder reranking for top-K candidates ─────────
-    if use_reranker and len(relevance_scores) > 0:
-        _apply_reranking(
-            relevance_scores, proj_texts, resp_text, embedder,
-            top_k=min(SCORING_CONFIG.RERANK_TOP_K, len(relevance_scores)),
-        )
-
     # ── Compute total project years ────────────────────────────────────
     total_years = 0.0
     for dur, rel in zip(durations, relevance_scores):
         total_years += dur * float(rel)
 
     return total_years, relevance_scores, descriptions
-
-
-def _apply_reranking(
-    relevance_scores: List[float],
-    proj_texts: List[str],
-    resp_text: str,
-    embedder: EmbeddingService,
-    top_k: int = 3,
-) -> None:
-    """Apply cross-encoder reranking in-place to top-K candidates."""
-    try:
-        from app.feature.feature_up_cv.scoring.cross_encoder_reranker import CrossEncoderReranker
-        ce = CrossEncoderReranker(model_name=SCORING_CONFIG.CE_MODEL_NAME)
-        top_idxs = list(np.argsort(relevance_scores)[::-1][:top_k])
-        candidates = [proj_texts[i] for i in top_idxs]
-        ce_raw = ce.score(resp_text, candidates)
-        if ce_raw:
-            ce_arr = np.array(ce_raw, dtype=float)
-            if float(np.ptp(ce_arr)) == 0.0:
-                ce_norm = np.full_like(ce_arr, 0.5)
-            else:
-                ce_norm = (ce_arr - ce_arr.min()) / float(np.ptp(ce_arr))
-            beta = float(np.clip(SCORING_CONFIG.RERANK_WEIGHT, 0.0, 1.0))
-            for idx, ce_score in zip(top_idxs, ce_norm.tolist()):
-                orig = relevance_scores[idx]
-                new_rel = float(
-                    np.clip(beta * orig + (1.0 - beta) * float(ce_score), 0.0, 1.0)
-                )
-                relevance_scores[idx] = new_rel
-    except Exception as e:
-        logger.debug("Reranker failed: %s", e)
 
 
 def _parse_years(start: str, end: str) -> float:

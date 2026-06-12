@@ -413,12 +413,10 @@ def match_criteria_to_cv(
             logger.warning(f"Criteria evidence embedding failed: {e}")
 
     results: List[Dict[str, Any]] = []
-    ce_reranker = None
 
     for j, criterion in enumerate(criteria):
         importance = normalize_importance(criterion.get("importance"))
         raw_status, evidence = find_exact_criterion_evidence(criterion, cv_skill_pool)
-        ce_score = None
         skip_embedding = False
 
         # Direct match found — PERFECT
@@ -501,24 +499,6 @@ def match_criteria_to_cv(
                 except Exception as e:
                     logger.debug(f"Semantic match failed for criterion {j}: {e}")
 
-            # Cross-encoder verification on RELEVANT_MATCH
-            if (match_status == MATCH_RELEVANT and evidence
-                    and SCORING_CONFIG.CE_VERIFY_ENABLED):
-                try:
-                    if ce_reranker is None:
-                        from app.feature.feature_up_cv.scoring.cross_encoder_reranker import CrossEncoderReranker
-                        ce_reranker = CrossEncoderReranker(model_name=SCORING_CONFIG.CE_MODEL_NAME)
-                    crit_text = criterion_texts[j]
-                    ce_score = ce_reranker.score(crit_text, [evidence])[0]
-                    if ce_score < SCORING_CONFIG.CE_VERIFICATION_THRESHOLD:
-                        match_status = MATCH_MISS
-                        evidence = ""
-                        best_sim = 0.0
-                    else:
-                        best_sim = float(min(best_sim, ce_score))
-                except Exception as _cev:
-                    logger.debug(f"CE verification error: {_cev}")
-
         score_ratio = _ScoreRatio.get(match_status, 0.0)
 
         reason_context = ""
@@ -544,7 +524,6 @@ def match_criteria_to_cv(
             "match_status": match_status,
             "score_ratio": score_ratio,
             "confidence": round(best_sim, 4),
-            "ce_score": round(ce_score, 4) if ce_score is not None else None,
             "cv_evidence": evidence,
             "reason": reason,
             "question_intent": criterion.get("question_intent", "validate_depth"),

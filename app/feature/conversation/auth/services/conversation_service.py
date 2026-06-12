@@ -23,7 +23,10 @@ class ConversationService:
         user_id: int,
         job_description: str,
         cv_profile: str,
+        job_position: str | None = None,
+        analysis_session_id: int | None = None,
         session_id: str | None = None,
+        analysis_data: dict | None = None,
     ) -> Conversation:
         if session_id:
             existing = await self.get_conversation_by_session_id(session_id)
@@ -32,9 +35,12 @@ class ConversationService:
 
         conversation_kwargs = {
             "user_id": user_id,
+            "analysis_session_id": analysis_session_id,
+            "job_position": (job_position or "").strip() or "General Interview",
             "job_description": job_description,
             "cv_profile": cv_profile,
             "status": ConversationStatus.ACTIVE,
+            "analysis_data": analysis_data,
         }
         if session_id:
             conversation_kwargs["session_id"] = session_id

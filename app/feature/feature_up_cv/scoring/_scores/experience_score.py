@@ -31,6 +31,122 @@ from ._shared import (
 logger = logging.getLogger(__name__)
 
 # ── Years Parsing ──────────────────────────────────────────────────────────────────
+def parse_duration_string(duration: str) -> float:
+    """
+    Parse duration string like '3 years', '6 months', '2.5 years', '1-2 years', etc.
+    Returns years as float.
+    """
+    if not duration or not isinstance(duration, str):
+        return 0.0
+
+    duration = duration.lower().strip()
+
+    # Match patterns like "3 years", "3.5 years", "3 year"
+    match = re.search(r'([\d.]+)\s*(?:-\s*[\d.]+)?\s*years?', duration)
+    if match:
+        return float(match.group(1))
+
+    # Match patterns like "6 months", "6 month"
+    match = re.search(r'(\d+)\s*(?:-\s*\d+)?\s*months?', duration)
+    if match:
+        return float(match.group(1)) / 12.0
+
+    return 0.0
+
+
+def infer_years_from_title(title: str) -> float:
+    """
+    Estimate years of experience from job title.
+    This is a fallback when dates are not available.
+    """
+    if not title or not isinstance(title, str):
+        return 0.0
+
+    title_lower = title.lower()
+
+    # Intern/Trainee
+    if any(k in title_lower for k in ['intern', 'trainee', 'thuc tap', 'fresher']):
+        return 0.5
+
+    # Junior
+    if any(k in title_lower for k in ['junior', 'jr.', 'jr ', 'mới', 'entry']):
+        return 1.5
+
+    # Mid-level
+    if any(k in title_lower for k in ['mid', ' ii', 'trung cap', 'standard']):
+        return 3.0
+
+    # Senior
+    if any(k in title_lower for k in ['senior', ' iii', 'cao cap', 'chinh thuc']):
+        return 5.0
+
+    # Lead/Principal/Manager
+    if any(k in title_lower for k in ['lead', 'principal', 'manager', 'director', 'head', 'chief', 'trưởng']):
+        return 7.0
+
+    # Engineer/Developer without prefix
+    if any(k in title_lower for k in ['engineer', 'developer', 'developer', 'specialist', 'analyst']):
+        return 2.5
+
+    return 0.0
+
+
+def compute_certification_bonus(
+    cv_data: dict,
+    jd_data: dict,
+) -> float:
+    """
+    Calculate bonus points from relevant certifications.
+    Max bonus: 5 points.
+    """
+    certs = cv_data.get("certifications", [])
+    if not certs:
+        return 0.0
+
+    jd_struct = jd_data.get("structured", jd_data)
+    jd_skills = set()
+    for skill in jd_struct.get("skills_required", []):
+        if isinstance(skill, str):
+            jd_skills.add(skill.lower())
+    for skill in jd_struct.get("skills_preferred", []):
+        if isinstance(skill, str):
+            jd_skills.add(skill.lower())
+
+    if not jd_skills:
+        return 0.0
+
+    bonus = 0.0
+    matched_certs = 0
+
+    for cert in certs:
+        cert_text = str(cert).lower()
+        # Check if cert name contains any JD skill
+        for jd_skill in jd_skills:
+            if jd_skill in cert_text or cert_text in jd_skill:
+                bonus += 1.5
+                matched_certs += 1
+                break
+
+        # Bonus for recognized certifications
+        recognized_certs = {
+            'aws', 'azure', 'gcp', 'google cloud',
+            'cka', 'ckad', 'cks',  # Kubernetes
+            'oscp', 'ceh', 'cissp',  # Security
+            'pmp', 'scrum master', 'pmi',
+            'cfa', 'acca', 'acca',
+            'deep learning', 'tensorflow', 'pytorch',  # ML
+            'google data analytics', ' tableau',
+            'oracle', 'sql', 'mysql',
+        }
+        cert_lower = cert_text.lower()
+        for recognized in recognized_certs:
+            if recognized in cert_lower:
+                bonus += 0.5
+                break
+
+    return min(bonus, 5.0)
+
+
 def parse_years(start: str, end: str) -> float:
     """Parse total years from start/end date strings."""
     try:
@@ -208,10 +324,20 @@ def score_experience(
     for exp in cv_data.get("work_experience", []):
         start = exp.get("start") or exp.get("start_date") or ""
         end = exp.get("end") or exp.get("end_date") or ""
-        if isinstance(exp.get("years"), str) and " - " in exp.get("years", ""):
-            parts = exp["years"].split(" - ")
-            start, end = parts[0], parts[-1]
-        total_work_years += parse_years(start, end)
+        duration_str = exp.get("duration") or ""
+
+        # Try standard date parsing first
+        parsed_years = parse_years(start, end)
+
+        # If dates didn't work, try duration string
+        if parsed_years == 0.0 and duration_str:
+            parsed_years = parse_duration_string(duration_str)
+
+        # If still 0, try to infer from job title
+        if parsed_years == 0.0 and exp.get("title"):
+            parsed_years = infer_years_from_title(exp.get("title", ""))
+
+        total_work_years += parsed_years
         if t := exp.get("title"):
             exp_titles.append(t.lower())
 
@@ -230,7 +356,7 @@ def score_experience(
 
     all_exp_years = total_work_years + project_years
 
-    # ── 4. Years score (0-40) ──────────────────────────────────────
+    # ── 4. Years score (0-45) ────────────────────────────────────
     if is_entry_level and years_req == 0:
         avg_rel = (
             sum(project_relevance_scores) / len(project_relevance_scores)
@@ -240,27 +366,27 @@ def score_experience(
 
         if total_work_years > 0:
             if skill_overlap < 0.1:
-                years_score = 5.0
+                years_score = 10.0
             else:
-                years_score = 35.0
+                years_score = 42.0
         elif avg_rel >= 0.55:
-            years_score = 40.0
+            years_score = 45.0
         elif avg_rel >= 0.20:
-            years_score = 15.0 + (avg_rel - 0.20) / 0.35 * 25.0
+            years_score = 20.0 + (avg_rel - 0.20) / 0.35 * 25.0
         elif has_any_project and avg_rel > 0:
-            years_score = 10.0 + avg_rel / 0.25 * 5.0
+            years_score = 15.0 + avg_rel / 0.25 * 5.0
         elif has_any_project:
-            years_score = 8.0
+            years_score = 12.0
         else:
-            years_score = 5.0
+            years_score = 8.0
 
     elif years_req > 0:
-        ratio = min(all_exp_years / years_req, 2.0)
+        ratio = min(all_exp_years / years_req, 2.5)
         if all_exp_years < years_req:
             gap_ratio = all_exp_years / years_req
-            raw_years_score = min(40.0 * gap_ratio * gap_ratio, 40.0)
+            raw_years_score = min(45.0 * gap_ratio * gap_ratio, 45.0)
         else:
-            raw_years_score = min(40.0 * ratio, 40.0)
+            raw_years_score = min(45.0 * ratio * 0.8, 45.0)
 
         # Overqualified penalty for entry-level JD
         if is_entry_level and all_exp_years > 0 and years_req >= 0:
@@ -352,6 +478,11 @@ def score_experience(
 
     # ── 8. Bonus ──────────────────────────────────────────────────
     bonus = 0.0
+
+    # Certification bonus
+    cert_bonus = compute_certification_bonus(cv_data, jd_data)
+    bonus += cert_bonus
+
     if domain_penalty < 0.4:
         if total_work_years > 0 and project_years > 0:
             bonus += 8.0
@@ -395,7 +526,9 @@ def score_experience(
         raw_total = safe_cap(raw_total, SCORING_CONFIG.SPECIALIZATION_MISMATCH_CAP)
 
     # ── 11. Final score with domain penalty ───────────────────────
-    total_exp = round(min(raw_total * (1.0 - domain_penalty), 50.0), 2)
+    # Apply domain penalty more leniently for good candidates
+    penalty_factor = 1.0 - (domain_penalty * 0.6)  # Less aggressive penalty
+    total_exp = round(min(raw_total * penalty_factor, 50.0), 2)
 
     # ── 12. Features ───────────────────────────────────────────────
     try:
@@ -407,6 +540,7 @@ def score_experience(
         features["project_years"] = project_years
         features["total_work_years"] = total_work_years
         features["cert_count"] = len(cv_data.get("certifications", []))
+        features["cert_bonus"] = cert_bonus
         features["cv_level"] = cv_level
         features["req_level"] = req_level
         features["is_entry_level"] = is_entry_level
@@ -414,20 +548,22 @@ def score_experience(
         features = {}
 
     # ── 13. Rationale ──────────────────────────────────────────────
+    cert_info = f" (chứng chỉ liên quan: +{cert_bonus:.1f}đ)" if cert_bonus > 0 else ""
+
     if domain_penalty >= 0.7:
         rationale = (
             f"Domain không phù hợp ({cv_domain} vs {jd_domain}). "
             f"Kinh nghiệm bị giảm mạnh ({int(domain_penalty*100)}% penalty). "
-            f"{penalty_reason}"
+            f"{penalty_reason}{cert_info}"
         )
     elif domain_penalty >= 0.4:
         rationale = (
             f"Domain lệch một phần ({cv_domain} vs {jd_domain}). "
             f"Kinh nghiệm bị giảm {int(domain_penalty*100)}%. "
-            f"{penalty_reason}"
+            f"{penalty_reason}{cert_info}"
         )
     elif domain_penalty > 0:
-        rationale = f"Domain gần nhau, penalty nhẹ {int(domain_penalty*100)}%. {penalty_reason}"
+        rationale = f"Domain gần nhau, penalty nhẹ {int(domain_penalty*100)}%. {penalty_reason}{cert_info}"
     elif is_entry_level and project_years > 0:
         avg_rel = (
             sum(project_relevance_scores) / len(project_relevance_scores)
@@ -435,16 +571,16 @@ def score_experience(
         )
         rationale = (
             f"JD Intern/Fresher — dự án cá nhân là bằng chứng chính "
-            f"(relevance trung bình: {avg_rel:.0%})."
+            f"(relevance trung bình: {avg_rel:.0%}).{cert_info}"
         )
     elif seniority_score >= 10:
-        rationale = "Kinh nghiệm và cấp độ đạt yêu cầu."
+        rationale = f"Kinh nghiệm và cấp độ đạt yêu cầu.{cert_info}"
     elif seniority_score >= 5:
-        rationale = "Kinh nghiệm gần đạt yêu cầu."
+        rationale = f"Kinh nghiệm gần đạt yêu cầu.{cert_info}"
     elif total_work_years > 0 or project_years > 0:
-        rationale = "Kinh nghiệm thấp hơn yêu cầu (fresh grad / dự án cá nhân)."
+        rationale = f"Kinh nghiệm thấp hơn yêu cầu (fresh grad / dự án cá nhân).{cert_info}"
     else:
-        rationale = "Chưa có kinh nghiệm làm việc hoặc dự án liên quan."
+        rationale = f"Chưa có kinh nghiệm làm việc hoặc dự án liên quan.{cert_info}"
 
     return (
         total_exp,

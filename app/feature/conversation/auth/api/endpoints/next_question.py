@@ -6,6 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
 from app.core.dependencies import get_current_active_user
+from app.feature.conversation.auth.api.endpoints.rate_limiter import require_question_rate_limit
 from app.feature.auth.models.user import User
 from app.feature.conversation.auth.schemas import GetNextQuestionResponse
 from app.feature.conversation.auth.services import ConversationService
@@ -24,6 +25,7 @@ async def get_next_question_get(
     current_user: User = Depends(get_current_active_user),
     db: AsyncSession = Depends(get_db),
 ) -> GetNextQuestionResponse:
+    require_question_rate_limit(current_user.id)
     return await _generate_next_question(session_id, current_user, db)
 
 
@@ -37,6 +39,7 @@ async def get_next_question_post(
     current_user: User = Depends(get_current_active_user),
     db: AsyncSession = Depends(get_db),
 ) -> GetNextQuestionResponse:
+    require_question_rate_limit(current_user.id)
     return await _generate_next_question(session_id, current_user, db)
 
 
@@ -82,6 +85,8 @@ async def _generate_next_question(
                     job_description=conversation.job_description,
                     cv_profile=conversation.cv_profile,
                     conversation_id=conversation.id,
+                    db=db,
+                    analysis_result=conversation.analysis_data,
                     previous_answer=last_message.answer,
                 )
             else:
@@ -90,6 +95,8 @@ async def _generate_next_question(
                     job_description=conversation.job_description,
                     cv_profile=conversation.cv_profile,
                     conversation_id=conversation.id,
+                    db=db,
+                    analysis_result=conversation.analysis_data,
                 )
         else:
             logger.warning(f"[get_next_question] Waiting for candidate answer in session_id={session_id}")

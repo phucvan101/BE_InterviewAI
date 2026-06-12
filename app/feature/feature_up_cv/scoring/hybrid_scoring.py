@@ -181,17 +181,35 @@ def calculate_hybrid_score(
 
         # ── [AGENT INJECTION] Áp dụng điểm ghi đè (Score Override) ──
         if score_overrides:
+            override_limits = {
+                "experience_score": 50.0,
+                "skills_score": 30.0,
+                "education_score": 10.0,
+                "career_objectives_score": 10.0,
+                "company_fit_score": 10.0,
+            }
+
+            def _safe_override(key: str, current_score: float) -> float:
+                if key not in score_overrides:
+                    return current_score
+                try:
+                    value = float(score_overrides[key])
+                except (TypeError, ValueError):
+                    logger.warning("Ignoring invalid score override %s=%r", key, score_overrides[key])
+                    return current_score
+                return min(max(value, 0.0), override_limits[key])
+
             if "experience_score" in score_overrides:
-                exp_score = float(score_overrides["experience_score"])
+                exp_score = _safe_override("experience_score", exp_score)
                 exp_rationale = score_overrides.get("rationale", exp_rationale + " (Đã được cập nhật bởi Agent)")
             if "skills_score" in score_overrides:
-                skills_score = float(score_overrides["skills_score"])
+                skills_score = _safe_override("skills_score", skills_score)
             if "education_score" in score_overrides:
-                edu_score = float(score_overrides["education_score"])
+                edu_score = _safe_override("education_score", edu_score)
             if "career_objectives_score" in score_overrides:
-                career_obj_score = float(score_overrides["career_objectives_score"])
+                career_obj_score = _safe_override("career_objectives_score", career_obj_score)
             if "company_fit_score" in score_overrides:
-                company_score = float(score_overrides["company_fit_score"])
+                company_score = _safe_override("company_fit_score", company_score)
 
         overall = round(
             min(exp_score + skills_score + edu_score + career_obj_score, 100.0)

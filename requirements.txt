@@ -39,7 +39,7 @@ PyYAML>=6.0
 ruamel.yaml>=0.18.0
 
 
-# Deep learning backend and Transformers (for sentence-transformers / cross-encoder)
+# Deep learning backend and Transformers (for sentence-transformers)
 torch>=2.2.0
 transformers>=4.34.0
 accelerate>=1.12.0

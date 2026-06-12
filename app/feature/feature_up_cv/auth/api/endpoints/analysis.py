@@ -910,10 +910,16 @@ async def analyze_cv_jd_match(
                 ScoreOverride.cv_id == str(id_cv),
                 ScoreOverride.jd_id == str(id_jd)
             )
+            if not current_user.is_superuser:
+                override_stmt = override_stmt.where(ScoreOverride.user_id == str(user_id))
+            override_stmt = override_stmt.order_by(ScoreOverride.id.desc()).limit(1)
             override_res = await db.execute(override_stmt)
             override_record = override_res.scalar_one_or_none()
             if override_record and override_record.overridden_scores:
-                score_overrides = override_record.overridden_scores
+                score_overrides = {
+                    **override_record.overridden_scores,
+                    "rationale": override_record.rationale,
+                }
                 print(f"[SCORING] Found score overrides in DB: {score_overrides}")
         except Exception as e:
             print(f"[SCORING] Failed to query score overrides: {e}")

@@ -10,6 +10,9 @@ from app.feature.conversation.auth.models.conversation_message import (
 from app.feature.conversation.auth.models.conversation_analysis_report import (
     ConversationAnalysisReport,
 )
+from app.feature.conversation.auth.models.interview_state import (
+    InterviewState,
+)
 
 __all__ = [
     "Conversation",
@@ -17,4 +20,5 @@ __all__ = [
     "ConversationMessage",
     "MessageRole",
     "ConversationAnalysisReport",
+    "InterviewState",
 ]

@@ -70,15 +70,12 @@ class ScoringConfig:
     DOMAIN_CAP_SEMANTIC_MISMATCH_PENALTY: float = 0.5
     DOMAIN_CAP_SEMANTIC_MISMATCH_COVERAGE: float = 0.20
 
-    UNDERQUALIFIED_CAP: float = 30.0
-    SEVERE_GAP_CAP: float = 25.0
-    SPECIALIZATION_MISMATCH_CAP: float = 35.0
+    UNDERQUALIFIED_CAP: float = 35.0
+    SEVERE_GAP_CAP: float = 30.0
+    SPECIALIZATION_MISMATCH_CAP: float = 40.0
 
     RERANK_TOP_K: int = 3
     RERANK_WEIGHT: float = 0.60
-    CE_MODEL_NAME: str = "cross-encoder/ms-marco-MiniLM-L-6-v2"
-    CE_VERIFY_ENABLED: bool = True
-    CE_VERIFICATION_THRESHOLD: float = 0.65
 
 
 SCORING_CONFIG = ScoringConfig()
@@ -178,6 +175,13 @@ def _load_skill_synonyms() -> Dict[str, List[str]]:
 
 
 _SKILL_SYNONYMS: Dict[str, List[str]] = _load_skill_synonyms()
+
+
+def reload_skill_synonyms() -> Dict[str, List[str]]:
+    """Reload skill synonyms after the feedback agent updates the YAML file."""
+    global _SKILL_SYNONYMS
+    _SKILL_SYNONYMS = _load_skill_synonyms()
+    return _SKILL_SYNONYMS
 
 
 # ── SIM Calibration Cache ──────────────────────────────────────────────────────────────────
