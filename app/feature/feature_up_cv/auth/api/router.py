@@ -7,6 +7,7 @@ from app.feature.feature_up_cv.auth.api.endpoints.job_description import router 
 from app.feature.feature_up_cv.auth.api.endpoints.company_research import router as company_research_router
 from app.feature.feature_up_cv.auth.api.endpoints.analysis import router as analysis_router
 from app.feature.feature_up_cv.auth.api.endpoints.score_feedback import router as score_feedback_router
+from app.feature.feature_up_cv.auth.api.endpoints.agent_brain_api import router as agent_brain_router
 
 router = APIRouter()
 
@@ -16,3 +17,4 @@ router.include_router(job_description_router)
 router.include_router(company_research_router)
 router.include_router(analysis_router)
 router.include_router(score_feedback_router)
+router.include_router(agent_brain_router)

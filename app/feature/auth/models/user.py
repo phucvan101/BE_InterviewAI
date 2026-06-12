@@ -6,9 +6,6 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.database import Base
 
-if TYPE_CHECKING:
-    from app.feature.conversation.auth.models.conversation import Conversation
-
 
 class User(Base):
     __tablename__ = "users"
@@ -42,13 +39,6 @@ class User(Base):
         server_default=func.now(),
         onupdate=func.now(),
         nullable=False,
-    )
-
-    # ── ORM Relationships ────────────────────
-    conversations: Mapped[list["Conversation"]] = relationship(
-        back_populates="user",
-        cascade="all, delete-orphan",
-        lazy="selectin"
     )
 
     def __repr__(self) -> str:

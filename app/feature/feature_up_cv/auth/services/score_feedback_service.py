@@ -11,10 +11,11 @@ from app.feature.feature_up_cv.auth.models.company_info import CompanyInfo
 from app.feature.feature_up_cv.auth.models.cv_profile import CVProfile
 from app.feature.feature_up_cv.auth.models.job_description import JobDescription
 from app.feature.feature_up_cv.auth.models.score_override import ScoreOverride
-from app.feature.feature_up_cv.auth.schemas.score_feedback import FeedbackRequest, FeedbackResponse
+from app.feature.feature_up_cv.auth.schemas.score_feedback import FeedbackRequest, FeedbackResponse, AgentBrainAnalysis
 from app.feature.feature_up_cv.core.file_storage import load_parser_result, save_result_analysis
 from app.feature.feature_up_cv.feedback_agent.agent import feedback_agent
 from app.feature.feature_up_cv.scoring.hybrid_scoring import calculate_hybrid_score
+from app.feature.feature_up_cv.feedback_agent.agent_brain_service import agent_brain_service
 
 logger = logging.getLogger(__name__)
 
@@ -349,10 +350,66 @@ async def handle_feedback(
         )
 
     feedback_agent.apply_learning(agent_result, request.feedback_text)
+
+    # Run Agent Brain analysis if this is a valid complaint
+    agent_brain_info = None
+    if agent_result.is_valid_complaint:
+        try:
+            # Load CV and JD data for Agent Brain
+            cv_data = None
+            jd_data = None
+
+            if cv_record.parser_file_url:
+                cv_data = load_parser_result(cv_record.parser_file_url)
+            if jd_record.parser_file_url:
+                jd_data = load_parser_result(jd_record.parser_file_url)
+
+            if cv_data and jd_data:
+                # Run scoring to get current result
+                company_data = {}
+                scoring_result = calculate_hybrid_score(
+                    cv_data=cv_data,
+                    jd_data=jd_data,
+                    company_data=company_data,
+                )
+
+                # Estimate expected range based on JD
+                jd_years = jd_data.get("structured", {}).get("experience_years", 3)
+                if jd_years >= 5:
+                    expected_range = (60, 85)
+                elif jd_years >= 2:
+                    expected_range = (45, 70)
+                else:
+                    expected_range = (30, 60)
+
+                # Run Agent Brain analysis
+                case_id = f"cv_{cv_id}_jd_{jd_id}"
+                analysis_result = agent_brain_service.analyze_feedback(
+                    cv_data=cv_data,
+                    jd_data=jd_data,
+                    scoring_result=scoring_result,
+                    expected_range=expected_range,
+                    case_id=case_id,
+                )
+
+                agent_brain_info = AgentBrainAnalysis(
+                    root_cause=analysis_result.root_cause,
+                    reasons=analysis_result.reasons,
+                    patterns_detected=analysis_result.patterns_detected,
+                    suggested_rules=analysis_result.suggested_rules,
+                    auto_applied=False,
+                )
+
+                logger.info(f"[FEEDBACK_AGENT] Agent Brain analysis: {analysis_result.root_cause}")
+
+        except Exception as e:
+            logger.warning(f"[FEEDBACK_AGENT] Agent Brain analysis failed: {e}")
+
     return FeedbackResponse(
         success=True,
         is_overridden=True,
         rationale=agent_result.rationale,
         new_scores=clean_overrides,
         learned_rule=agent_result.learned_rule,
+        agent_brain=agent_brain_info,
     )
