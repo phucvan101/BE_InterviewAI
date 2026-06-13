@@ -12,6 +12,7 @@ class AdminUserRow(BaseModel):
     email: EmailStr
     username: str
     full_name: str | None
+    avatar_url: str | None = None
     auth_provider: str
     is_active: bool
     is_deleted: bool
@@ -23,7 +24,6 @@ class AdminUserRow(BaseModel):
 
 
 class AdminUserResponse(AdminUserRow):
-    avatar_url: str | None
     google_id: str | None
     
 

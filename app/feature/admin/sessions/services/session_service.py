@@ -159,6 +159,7 @@ class AdminSessionService:
                     id=c.user.id,
                     email=c.user.email,
                     username=c.user.username,
+                    avatar_url=c.user.avatar_url,
                 ) if c.user else None,
             )
             for c in conversations

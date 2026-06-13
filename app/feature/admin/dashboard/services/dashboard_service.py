@@ -164,7 +164,7 @@ class AdminDashboardService:
             .where(User.is_deleted == False, User.is_superuser == False)
             .group_by(User.id)
             .order_by(session_count.desc(), User.username.asc())
-            .limit(5)
+            .limit(6)
         )
 
         return [
