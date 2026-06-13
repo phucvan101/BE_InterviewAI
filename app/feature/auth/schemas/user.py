@@ -59,6 +59,7 @@ class UserResponse(UserBase):
     model_config = ConfigDict(from_attributes=True)
 
     id: int
+    avatar_url: str | None = None
     is_active: bool
     is_deleted: bool
     is_superuser: bool

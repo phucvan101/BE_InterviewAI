@@ -59,7 +59,7 @@ class SendGridService:
             response = self.sg_client.send(message)
 
             if response.status_code in [200, 201, 202]:
-                return True, f"Email sent successfully to {to_email}"
+                return True, f"CV đã được gửi thành công đến {to_email}"
             else:
                 return False, f"Failed to send email: {response.status_code}"
 

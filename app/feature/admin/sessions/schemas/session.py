@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import Optional
 
-from pydantic import BaseModel, ConfigDict, EmailStr, Field, EmailStr
+from pydantic import BaseModel, ConfigDict, EmailStr, Field
 
 
 class AdminUserResponse(BaseModel):
@@ -10,6 +10,7 @@ class AdminUserResponse(BaseModel):
     id: int
     email: EmailStr
     username: str
+    avatar_url: Optional[str] = None
 
 
 # ──────────────────────────────────────────────────────────────
