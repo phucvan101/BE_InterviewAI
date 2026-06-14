@@ -1,7 +1,8 @@
+from typing import Optional
 import re
 
 
-def extract_company_email(jd_text: str) -> str | None:
+def extract_company_email(jd_text: str) -> Optional[str]:
     """
     Trích xuất email công ty từ job description text.
     Tìm kiếm các email patterns như: company@domain.com
@@ -20,7 +21,7 @@ def extract_company_email(jd_text: str) -> str | None:
     return None
 
 
-def extract_company_name_from_jd(jd_text: str) -> str | None:
+def extract_company_name_from_jd(jd_text: str) -> Optional[str]:
     """
     Trích xuất tên công ty từ job description text.
     Tìm kiếm patterns như "Company:", "Công ty:" hoặc tên công ty ở đầu văn bản.

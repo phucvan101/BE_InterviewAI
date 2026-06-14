@@ -1,3 +1,4 @@
+from typing import Optional
 # -*- coding: utf-8 -*-
 """
 File storage utilities for upload & parser cache system.
@@ -9,7 +10,6 @@ Handles:
 - Computing SHA-256 hash of extracted text for dedup/cache
 """
 
-from __future__ import annotations
 
 import hashlib
 import json
@@ -116,7 +116,7 @@ def save_result_analysis(
     user_id: int,
     id_cv: int,
     id_jd: int,
-    id_ci: int | None = None,
+    id_ci: Optional[int] = None,
 ) -> Path:
     """
     Save an analysis result JSON file to storage/result_analysis_file/.

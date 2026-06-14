@@ -1,3 +1,4 @@
+from typing import Optional
 import logging
 import re
 from pathlib import Path
@@ -27,13 +28,13 @@ from app.feature.feature_up_cv.auth.models.cv_profile import CVProfile
 from app.feature.feature_up_cv.auth.models.analysis_session import AnalysisSession
 from app.feature.feature_up_cv.auth.services.cv_profile_service import CVProfileService
 from app.feature.feature_up_cv.auth.services.analysis_session_service import AnalysisSessionService
-from app.feature.feature_up_cv.file_storage import load_result_analysis
+from app.feature.feature_up_cv.core.file_storage import load_result_analysis
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
-def _clean_metadata_value(value: str | None) -> str | None:
+def _clean_metadata_value(value: Optional[str]) -> Optional[str]:
     if not value:
         return None
 
@@ -41,7 +42,7 @@ def _clean_metadata_value(value: str | None) -> str | None:
     return value or None
 
 
-def _extract_interview_metadata_from_job_description(job_description: str | None) -> tuple[str | None, str | None]:
+def _extract_interview_metadata_from_job_description(job_description: Optional[str]) -> tuple[str | None, str | None]:
     if not job_description:
         return None, None
 
@@ -82,7 +83,7 @@ def _extract_interview_metadata_from_job_description(job_description: str | None
     return job_position, company_name
 
 
-def _extract_interview_metadata(result_file_url: str | None) -> tuple[str | None, str | None]:
+def _extract_interview_metadata(result_file_url: Optional[str]) -> tuple[str | None, str | None]:
     if not result_file_url:
         return None, None
 
@@ -274,8 +275,8 @@ async def start_interview(
 async def list_conversations(
     page: int = Query(1, ge=1),
     page_size: int = Query(10, ge=1, le=100),
-    status: str | None = Query(None),
-    job_position: str | None = Query(None),
+    status: Optional[str] = Query(None),
+    job_position: Optional[str] = Query(None),
     current_user: User = Depends(get_current_authenticated_user),
     db: AsyncSession = Depends(get_db),
 ) -> ConversationPaginatedResponse:
@@ -332,7 +333,7 @@ async def list_conversations(
 async def list_analysis_reports(
     page: int = Query(1, ge=1),
     page_size: int = Query(10, ge=1, le=100),
-    status: str | None = Query(None),
+    status: Optional[str] = Query(None),
     current_user: User = Depends(get_current_authenticated_user),
     db: AsyncSession = Depends(get_db),
 ) -> ConversationAnalysisReportPaginatedResponse:

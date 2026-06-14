@@ -1,6 +1,6 @@
 import os
 import base64
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Optional
 
 from app.core.config import settings
 
@@ -26,8 +26,8 @@ class SendGridService:
     async def send_job_application_email(
         self,
         to_email: str,
-        company_name: str | None,
-        cv_file_path: str | None,
+        company_name: Optional[str],
+        cv_file_path: Optional[str],
     ) -> tuple[bool, str]:
         """
         Gửi email xin việc đính kèm CV.
@@ -66,7 +66,7 @@ class SendGridService:
         except Exception as e:
             return False, f"Error sending email: {str(e)}"
 
-    def _build_email_content(self, company_name: str | None) -> str:
+    def _build_email_content(self, company_name: Optional[str]) -> str:
         """Tạo nội dung email xin việc."""
         company_text = f"at {company_name}" if company_name else ""
         return f"""

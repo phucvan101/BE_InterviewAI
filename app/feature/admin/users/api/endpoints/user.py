@@ -1,3 +1,4 @@
+from typing import Optional
 from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -28,10 +29,10 @@ router = APIRouter(prefix="/admin/users", tags=["Admin Users"])
 async def list_users(
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
-    username: str | None = None, 
-    email: str | None = None, 
-    is_active: bool | None = None,
-    auth_provider: str | None = None,
+    username: Optional[str] = None, 
+    email: Optional[str] = None, 
+    is_active: Optional[bool] = None,
+    auth_provider: Optional[str] = None,
     _: User = Depends(require_permission("users.read")),
     db: AsyncSession = Depends(get_db),
 ) -> AdminPaginatedUsers:

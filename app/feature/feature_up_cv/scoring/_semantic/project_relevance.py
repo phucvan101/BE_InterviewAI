@@ -6,7 +6,6 @@ Combines embedding similarity and tech stack exact match to compute
 per-project relevance scores to JD responsibilities.
 """
 
-from __future__ import annotations
 
 import datetime
 import logging

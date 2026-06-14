@@ -1,4 +1,4 @@
-from __future__ import annotations
+from typing import Optional
 
 import os
 import random
@@ -30,7 +30,7 @@ class GeminiConfig:
     max_wait_sec: int = 65
 
 
-def _parse_retry_delay_seconds(err_text: str) -> int | None:
+def _parse_retry_delay_seconds(err_text: str) -> Optional[int]:
     if not err_text:
         return None
     

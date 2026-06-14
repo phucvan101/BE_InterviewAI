@@ -14,7 +14,6 @@ Centralizes:
 |- EXPERIENCE QUALITY ANALYSIS (v2)
 """
 
-from __future__ import annotations
 
 import json
 import logging
@@ -81,10 +80,10 @@ class ScoringConfig:
     RERANK_WEIGHT: float = 0.60
 
     # ── OVERQUALIFIED THRESHOLDS (v2) ────────────────────────────────────────────
-    OVERQUALIFIED_SCORE_CAP: float = 75.0  # FIXED: Increased from 70 to 75 for better scoring
-    OVERQUALIFIED_EXPERIENCE_RATIO: float = 2.0  # 2x more exp than required
-    OVERQUALIFIED_PENALTY: float = 0.15  # FIXED: Reduced from 0.20 to 0.15
-    OVERQUALIFIED_ABSOLUTE_CAP: float = 70.0  # FIXED: Increased from 65 to 70
+    OVERQUALIFIED_SCORE_CAP: float = 50.0  # FIXED: Reduced from 65 to 50 for stricter cap
+    OVERQUALIFIED_EXPERIENCE_RATIO: float = 1.5  # FIXED: Reduced from 2.0 to 1.5 - stricter ratio detection
+    OVERQUALIFIED_PENALTY: float = 0.25  # FIXED: Increased from 0.15 to 0.25 - stronger penalty
+    OVERQUALIFIED_ABSOLUTE_CAP: float = 40.0  # FIXED: Reduced from 55 to 40 - absolute cap for severe overqualified
 
     # ── CAREER CHANGE PENALTIES (v2) ────────────────────────────────────────────
     CAREER_CHANGE_SEVERE_PENALTY: float = 0.70  # Non-tech -> Tech
@@ -138,36 +137,69 @@ _SENIORITY_ANCHORS: Dict[int, str] = {
 
 
 # ── Project Tech Equivalents ──────────────────────────────────────────────────────────────────
+# FIXED: Stricter equivalence - frameworks are NOT equivalent to each other
 _PROJECT_TECH_EQUIVALENTS: Dict[str, List[str]] = {
-    "yolov8": ["yolo"],
-    "yolov7": ["yolo"],
-    "yolov5": ["yolo"],
-    "ultralytics": ["yolo"],
-    "opencv": ["opencv"],
+    # YOLO variants - same family
+    "yolov8": ["yolo", "yolov5", "yolov7"],
+    "yolov7": ["yolo", "yolov5", "yolov8"],
+    "yolov5": ["yolo", "yolov7", "yolov8"],
+    "ultralytics": ["yolo", "ultralytics"],
+
+    # Vision libraries - same family
+    "opencv": ["opencv", "cv2"],
     "roboflow": ["roboflow"],
+
+    # Annotation tools - NOT equivalent to tech skills
     "labelme": [],
     "cvat": [],
     "labelbox": [],
+
+    # ML Frameworks - same family only
     "pytorch": ["pytorch"],
-    "tensorflow": ["tensorflow"],
+    "tensorflow": ["tensorflow", "tf"],
     "keras": ["keras"],
     "mxnet": [],
-    "scikit-learn": ["scikit-learn", "sklearn"],
+
+    # ML Libraries - related but not equivalent
+    "scikit-learn": ["sklearn", "scikit-learn"],
     "sklearn": ["scikit-learn", "sklearn"],
     "xgboost": [],
     "lightgbm": [],
+
+    # Data libraries - related but NOT equivalent to frameworks
     "pandas": [],
     "numpy": [],
     "matplotlib": [],
     "seaborn": [],
+
+    # Competition platforms - NOT tech skills
     "kaggle": [],
-    "huggingface": ["huggingface", "transformers"],
+
+    # NLP libraries - same family
+    "huggingface": ["transformers", "huggingface"],
     "transformers": ["transformers", "transformer"],
+
+    # Backend frameworks - STRICT: each is standalone, NOT equivalent
     "fastapi": ["fastapi"],
     "flask": ["flask"],
-    "docker": ["docker"],
-    "openai": ["openai"],
-    "langchain": ["langchain"],
+    "django": ["django"],
+    "spring": ["spring", "springboot"],
+    "express": ["express", "nodejs"],
+    "nodejs": ["nodejs", "node"],
+
+    # Infrastructure
+    "docker": ["docker", "docker-compose", "containerization"],
+    "kubernetes": ["k8s", "eks", "gke"],
+    "k8s": ["kubernetes", "k8s"],
+
+    # LLM APIs
+    "openai": ["openai", "gpt"],
+    "langchain": ["langchain", "llamaindex"],
+
+    # CI/CD
+    "jenkins": [],
+    "gitlab-ci": [],
+    "github-actions": [],
 }
 
 
@@ -570,14 +602,16 @@ def is_overqualified(
 
     exp_ratio = total_work_years / years_req if years_req > 0 else 0
 
-    # Determine severity
-    if exp_ratio >= 3.0:
+    # Determine severity - FIXED: Use config thresholds
+    cfg_ratio = SCORING_CONFIG.OVERQUALIFIED_EXPERIENCE_RATIO  # 1.5x from config
+    
+    if exp_ratio >= cfg_ratio * 2.0:  # 3.0x for severe
         severity = 1.0
         reason = f"Severely overqualified: {total_work_years:.0f} năm kinh nghiệm (yêu cầu ~{years_req:.0f} năm, ratio={exp_ratio:.1f}x)"
-    elif exp_ratio >= 2.0:
+    elif exp_ratio >= cfg_ratio * 1.5:  # 2.25x for significant
         severity = 0.7
         reason = f"Overqualified: {total_work_years:.0f} năm kinh nghiệm (yêu cầu ~{years_req:.0f} năm, ratio={exp_ratio:.1f}x)"
-    elif exp_ratio >= 1.5:
+    elif exp_ratio >= cfg_ratio:  # 1.5x for mild
         severity = 0.5
         reason = f"Mildly overqualified: {total_work_years:.0f} năm kinh nghiệm (yêu cầu ~{years_req:.0f} năm, ratio={exp_ratio:.1f}x)"
     else:
@@ -603,20 +637,20 @@ def compute_overqualified_penalty(
 
     # Progressive penalty based on severity
     if severity >= 1.0:
-        # Severe: cap at 65
+        # Severe: cap at 40 (reduced from 55)
         capped_score = min(base_score, config.OVERQUALIFIED_ABSOLUTE_CAP)
         penalty = base_score - capped_score
-        reason = f"Overqualified penalty: -{penalty:.1f} điểm (capped to {config.OVERQUALIFIED_ABSOLUTE_CAP})"
+        reason = f"Overqualified penalty: -{penalty:.1f} điểm (severe: capped to {config.OVERQUALIFIED_ABSOLUTE_CAP})"
     elif severity >= 0.7:
-        # Significant: cap at 70
+        # Significant: cap at 50 (reduced from 65)
         capped_score = min(base_score, config.OVERQUALIFIED_SCORE_CAP)
         penalty = base_score - capped_score
-        reason = f"Overqualified penalty: -{penalty:.1f} điểm (capped to {config.OVERQUALIFIED_SCORE_CAP})"
+        reason = f"Overqualified penalty: -{penalty:.1f} điểm (significant: capped to {config.OVERQUALIFIED_SCORE_CAP})"
     else:
         # Mild: apply 15% penalty
         penalty_ratio = config.OVERQUALIFIED_PENALTY * severity
         adjusted = base_score * (1 - penalty_ratio)
-        capped_score = min(adjusted, config.OVERQUALIFIED_SCORE_CAP + 5)
+        capped_score = min(adjusted, config.OVERQUALIFIED_SCORE_CAP)
         reason = f"Overqualified penalty: -{penalty_ratio*100:.0f}% ({severity*100:.0f}% severity)"
 
     return capped_score, reason

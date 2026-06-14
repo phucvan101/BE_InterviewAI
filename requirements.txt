@@ -24,6 +24,7 @@ langchain-openai==1.1.11
 google-generativeai==0.8.6
 google-genai==1.47.0
 # google-genai==1.68.0
+
 openai==2.29.0
 # ── Embedding & Vector Search ─────────────
 sentence-transformers>=2.7.0
@@ -34,7 +35,3 @@ ruamel.yaml>=0.18.0
 
 aiosmtplib>=2.0.0
 sendgrid==6.12.5
-
-
-# Optional: install spaCy language model separately if needed
-# python -m spacy download en_core_web_sm

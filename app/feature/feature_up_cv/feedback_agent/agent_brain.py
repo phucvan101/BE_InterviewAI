@@ -246,6 +246,7 @@ class ScoreAnalysis:
     reasons: List[str] = field(default_factory=list)
     root_cause: str = ""
     suggested_rules: List[Dict] = field(default_factory=list)
+    v2_analysis: Dict = field(default_factory=dict)  # v2 module outputs
 
 
 @dataclass
@@ -268,6 +269,7 @@ class AgentFeedbackAnalyzer:
         self.memory = memory
         self.analysis_history: List[ScoreAnalysis] = []
         self.pattern_cache: List[PatternInsight] = []
+        self.config = AGENT_FEEDBACK_CONFIG
 
     def analyze_case(
         self,

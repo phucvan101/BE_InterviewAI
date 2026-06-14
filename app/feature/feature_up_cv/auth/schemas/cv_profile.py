@@ -1,3 +1,4 @@
+from typing import Optional
 from datetime import datetime
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -5,10 +6,10 @@ from pydantic import BaseModel, ConfigDict, Field
 # ── Base ─────────────────────────────────────────
 
 class CVProfileBase(BaseModel):
-    parser_file_url: str | None = None
-    raw_file_url: str | None = None
-    text_hashed: str | None = None
-    embedding_vector_url: str | None = None
+    parser_file_url: Optional[str] = None
+    raw_file_url: Optional[str] = None
+    text_hashed: Optional[str] = None
+    embedding_vector_url: Optional[str] = None
 
 
 # ── Request ──────────────────────────────────────
@@ -18,10 +19,10 @@ class CVProfileCreate(CVProfileBase):
 
 
 class CVProfileUpdate(BaseModel):
-    parser_file_url: str | None = None
-    raw_file_url: str | None = None
-    text_hashed: str | None = None
-    embedding_vector_url: str | None = None
+    parser_file_url: Optional[str] = None
+    raw_file_url: Optional[str] = None
+    text_hashed: Optional[str] = None
+    embedding_vector_url: Optional[str] = None
 
 
 # ── Response ─────────────────────────────────────

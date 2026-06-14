@@ -17,7 +17,7 @@ from app.feature.conversation.model.conversation import (
 )
 from app.feature.conversation.schema import AnalysisReportPayload
 from app.feature.conversation.service.score_anomaly_detector import ScoreAnomalyDetector
-from app.feature.feature_up_cv.gemini_client import generate_content, GeminiConfig
+from app.feature.feature_up_cv.core.gemini_client import generate_content, GeminiConfig
 
 from app.core.ml_models import get_hallucination_guard
 
@@ -54,9 +54,9 @@ class ConversationService:
         job_position: str,
         job_description: str,
         cv_profile: str,
-        company_name: str | None = None,
-        analysis_session_id: int | None = None,
-        session_id: str | None = None,
+        company_name: Optional[str] = None,
+        analysis_session_id: Optional[int] = None,
+        session_id: Optional[str] = None,
         force_new: bool = False,
     ) -> Conversation:
         """Tạo conversation mới"""
@@ -851,9 +851,57 @@ Trả lời dưới định dạng JSON:
         *,
         payload: AnalysisReportPayload,
         messages: list[ConversationMessage],
-        company_name: str | None,
+        company_name: Optional[str],
     ) -> None:
         return
+
+        payload.scores.company_knowledge.score = 0
+        payload.scores.company_knowledge.evidence = (
+            "Không có câu hỏi nào trong phiên phỏng vấn được đặt ra để đánh giá mức độ hiểu biết "
+            "của ứng viên về công ty, sản phẩm, domain, văn hóa hoặc bối cảnh kinh doanh. "
+            "Theo quy ước chấm điểm, tiêu chí company_knowledge được tính là 0 khi không có dữ liệu đánh giá."
+        )
+        payload.overall_score = self._calculate_overall_score(payload)
+        payload.overall_grade = self._grade_from_score(payload.overall_score)
+        payload.level = self._level_from_score(payload.overall_score)
+
+    def _has_company_knowledge_question(
+        self,
+        *,
+        messages: list[ConversationMessage],
+        company_name: str | None,
+    ) -> bool:
+        company_terms = [
+            "công ty",
+            "cong ty",
+            "sản phẩm",
+            "san pham",
+            "product",
+            "domain",
+            "b2b",
+            "saas",
+            "khách hàng",
+            "khach hang",
+            "văn hóa",
+            "van hoa",
+            "sứ mệnh",
+            "su menh",
+            "giá trị",
+            "gia tri",
+            "business",
+            "thị trường",
+            "thi truong",
+        ]
+        if company_name:
+            company_terms.append(company_name.lower())
+
+        for message in messages:
+            if message.role not in {MessageRole.INTERVIEWER, MessageRole.INTERVIEWER.value}:
+                continue
+            question_text = f"{message.question or ''}\n{message.content or ''}".lower()
+            if any(term in question_text for term in company_terms):
+                return True
+        return False
 
     def _calculate_overall_score(self, payload: AnalysisReportPayload) -> int:
         scores = [

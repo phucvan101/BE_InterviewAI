@@ -1,3 +1,4 @@
+from typing import Optional
 from datetime import datetime
 
 from sqlalchemy import JSON, DateTime, ForeignKey, Integer, String, func

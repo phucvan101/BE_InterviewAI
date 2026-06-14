@@ -10,7 +10,6 @@ Scores work experience based on:
 - Bonus for having both work experience and projects
 """
 
-from __future__ import annotations
 
 import logging
 import re
@@ -350,7 +349,9 @@ def score_experience(
 
     # ── 3. Project years ───────────────────────────────────────────
     is_entry_level = req_level <= 1
-    default_proj_dur = 0.5 if is_entry_level else 0.25
+    # FIXED: Reduced default project duration from 0.5 to 0.25 for entry-level
+    # This prevents fresher from inflating their experience with project years
+    default_proj_dur = 0.25 if is_entry_level else 0.25
 
     from .._semantic.project_relevance import compute_project_relevance
     project_years, project_relevance_scores, project_descriptions = \
@@ -396,13 +397,25 @@ def score_experience(
             raw_years_score = min(45.0 * ratio * 0.8, 45.0)
 
         # Overqualified penalty for entry-level JD
+        # FIXED: Use config thresholds
+        cfg_ratio = SCORING_CONFIG.OVERQUALIFIED_EXPERIENCE_RATIO  # 1.5x from config
+        
         if is_entry_level and all_exp_years > 0 and years_req >= 0:
             years_req_max_raw = jd_struct.get("years_of_experience", "")
             max_numbers = [float(n) for n in re.findall(r"\d+(?:\.\d+)?", str(years_req_max_raw))]
             years_req_upper = max(max_numbers) if max_numbers else (years_req + 1.0)
-            if all_exp_years > years_req_upper * 2.0:
-                overqualified_penalty = min(8.0, (all_exp_years - years_req_upper * 2.0) * 2.0)
-                raw_years_score = max(raw_years_score - overqualified_penalty, 20.0)
+            
+            # FIXED: Tighter threshold using config ratio (1.5x)
+            threshold_2x = years_req_upper * cfg_ratio * 1.5  # ~2.25x
+            threshold_2_5x = years_req_upper * cfg_ratio * 2.0  # ~3.0x
+            
+            if all_exp_years > threshold_2x:
+                overqualified_penalty = min(15.0, (all_exp_years - threshold_2x) * 3.0)
+                raw_years_score = max(raw_years_score - overqualified_penalty, 15.0)  # FIXED: Higher floor
+            
+            # FIXED: Absolute cap for years_score when significantly overqualified (3x)
+            if all_exp_years > threshold_2_5x:
+                raw_years_score = min(raw_years_score, 30.0)  # Hard cap at 30
         years_score = raw_years_score
     else:
         years_score = min(all_exp_years * 20.0, 40.0)
@@ -490,23 +503,44 @@ def score_experience(
     cert_bonus = compute_certification_bonus(cv_data, jd_data)
     bonus += cert_bonus
 
+    # FIXED: Reduced bonus amounts and raised thresholds
     if domain_penalty < 0.4:
         if total_work_years > 0 and project_years > 0:
-            bonus += 8.0
+            # FIXED: Reduced from 8.0 to 5.0 - bonus was too generous
+            bonus += 5.0
         elif project_years > 0:
             avg_rel = (
                 sum(project_relevance_scores) / len(project_relevance_scores)
                 if project_relevance_scores else 0.0
             )
-            rel_threshold_high = 0.55 if is_entry_level else 0.65
-            rel_threshold_mid = 0.35 if is_entry_level else 0.50
+            # FIXED: Raised thresholds from 0.55/0.35 to 0.65/0.45
+            rel_threshold_high = 0.65 if is_entry_level else 0.75
+            rel_threshold_mid = 0.45 if is_entry_level else 0.60
             if avg_rel >= rel_threshold_high:
-                bonus += 5.0
-            elif avg_rel >= rel_threshold_mid:
+                # FIXED: Reduced from 5.0 to 3.0
                 bonus += 3.0
+            elif avg_rel >= rel_threshold_mid:
+                # FIXED: Reduced from 3.0 to 2.0
+                bonus += 2.0
 
+    # FIXED: Reduced entry-level bonus cap from 3.0 to 2.0
     if is_entry_level and years_req <= 1.0:
-        bonus = min(bonus, 3.0)
+        bonus = min(bonus, 2.0)
+
+    # FIXED: Reduce bonus for overqualified candidates
+    # Overqualified candidates should not get bonus for having experience
+    if years_req > 0 and total_work_years > 0:
+        exp_ratio = total_work_years / years_req
+        if exp_ratio >= 2.0:  # Overqualified
+            # Reduce non-cert bonus by 80%
+            cert_only = cert_bonus
+            non_cert_bonus = bonus - cert_bonus
+            bonus = cert_only + (non_cert_bonus * 0.2)
+        elif exp_ratio >= 1.5:  # Mildly overqualified
+            # Reduce non-cert bonus by 50%
+            cert_only = cert_bonus
+            non_cert_bonus = bonus - cert_bonus
+            bonus = cert_only + (non_cert_bonus * 0.5)
 
     raw_total = years_score + seniority_score + bonus
 
@@ -585,6 +619,16 @@ def score_experience(
         features["cv_level"] = cv_level
         features["req_level"] = req_level
         features["is_entry_level"] = is_entry_level
+        # Add project details for FE display
+        cv_projects = cv_data.get("projects", [])
+        features["projects"] = [
+            {
+                "name": p.get("name", "Project"),
+                "description": p.get("description", ""),
+                "relevance_score": float(project_relevance_scores[i]) if i < len(project_relevance_scores) else 0.0,
+            }
+            for i, p in enumerate(cv_projects)
+        ]
     except Exception:
         features = {}
 

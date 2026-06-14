@@ -11,7 +11,6 @@ Key improvements:
 - Post-processing with skill normalization
 """
 
-from __future__ import annotations
 
 import json
 import re

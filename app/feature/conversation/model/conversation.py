@@ -1,14 +1,9 @@
-# -*- coding: utf-8 -*-
 import uuid
 from datetime import datetime, timezone
 from enum import Enum
 from typing import TYPE_CHECKING, Optional
 
-<<<<<<< HEAD:app/feature/conversation/model/conversation.py
 from sqlalchemy import DateTime, ForeignKey, Integer, JSON, String, Text, UniqueConstraint, func
-=======
-from sqlalchemy import DateTime, ForeignKey, Integer, JSON, String, Text, func
->>>>>>> 7a94a79 (thay đổi workflow conversation):app/feature/conversation/auth/models/conversation.py
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.database import Base
@@ -16,37 +11,34 @@ from app.core.database import Base
 if TYPE_CHECKING:
     from app.feature.auth.models.user import User
     from app.feature.feature_up_cv.auth.models.analysis_session import AnalysisSession
-<<<<<<< HEAD:app/feature/conversation/model/conversation.py
-=======
-    from app.feature.conversation.auth.models.conversation_message import ConversationMessage
-    from app.feature.conversation.auth.models.conversation_analysis_report import ConversationAnalysisReport
->>>>>>> 7a94a79 (thay đổi workflow conversation):app/feature/conversation/auth/models/conversation.py
 
 
 class ConversationStatus(str, Enum):
-    ACTIVE = "active"
-    COMPLETED = "completed"
-    PAUSED = "paused"
+    """Status của conversation"""
+    ACTIVE = "active"          # Đang diễn ra
+    COMPLETED = "completed"    # Hoàn thành
+    PAUSED = "paused"          # Tạm dừng
+
+
+class MessageRole(str, Enum):
+    """Role của message"""
+    INTERVIEWER = "interviewer"  # Từ AI
+    CANDIDATE = "candidate"      # Từ ứng viên
+    SYSTEM = "system"            # System message
 
 
 class Conversation(Base):
+    """Model lưu trữ phiên phỏng vấn"""
     __tablename__ = "conversations"
 
+    # ── Primary key ──────────────────────────
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True, autoincrement=True)
-<<<<<<< HEAD:app/feature/conversation/model/conversation.py
     
     
-=======
-
-<<<<<<< HEAD
->>>>>>> 7a94a79 (thay đổi workflow conversation):app/feature/conversation/auth/models/conversation.py
     # ── Session ID (UUID) ────────────────────
-=======
->>>>>>> 3b04d59 (Cải thiện agent_feedback)
-    session_id: Mapped[str] = mapped_column(
-        String(36), unique=True, index=True, nullable=False, default=lambda: str(uuid.uuid4())
-    )
+    session_id: Mapped[str] = mapped_column(String(36), unique=True, index=True, nullable=False, default=lambda: str(uuid.uuid4()))
 
+    # ── Foreign key ──────────────────────────
     user_id: Mapped[int] = mapped_column(Integer, ForeignKey("users.id"), nullable=False, index=True)
     analysis_session_id: Mapped[Optional[int]] = mapped_column(
         Integer,
@@ -54,41 +46,24 @@ class Conversation(Base):
         nullable=True,
         index=True,
     )
-<<<<<<< HEAD:app/feature/conversation/model/conversation.py
     
     user: Mapped["User"] = relationship(
         back_populates="conversations"
     )
-=======
->>>>>>> 7a94a79 (thay đổi workflow conversation):app/feature/conversation/auth/models/conversation.py
 
+    # ── Interview Info ──────────────────────
     job_position: Mapped[str] = mapped_column(String(255), nullable=False)
     company_name: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     job_description: Mapped[str] = mapped_column(Text, nullable=False)
     cv_profile: Mapped[str] = mapped_column(Text, nullable=False)
-
+    
+    # ── Status ──────────────────────────────
     status: Mapped[str] = mapped_column(String(20), default=ConversationStatus.ACTIVE, nullable=False)
+    
+    # ── Interview result ────────────────────
+    result: Mapped[Optional[str]] = mapped_column(Text, nullable=True)  # JSON result
+    score: Mapped[Optional[float]] = mapped_column(nullable=True)  # Overall score
 
-    result: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
-    score: Mapped[Optional[float]] = mapped_column(nullable=True)
-    analysis_data: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)
-
-    started_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True),
-        default=lambda: datetime.now(timezone.utc),
-        server_default=func.now(),
-        nullable=False,
-    )
-    ended_at: Mapped[Optional[datetime]] = mapped_column(
-        DateTime(timezone=True),
-        nullable=True,
-    )
-    interview_duration_seconds: Mapped[Optional[int]] = mapped_column(
-        Integer,
-        nullable=True,
-    )
-
-<<<<<<< HEAD
     # ── Interview timing ────────────────────
     started_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
@@ -106,8 +81,6 @@ class Conversation(Base):
     )
 
     # ── Timestamps ──────────────────────────
-=======
->>>>>>> 3b04d59 (Cải thiện agent_feedback)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         server_default=func.now(),
@@ -120,20 +93,15 @@ class Conversation(Base):
         nullable=False,
     )
 
-    user: Mapped["User"] = relationship(back_populates="conversations")
+    # ── ORM Relationships ────────────────────
+    user: Mapped["User"] = relationship(
+        back_populates="conversations"
+    )
+    
     messages: Mapped[list["ConversationMessage"]] = relationship(
         back_populates="conversation",
         cascade="all, delete-orphan",
-        lazy="selectin",
-    )
-    analysis_report: Mapped[Optional["ConversationAnalysisReport"]] = relationship(
-        back_populates="conversation",
-        cascade="all, delete-orphan",
-        lazy="selectin",
-        uselist=False,
-    )
-    analysis_session: Mapped[Optional["AnalysisSession"]] = relationship(
-        lazy="selectin",
+        lazy="selectin"
     )
 
     analysis_report: Mapped[Optional["ConversationAnalysisReport"]] = relationship(
@@ -149,7 +117,6 @@ class Conversation(Base):
 
     def __repr__(self) -> str:
         return f"<Conversation session_id={self.session_id} user_id={self.user_id} status={self.status}>"
-<<<<<<< HEAD:app/feature/conversation/model/conversation.py
 
 
 class ConversationMessage(Base):
@@ -240,5 +207,3 @@ class ConversationAnalysisReport(Base):
 
     def __repr__(self) -> str:
         return f"<ConversationAnalysisReport conversation_id={self.conversation_id} score={self.overall_score}>"
-=======
->>>>>>> 7a94a79 (thay đổi workflow conversation):app/feature/conversation/auth/models/conversation.py

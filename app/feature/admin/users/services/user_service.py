@@ -1,3 +1,4 @@
+from typing import Optional
 from fastapi import HTTPException, status
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -29,7 +30,7 @@ class AdminUserService:
         result = await self.db.execute(select(User).where(User.username == username))
         return result.scalar_one_or_none()
 
-    async def get_all(self, page: int = 1, page_size: int = 20, username: str | None = None, email: str | None = None, is_active: bool | None = None, auth_provider: str | None = None) -> AdminPaginatedUsers:
+    async def get_all(self, page: int = 1, page_size: int = 20, username: Optional[str] = None, email: Optional[str] = None, is_active: Optional[bool] = None, auth_provider: Optional[str] = None) -> AdminPaginatedUsers:
         logger.debug(f"get_all params: page={page}, page_size={page_size}, username={repr(username)}, email={repr(email)}, is_active={is_active}, auth_provider={auth_provider}")
 
         offset = (page - 1) * page_size
