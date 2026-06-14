@@ -60,6 +60,7 @@ Lưu trữ kết quả đối chiếu, chấm điểm (Matching Score) giữa CV
 - `id_cv` *(Integer, FK)*: Link tới CV được đem đi phân tích.
 - `id_jd` *(Integer, FK)*: Link tới JD.
 - `id_ci` *(Integer, FK)*: Link tới thông tin công ty (nếu có).
+- `company_info` *(Text)*: Snapshot text nghiên cứu công ty dùng để sinh câu hỏi phỏng vấn.
 - `score` *(Numeric 5,2)*: Điểm phù hợp tổng quan (Overall Score).
 - `experience_score` *(Numeric 5,2)*: Điểm kinh nghiệm.
 - `skills_score` *(Numeric 5,2)*: Điểm kỹ năng.

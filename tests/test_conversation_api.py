@@ -175,6 +175,7 @@ async def test_create_analysis_report_completes_interview_and_returns_evaluation
     assert data["session_id"] == session_id
     assert data["status"] == "completed"
     assert data["overall_score"] == 80
+    assert data["company_score"] == 60
     assert data["overall_grade"] == "B+"
     assert data["scores"]["technical"]["score"] == 85
     assert data["study_plan"][0]["topic"] == "STAR"

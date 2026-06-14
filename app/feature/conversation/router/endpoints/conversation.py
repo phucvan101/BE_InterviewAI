@@ -654,6 +654,10 @@ def _build_analysis_report_response(
     total_messages: int,
     cv_preview: CVPreview | None = None,
 ) -> ConversationAnalysisReportResponse:
+    company_score = 0
+    if isinstance(report.scores, dict):
+        company_score = int(report.scores.get("company_knowledge", {}).get("score", 0) or 0)
+
     return ConversationAnalysisReportResponse(
         id=report.id,
         session_id=conversation.session_id,
@@ -670,6 +674,7 @@ def _build_analysis_report_response(
         interview_duration_seconds=conversation.interview_duration_seconds,
         cv_preview=cv_preview,
         overall_score=report.overall_score,
+        company_score=company_score,
         overall_grade=report.overall_grade,
         level=report.level,
         summary=report.summary,

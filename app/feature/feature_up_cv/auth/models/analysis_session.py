@@ -42,6 +42,7 @@ class AnalysisSession(Base):
     cv_raw_text: Mapped[str | None] = mapped_column(Text, nullable=True)
     jd_raw_text: Mapped[str | None] = mapped_column(Text, nullable=True)
     ci_raw_text: Mapped[str | None] = mapped_column(Text, nullable=True)
+    company_info: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     # ── Scores ───────────────────────────────
     score: Mapped[float | None] = mapped_column(Numeric(5, 2), nullable=True)

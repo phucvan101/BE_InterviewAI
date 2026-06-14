@@ -306,7 +306,9 @@ class ConversationService:
 
         conversation.status = ConversationStatus.COMPLETED
         conversation.score = payload.overall_score
-        conversation.result = json.dumps(payload.model_dump(), ensure_ascii=False)
+        result_payload = payload.model_dump()
+        result_payload["company_score"] = payload.scores.company_knowledge.score
+        conversation.result = json.dumps(result_payload, ensure_ascii=False)
         ended_at = datetime.now(timezone.utc)
         conversation.ended_at = ended_at
         conversation.interview_duration_seconds = _calculate_duration_seconds(
@@ -383,6 +385,217 @@ class ConversationService:
         logger.info(f"Added message: id={message.id}, role={role}, conversation_id={conversation_id}")
         return message
 
+    def _get_company_research_text(self, conversation: Conversation) -> Optional[str]:
+        analysis_session = conversation.analysis_session
+        if not analysis_session:
+            return None
+        return analysis_session.company_info or analysis_session.ci_raw_text
+
+    def _build_company_research_section(self, conversation: Conversation) -> str:
+        company_research_text = self._get_company_research_text(conversation)
+        if not company_research_text:
+            return ""
+        return f"""
+Company Research:
+{company_research_text}
+"""
+
+    def _question_mentions_company_context(self, question: str, conversation: Conversation) -> bool:
+        company_research_text = self._get_company_research_text(conversation)
+        if not company_research_text:
+            return False
+
+        terms = [
+            "công ty",
+            "cong ty",
+            "company",
+            "sản phẩm",
+            "san pham",
+            "product",
+            "domain",
+            "văn hóa",
+            "van hoa",
+            "culture",
+            "bối cảnh",
+            "boi canh",
+            "business",
+            "khách hàng",
+            "khach hang",
+            "thị trường",
+            "thi truong",
+        ]
+        if conversation.company_name:
+            terms.append(conversation.company_name.lower())
+        question_text = question.lower()
+        return any(term in question_text for term in terms)
+
+    def _build_company_question_prompt(
+        self,
+        *,
+        conversation: Conversation,
+        company_research_section: str,
+        history: str | None = None,
+        previous_answer: str | None = None,
+        initial: bool = False,
+        balanced_focus: str | None = None,
+    ) -> str:
+        if initial:
+            return f"""
+Bạn là một người phỏng vấn AI chuyên nghiệp.
+Mục tiêu bắt buộc: câu hỏi phải cân bằng giữa CV, JD, và nếu có Company Research thì cả công ty nữa.
+Không được để câu hỏi chỉ xoay quanh một mảng duy nhất.
+
+Job Description:
+{conversation.job_description}
+
+CV Profile:
+{conversation.cv_profile}
+{company_research_section}
+{balanced_focus or ""}
+
+Hãy tạo đúng 1 câu hỏi mở đầu, trong đó liên hệ trực tiếp CV của ứng viên với JD.
+Nếu có Company Research, ưu tiên hỏi theo hướng:
+- Công ty đang làm về gì
+- Công ty kinh doanh trong lĩnh vực nào
+- Công ty đang bán sản phẩm, dịch vụ hoặc giải pháp gì
+- Khách hàng mục tiêu là ai
+- Văn hóa, giá trị hoặc bối cảnh kinh doanh của công ty là gì
+
+Nếu tự nhiên hơn, có thể gộp các ý trên vào cùng một câu hỏi, nhưng câu hỏi phải nghe như câu hỏi phỏng vấn thật.
+
+Chỉ trả lời câu hỏi, không thêm bất kỳ lời giải thích nào khác.
+"""
+
+        return f"""
+Bạn là một người phỏng vấn AI chuyên nghiệp.
+Mục tiêu bắt buộc: câu hỏi tiếp theo phải luân phiên bao phủ CV, JD, và nếu có Company Research thì cả công ty nữa.
+Không được bỏ qua bất kỳ mảng nào đã chưa được khai thác đủ.
+
+Job Description:
+{conversation.job_description}
+
+CV Profile:
+{conversation.cv_profile}
+{company_research_section}
+Lịch sử cuộc trò chuyện:
+{history or ""}
+
+Phần trả lời trước đó của ứng viên:
+{previous_answer or "N/A"}
+
+{balanced_focus or ""}
+
+Hãy tạo đúng 1 câu hỏi tiếp theo, sao cho câu hỏi có thể chạm vào cả CV hoặc JD, và nếu có Company Research thì thêm góc nhìn về công ty.
+Ưu tiên các hướng hỏi về:
+- Công ty đang làm gì / giải quyết vấn đề gì
+- Công ty kinh doanh lĩnh vực nào
+- Công ty đang bán sản phẩm, dịch vụ hoặc giải pháp gì
+- Khách hàng mục tiêu hoặc thị trường của công ty
+- Văn hóa, giá trị, cách vận hành hoặc bối cảnh kinh doanh của công ty
+
+Nếu phù hợp, hãy biến các ý trên thành một câu hỏi tự nhiên thay vì liệt kê nhiều ý rời rạc.
+Chỉ trả lời câu hỏi, không thêm bất kỳ lời giải thích nào khác.
+"""
+
+    def _fallback_company_question(self, conversation: Conversation) -> str:
+        company_name = conversation.company_name or "công ty"
+        return (
+            f"Bạn đã tìm hiểu gì về {company_name}, đặc biệt là công ty đang làm gì, kinh doanh lĩnh vực nào, "
+            "đang bán sản phẩm hoặc dịch vụ gì, và điều gì trong văn hóa hoặc mô hình kinh doanh của công ty "
+            "khiến bạn thấy phù hợp với vị trí này?"
+        )
+
+    def _build_balanced_interview_focus(self, conversation: Conversation, *, has_history: bool) -> str:
+        has_company = bool(self._get_company_research_text(conversation))
+        if not has_history:
+            if has_company:
+                return (
+                    "Câu hỏi phải chạm đủ 3 phần: kinh nghiệm trong CV, yêu cầu trong JD, "
+                    "và một ý về Company Research."
+                )
+            return "Câu hỏi phải chạm đủ 2 phần: kinh nghiệm trong CV và yêu cầu trong JD."
+
+        if has_company:
+            return (
+                "Nếu lịch sử chưa có phần công ty thì hỏi về Company Research. "
+                "Nếu đã có rồi thì hãy cân bằng giữa CV và JD ở câu này."
+            )
+
+        return "Hãy cân bằng giữa CV và JD trong câu hỏi này."
+
+    def _build_turn_based_focus(self, conversation: Conversation, question_number: int) -> str:
+        has_company = bool(self._get_company_research_text(conversation))
+        if question_number <= 1:
+            if has_company:
+                return (
+                    "Câu hỏi số 1 phải chạm CV, JD, và có thể mở nhẹ vào Company Research, "
+                    "nhưng vẫn giữ trọng tâm đánh giá kinh nghiệm ứng viên."
+                )
+            return "Câu hỏi số 1 phải chạm vào CV và JD."
+
+        if question_number == 2:
+            if has_company:
+                return (
+                    "Câu hỏi số 2 nên đi sâu hơn vào CV hoặc JD; có thể nhắc nhẹ Company Research nếu tự nhiên, "
+                    "đặc biệt là công ty đang làm gì, kinh doanh gì hoặc bán gì."
+                )
+            return "Câu hỏi số 2 nên đi sâu hơn vào CV hoặc JD."
+
+        if has_company:
+            return (
+                "Câu hỏi số 3 nên ưu tiên hỏi trực tiếp về Company Research: công ty đang làm gì, "
+                "kinh doanh lĩnh vực nào, đang bán sản phẩm/dịch vụ gì, khách hàng là ai, hoặc văn hóa "
+                "và bối cảnh kinh doanh, nhưng vẫn liên hệ với CV hoặc JD."
+            )
+
+        return "Câu hỏi tiếp theo nên tiếp tục khai thác CV và JD."
+
+    def _generate_question_with_company_guardrail(
+        self,
+        *,
+        conversation: Conversation,
+        prompt: str,
+        initial: bool,
+        company_research_section: str,
+        question_number: int,
+        history: str | None = None,
+        previous_answer: str | None = None,
+        balanced_focus: str | None = None,
+    ) -> str:
+        question = generate_content(
+            prompt=prompt,
+            step="generate_initial_question" if initial else "generate_next_question",
+            config=GeminiConfig(model="models/gemini-2.5-flash", temperature=0.7),
+        ).strip()
+
+        if not company_research_section or question_number < 3:
+            return question
+
+        if self._question_mentions_company_context(question, conversation):
+            return question
+
+        stronger_prompt = self._build_company_question_prompt(
+            conversation=conversation,
+            company_research_section=company_research_section,
+            history=history,
+            previous_answer=previous_answer,
+            initial=initial,
+            balanced_focus=balanced_focus,
+        )
+        retried_question = generate_content(
+            prompt=stronger_prompt,
+            step="generate_initial_question_company_guardrail" if initial else "generate_next_question_company_guardrail",
+            config=GeminiConfig(model="models/gemini-2.5-flash", temperature=0.4),
+        ).strip()
+
+        if self._question_mentions_company_context(retried_question, conversation):
+            return retried_question
+
+        logger.warning(
+            "Company research exists but generated question did not mention company context; using fallback question."
+        )
+        return self._fallback_company_question(conversation)
+
     async def get_conversation_messages(
         self,
         conversation_id: int,
@@ -437,34 +650,44 @@ class ConversationService:
     # ──────────────────────────────────────────────────────────────
 
     async def generate_initial_question(self, conversation_id: int) -> str:
-        """Tạo câu hỏi đầu tiên dựa trên JD và CV"""
+        """Tạo câu hỏi đầu tiên dựa trên JD, CV và optionally Company Research"""
         conversation = await self.get_conversation_by_id(conversation_id)
         if not conversation:
             raise ValueError(f"Conversation {conversation_id} not found")
 
+        company_research_section = self._build_company_research_section(conversation)
+        balanced_focus = self._build_turn_based_focus(conversation, question_number=1)
         prompt = f"""
-Bạn là một người phỏng vấn AI chuyên nghiệp. Dựa trên Job Description và CV của ứng viên, hãy tạo một câu hỏi phỏng vấn đầu tiên.
+Bạn là một người phỏng vấn AI chuyên nghiệp. Dựa trên Job Description, CV của ứng viên{', và Company Research' if company_research_section else ''}, hãy tạo một câu hỏi phỏng vấn đầu tiên.
 
 Job Description:
 {conversation.job_description}
 
 CV Profile:
 {conversation.cv_profile}
-
-Hãy tạo một câu hỏi đánh giá kỹ năng và kinh nghiệm của ứng viên liên quan đến vị trí này. Câu hỏi nên:
+{company_research_section}
+{balanced_focus}
+Câu hỏi phải đánh giá kỹ năng và kinh nghiệm theo CV/JD.
+Nếu có Company Research, ưu tiên lồng ghép ít nhất một ý về công ty: công ty đang làm gì, kinh doanh lĩnh vực nào, đang bán sản phẩm/dịch vụ gì, khách hàng mục tiêu là ai, hoặc văn hóa/bối cảnh kinh doanh.
+Câu hỏi phải đồng thời bám vào CV và JD, không được chỉ hỏi công ty.
+Câu hỏi nên:
 - Cụ thể và có liên quan đến công việc
 - Để lại chỗ cho ứng viên thể hiện kinh nghiệm của họ
+- Nếu có Company Research, có yếu tố kiểm tra hiểu biết về công ty
 - Có thể được trả lời trong khoảng 1-3 phút
 
 Chỉ trả lời câu hỏi, không thêm bất kỳ lời giải thích nào khác.
 """
         try:
-            question = generate_content(
+            question = self._generate_question_with_company_guardrail(
+                conversation=conversation,
                 prompt=prompt,
-                step="generate_initial_question",
-                config=GeminiConfig(model="models/gemini-2.5-flash", temperature=0.7),
+                initial=True,
+                company_research_section=company_research_section,
+                question_number=1,
+                balanced_focus=balanced_focus,
             )
-            return question.strip()
+            return question
         except Exception as e:
             logger.error(f"Error generating initial question: {str(e)}")
             raise
@@ -474,7 +697,7 @@ Chỉ trả lời câu hỏi, không thêm bất kỳ lời giải thích nào k
         conversation_id: int,
         previous_answer: Optional[str] = None,
     ) -> str:
-        """Tạo câu hỏi tiếp theo dựa trên câu trả lời trước"""
+        """Tạo câu hỏi tiếp theo dựa trên câu trả lời trước và optionally Company Research"""
         conversation = await self.get_conversation_by_id(conversation_id)
         if not conversation:
             raise ValueError(f"Conversation {conversation_id} not found")
@@ -485,34 +708,48 @@ Chỉ trả lời câu hỏi, không thêm bất kỳ lời giải thích nào k
         # Build conversation history
         history = "\n".join([f"{msg.role.upper()}: {msg.content}" for msg in messages[-10:]])  # Last 10 messages
 
+        company_research_section = self._build_company_research_section(conversation)
+        interviewer_count = sum(1 for msg in messages if msg.role == MessageRole.INTERVIEWER.value)
+        next_question_number = interviewer_count + 1
+        balanced_focus = self._build_turn_based_focus(conversation, question_number=next_question_number)
+
         prompt = f"""
-Bạn là một người phỏng vấn AI chuyên nghiệp. Dựa trên Job Description, CV, và lịch sử cuộc trò chuyện, hãy tạo câu hỏi phỏng vấn tiếp theo.
+Bạn là một người phỏng vấn AI chuyên nghiệp. Dựa trên Job Description, CV{', Company Research' if company_research_section else ''}, và lịch sử cuộc trò chuyện, hãy tạo câu hỏi phỏng vấn tiếp theo.
 
 Job Description:
 {conversation.job_description}
 
 CV Profile:
 {conversation.cv_profile}
-
+{company_research_section}
 Lịch sử cuộc trò chuyện:
 {history}
 
 Dựa trên câu trả lời trước đó của ứng viên, hãy tạo một câu hỏi tiếp theo để:
 - Đi sâu vào các chi tiết của câu trả lời trước
 - Hoặc đánh giá một kỹ năng khác từ job description
+- Hoặc kiểm tra hiểu biết của ứng viên về công ty đang làm gì, kinh doanh gì, đang bán gì, sản phẩm / dịch vụ / domain / văn hóa nếu có Company Research
 - Hoặc kiểm tra tính nhất quán của ứng viên
+
+Nếu có Company Research, ưu tiên ít nhất một câu hỏi trong phiên phỏng vấn có liên quan trực tiếp đến công ty hoặc bối cảnh kinh doanh, đặc biệt là công ty làm gì và bán gì.
+{balanced_focus}
 
 Câu hỏi nên tự nhiên, chuyên nghiệp, và có thể được trả lời trong khoảng 1-3 phút.
 
 Chỉ trả lời câu hỏi, không thêm bất kỳ lời giải thích nào khác.
 """
         try:
-            question = generate_content(
+            question = self._generate_question_with_company_guardrail(
+                conversation=conversation,
                 prompt=prompt,
-                step="generate_next_question",
-                config=GeminiConfig(model="models/gemini-2.5-flash", temperature=0.7),
+                initial=False,
+                company_research_section=company_research_section,
+                question_number=next_question_number,
+                history=history,
+                previous_answer=previous_answer,
+                balanced_focus=balanced_focus,
             )
-            return question.strip()
+            return question
         except Exception as e:
             logger.error(f"Error generating next question: {str(e)}")
             raise
@@ -529,17 +766,21 @@ Chỉ trả lời câu hỏi, không thêm bất kỳ lời giải thích nào k
         # Build evaluation prompt
         messages_text = "\n".join([f"{msg.role.upper()}: {msg.content}" for msg in messages])
 
+        company_research_section = self._build_company_research_section(conversation)
+
         prompt = f"""
-Bạn là một người phỏng vấn AI chuyên nghiệp. Hãy đánh giá cuộc phỏng vấn dựa trên Job Description, CV, và lịch sử cuộc trò chuyện.
+Bạn là một người phỏng vấn AI chuyên nghiệp. Hãy đánh giá cuộc phỏng vấn dựa trên Job Description, CV{', Company Research' if company_research_section else ''}, và lịch sử cuộc trò chuyện.
 
 Job Description:
 {conversation.job_description}
 
 CV Profile:
 {conversation.cv_profile}
-
+{company_research_section}
 Lịch sử cuộc trò chuyện:
 {messages_text}
+
+Nếu có Company Research, hãy đánh giá thêm mức độ ứng viên thể hiện hiểu biết về công ty, sản phẩm, domain, văn hóa hoặc bối cảnh kinh doanh.
 
 Vui lòng đánh giá:
 1. Điểm mạnh của ứng viên
@@ -612,56 +853,7 @@ Trả lời dưới định dạng JSON:
         messages: list[ConversationMessage],
         company_name: str | None,
     ) -> None:
-        if self._has_company_knowledge_question(messages=messages, company_name=company_name):
-            return
-
-        payload.scores.company_knowledge.score = 0
-        payload.scores.company_knowledge.evidence = (
-            "Không có câu hỏi nào trong phiên phỏng vấn được đặt ra để đánh giá mức độ hiểu biết "
-            "của ứng viên về công ty, sản phẩm, domain, văn hóa hoặc bối cảnh kinh doanh. "
-            "Theo quy ước chấm điểm, tiêu chí company_knowledge được tính là 0 khi không có dữ liệu đánh giá."
-        )
-        payload.overall_score = self._calculate_overall_score(payload)
-        payload.overall_grade = self._grade_from_score(payload.overall_score)
-        payload.level = self._level_from_score(payload.overall_score)
-
-    def _has_company_knowledge_question(
-        self,
-        *,
-        messages: list[ConversationMessage],
-        company_name: str | None,
-    ) -> bool:
-        company_terms = [
-            "công ty",
-            "cong ty",
-            "sản phẩm",
-            "san pham",
-            "product",
-            "domain",
-            "b2b",
-            "saas",
-            "khách hàng",
-            "khach hang",
-            "văn hóa",
-            "van hoa",
-            "sứ mệnh",
-            "su menh",
-            "giá trị",
-            "gia tri",
-            "business",
-            "thị trường",
-            "thi truong",
-        ]
-        if company_name:
-            company_terms.append(company_name.lower())
-
-        for message in messages:
-            if message.role not in {MessageRole.INTERVIEWER, MessageRole.INTERVIEWER.value}:
-                continue
-            question_text = f"{message.question or ''}\n{message.content or ''}".lower()
-            if any(term in question_text for term in company_terms):
-                return True
-        return False
+        return
 
     def _calculate_overall_score(self, payload: AnalysisReportPayload) -> int:
         scores = [
@@ -701,16 +893,19 @@ Trả lời dưới định dạng JSON:
         conversation: Conversation,
         messages_text: str,
     ) -> str:
+        company_research_section = self._build_company_research_section(conversation)
+        
         return f"""
 Bạn là AI Interview Evaluator cho hệ thống InterviewAI.
 
 Hãy phân tích kết quả phỏng vấn dựa DUY NHẤT trên dữ liệu được cung cấp:
 - Job description
 - CV profile
+- Company Research (nếu có)
 - Lịch sử câu hỏi và câu trả lời
 
 Không bịa thêm dữ kiện. Nếu thiếu dữ liệu để đánh giá tiêu chí nào, vẫn cho điểm nhưng phải ghi rõ trong evidence.
-Riêng company_knowledge: nếu lịch sử phỏng vấn không có câu hỏi nào trực tiếp về công ty, sản phẩm, domain, văn hóa, khách hàng, thị trường hoặc bối cảnh kinh doanh thì score bắt buộc là 0.
+Riêng company_knowledge: hãy chấm theo mức độ ứng viên hiểu công ty/sản phẩm/domain/văn hóa/bối cảnh kinh doanh dựa trên dữ liệu phỏng vấn và Company Research nếu có.
 
 Quy ước điểm:
 - Tất cả score là số nguyên từ 0 đến 100.
@@ -718,7 +913,7 @@ Quy ước điểm:
 - communication: cách trình bày, độ rõ ràng, có cấu trúc, đúng trọng tâm.
 - confidence: độ tự tin thể hiện qua câu chữ, gồm trả lời dứt khoát, có ví dụ cụ thể, ít né tránh, ít ngôn ngữ mơ hồ. Không đánh giá giọng nói/khuôn mặt.
 - soft_skills: tư duy hợp tác, xử lý xung đột, ownership, chủ động, problem-solving.
-- company_knowledge: mức độ hiểu công ty, sản phẩm, domain, yêu cầu vị trí và sự phù hợp văn hóa. Chỉ chấm điểm tiêu chí này khi interviewer đã hỏi câu liên quan công ty/sản phẩm/domain/văn hóa; nếu không có câu hỏi như vậy thì score = 0.
+- company_knowledge: mức độ hiểu công ty, sản phẩm, domain, yêu cầu vị trí và sự phù hợp văn hóa.
 
 Quy ước overall_grade:
 - 90-100: A
@@ -782,7 +977,7 @@ Job Description:
 
 CV Profile:
 {conversation.cv_profile}
-
+{company_research_section}
 Lịch sử phỏng vấn:
 {messages_text or "Chưa có câu hỏi/câu trả lời nào."}
 """

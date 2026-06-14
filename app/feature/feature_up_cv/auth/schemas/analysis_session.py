@@ -12,6 +12,7 @@ class AnalysisSessionBase(BaseModel):
     cv_raw_text: Optional[str] = None
     jd_raw_text: Optional[str] = None
     ci_raw_text: Optional[str] = None
+    company_info: Optional[str] = None
     score: Optional[float] = None
     experience_score: Optional[float] = None
     skills_score: Optional[float] = None
@@ -30,6 +31,7 @@ class AnalysisSessionUpdate(BaseModel):
     cv_raw_text: Optional[str] = None
     jd_raw_text: Optional[str] = None
     ci_raw_text: Optional[str] = None
+    company_info: Optional[str] = None
     score: Optional[float] = None
     experience_score: Optional[float] = None
     skills_score: Optional[float] = None

@@ -466,6 +466,7 @@ async def analyze_cv_jd_match(
         # ── Extract Company Research (optional) ───────
         step = "maybe_extract_company_info"
         company_data = None
+        company_text = None
         id_ci = None
         ci_cache_hit = True
         if company_file_path:
@@ -578,6 +579,8 @@ async def analyze_cv_jd_match(
                     data=AnalysisSessionUpdate(
                         cv_raw_text=cv_text,
                         jd_raw_text=jd_text,
+                        ci_raw_text=company_text,
+                        company_info=company_text,
                         score=score,
                         experience_score=experience_score,
                         skills_score=skills_score,
@@ -596,6 +599,8 @@ async def analyze_cv_jd_match(
                         id_ci=id_ci,
                         cv_raw_text=cv_text,
                         jd_raw_text=jd_text,
+                        ci_raw_text=company_text,
+                        company_info=company_text,
                         score=score,
                         experience_score=experience_score,
                         skills_score=skills_score,

@@ -219,6 +219,7 @@ class ConversationAnalysisReportResponse(AnalysisReportPayload):
     job_description: str = Field(default="", description="Mô tả công việc gốc (text hoặc trích xuất từ file upload)")
     status: str
     total_messages: int
+    company_score: int
     started_at: datetime
     ended_at: Optional[datetime] = None
     interview_duration_seconds: Optional[int] = None
