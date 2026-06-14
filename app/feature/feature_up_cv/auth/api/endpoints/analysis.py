@@ -313,18 +313,7 @@ def _build_experience_detail_response(response: Dict[str, Any]) -> Dict[str, Any
         summary = raw.get("summary", "")
 
         years_text = ""
-        if years_detail:
-            total = years_detail.get("total_years", 0)
-            work = years_detail.get("work_years", 0)
-            proj = years_detail.get("project_years", 0)
-            gap_text = years_detail.get("gap_text", "")
-            years_text = (
-                f"Years: {total:.1f}y total "
-                f"(work: {work:.1f}y, project: {proj:.1f}y). "
-                f"{gap_text}. "
-                f"Score={score}/50."
-            )
-
+        # Let's remove years_text appending entirely from summary as requested
         project_names = []
         proj_scores = response.get("features", {}).get("experience", {}).get("project_relevance_scores", [])
         for i, proj_text in enumerate(response.get("features", {}).get("experience", {}).get("project_descriptions", [])):
@@ -333,7 +322,7 @@ def _build_experience_detail_response(response: Dict[str, Any]) -> Dict[str, Any
             project_names.append(proj_name)
         projects_text = "Projects: [" + ", ".join(project_names) + "]" if project_names else ""
 
-        legacy_string = f"{summary} {years_text} {projects_text}".strip()
+        legacy_string = f"{summary} {projects_text}".strip()
 
         cv_level = raw.get("cv_level", "")
         seniority_gap = raw.get("seniority_gap", 0)
@@ -346,12 +335,14 @@ def _build_experience_detail_response(response: Dict[str, Any]) -> Dict[str, Any
             "cv_level": cv_level,
             "jd_required_level": raw.get("jd_required_level", ""),
             "seniority_gap": seniority_gap,
+            "years_of_experience": raw.get("years_of_experience"),
             "years_detail": years_detail,
             "project_relevance_avg": raw.get("project_relevance_avg", 0),
-            "projects": project_names,
+            "projects": raw.get("projects", []),
             "seniority_label": f"seniority={cv_level}" if cv_level else "",
             "bonus_val": round(bonus_val, 1),
             "years_score_val": round(score * 0.8, 1),
+            "highlights": raw.get("highlights", []),
         }
 
     elif isinstance(raw, str):

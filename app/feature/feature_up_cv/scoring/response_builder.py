@@ -631,6 +631,7 @@ def build_experience_detail(
     req_level: int,
     seniority_gap: int,
     is_entry_level: bool,
+    cv_data: dict = None,
 ) -> dict:
     """Xây dựng chi tiết kinh nghiệm cho response."""
     max_exp = 50.0
@@ -684,6 +685,21 @@ def build_experience_detail(
     else:
         project_relevance_avg = 0.0
 
+    # Extract achievements/highlights from work experience
+    highlights = []
+    if cv_data and isinstance(cv_data, dict):
+        work_exp = cv_data.get("work_experience", [])
+        if isinstance(work_exp, list):
+            for exp in work_exp:
+                if isinstance(exp, dict):
+                    hl = exp.get("highlights", [])
+                    if isinstance(hl, list):
+                        for h in hl:
+                            if h and len(h.strip()) > 10:
+                                highlights.append(h.strip())
+                    elif isinstance(hl, str) and len(hl.strip()) > 10:
+                        highlights.append(hl.strip())
+
     return {
         "score": round(exp_score, 1),
         "score_level": (
@@ -699,6 +715,7 @@ def build_experience_detail(
         "jd_required_level_code": req_level,
         "seniority_gap": seniority_gap,
         "is_entry_level": is_entry_level,
+        "years_of_experience": round(max(work_years, 0.0), 1),
         "years_detail": {
             "total_years": round(all_exp_years, 1),
             "work_years": round(max(work_years, 0.0), 1),
@@ -707,11 +724,12 @@ def build_experience_detail(
             "gap_text": gap_text,
         },
         "project_relevance_avg": project_relevance_avg,
+        "highlights": highlights[:5],  # Limit to top 5 highlights
         "projects": [
             {
                 "name": p.get("name", "Project"),
                 "relevance": round(p.get("relevance_score", 0.0) * 100, 0),
-                "description": p.get("description", "")[:100] + "..." if len(p.get("description", "")) > 100 else p.get("description", ""),
+                "description": p.get("description", ""),
             }
             for p in (exp_features.get("projects", []) if exp_features else [])
         ] if exp_features and exp_features.get("projects") else [],
