@@ -27,8 +27,7 @@ google-genai==1.47.0
 
 openai==2.29.0
 # ── Embedding & Vector Search ─────────────
-# sentence-transformers>=2.7.0
-sentence-transformers==2.2.0
+sentence-transformers>=2.7.0
 faiss-cpu>=1.8.0
 numpy>=1.26.0
 PyYAML>=6.0
