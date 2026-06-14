@@ -1,3 +1,4 @@
+from typing import Optional
 from datetime import datetime
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -5,10 +6,10 @@ from pydantic import BaseModel, ConfigDict, Field
 # ── Base ─────────────────────────────────────────
 
 class CompanyInfoBase(BaseModel):
-    parser_file_url: str | None = None
-    raw_file_url: str | None = None
-    text_hashed: str | None = None
-    text_content: str | None = None
+    parser_file_url: Optional[str] = None
+    raw_file_url: Optional[str] = None
+    text_hashed: Optional[str] = None
+    text_content: Optional[str] = None
 
 
 # ── Request ──────────────────────────────────────
@@ -18,10 +19,10 @@ class CompanyInfoCreate(CompanyInfoBase):
 
 
 class CompanyInfoUpdate(BaseModel):
-    parser_file_url: str | None = None
-    raw_file_url: str | None = None
-    text_hashed: str | None = None
-    text_content: str | None = None
+    parser_file_url: Optional[str] = None
+    raw_file_url: Optional[str] = None
+    text_hashed: Optional[str] = None
+    text_content: Optional[str] = None
 
 
 # ── Response ─────────────────────────────────────

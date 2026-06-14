@@ -11,7 +11,6 @@ Scores company/culture fit between CV and company data:
 Note: This score is separate from the total 100 and returned independently.
 """
 
-from __future__ import annotations
 
 import logging
 from typing import List, Tuple

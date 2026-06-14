@@ -42,12 +42,12 @@ import app.feature.conversation.model  # noqa: F401
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # ── Startup ──
-    print(f"[STARTUP] Starting {settings.APP_NAME} v{settings.APP_VERSION}")
+    print(f"🚀  Starting {settings.APP_NAME} v{settings.APP_VERSION}")
     await init_db()          # create tables + apply Alembic migrations
     await ensure_admin()
     yield
     # ── Shutdown ──
-    print("[SHUTDOWN] Shutting down...")
+    print("👋  Shutting down...")
 
 
 # ── App factory ───────────────────────────────────────────────────────────────

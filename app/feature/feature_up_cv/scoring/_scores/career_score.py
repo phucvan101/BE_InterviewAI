@@ -10,7 +10,6 @@ Scores career objectives alignment based on:
 - Proxy fallback when CV has no stated objectives
 """
 
-from __future__ import annotations
 
 import logging
 import re

@@ -17,7 +17,7 @@ from app.feature.conversation.model.conversation import (
 )
 from app.feature.conversation.schema import AnalysisReportPayload
 from app.feature.conversation.service.score_anomaly_detector import ScoreAnomalyDetector
-from app.feature.feature_up_cv.gemini_client import generate_content, GeminiConfig
+from app.feature.feature_up_cv.core.gemini_client import generate_content, GeminiConfig
 
 from app.core.ml_models import get_hallucination_guard
 
@@ -54,9 +54,9 @@ class ConversationService:
         job_position: str,
         job_description: str,
         cv_profile: str,
-        company_name: str | None = None,
-        analysis_session_id: int | None = None,
-        session_id: str | None = None,
+        company_name: Optional[str] = None,
+        analysis_session_id: Optional[int] = None,
+        session_id: Optional[str] = None,
         force_new: bool = False,
     ) -> Conversation:
         """Tạo conversation mới"""
@@ -610,7 +610,7 @@ Trả lời dưới định dạng JSON:
         *,
         payload: AnalysisReportPayload,
         messages: list[ConversationMessage],
-        company_name: str | None,
+        company_name: Optional[str],
     ) -> None:
         if self._has_company_knowledge_question(messages=messages, company_name=company_name):
             return
@@ -629,7 +629,7 @@ Trả lời dưới định dạng JSON:
         self,
         *,
         messages: list[ConversationMessage],
-        company_name: str | None,
+        company_name: Optional[str],
     ) -> bool:
         company_terms = [
             "công ty",

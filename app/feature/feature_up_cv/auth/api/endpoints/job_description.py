@@ -1,3 +1,4 @@
+from typing import Optional
 # -*- coding: utf-8 -*-
 import os
 import tempfile
@@ -25,7 +26,7 @@ router = APIRouter(prefix="/job-description", tags=["Job Description"])
 
 class JobDescriptionTextUploadRequest(BaseModel):
     text: str
-    file_name: str | None = None
+    file_name: Optional[str] = None
 
 
 @router.post("/upload", status_code=status.HTTP_200_OK)

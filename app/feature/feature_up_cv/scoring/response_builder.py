@@ -12,9 +12,9 @@ Thiết kế:
 - company_fit_detail: {score, tech_match, domain_fit, culture_fit, engineering}
 """
 
-from __future__ import annotations
 
 import logging
+import re
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional
 
@@ -162,16 +162,6 @@ def build_main_strengths(
             1 for r in criteria_match_results
             if r.get("match_status") in ("PERFECT_MATCH", "RELEVANT_MATCH")
         ) if criteria_match_results else 0
-        strengths.append(StrengthItem(
-            type=STRENGTH_SKILL_PARTIAL,
-            title="Kỹ năng đáp ứng một phần yêu cầu",
-            description=(
-                f"Ứng viên có {skill_ratio:.0%} kỹ năng phù hợp với JD "
-                f"({matched_count}/{criteria_count} tiêu chí). Cần bổ sung thêm kỹ năng còn thiếu."
-            ) if criteria_count > 0 else "Kỹ năng đáp ứng một phần yêu cầu JD.",
-            score_impact=skills_score,
-            icon="skills",
-        ))
 
     # ── Education ──────────────────────────────────────────────
     if edu_score >= 8:
@@ -677,6 +667,23 @@ def build_experience_detail(
     level_text = level_map.get(cv_level, "Không xác định")
     req_text = seniority_map.get(req_level, "Không xác định")
 
+    # Generate clean summary based on score level only
+    if ratio >= 0.8:
+        summary_text = "Kinh nghiệm và cấp độ đạt yêu cầu."
+    elif ratio >= 0.6:
+        summary_text = "Kinh nghiệm đáp ứng tốt yêu cầu."
+    elif ratio >= 0.4:
+        summary_text = "Kinh nghiệm cơ bản đáp ứng yêu cầu."
+    else:
+        summary_text = "Kinh nghiệm chưa đáp ứng đủ yêu cầu."
+
+    # Calculate project_relevance_avg from exp_features
+    project_relevance_scores = exp_features.get("project_relevance_scores", []) if exp_features else []
+    if project_relevance_scores:
+        project_relevance_avg = round(sum(project_relevance_scores) / len(project_relevance_scores) * 100, 0)
+    else:
+        project_relevance_avg = 0.0
+
     return {
         "score": round(exp_score, 1),
         "score_level": (
@@ -685,7 +692,7 @@ def build_experience_detail(
             "trung bình" if ratio >= 0.4 else
             "yếu"
         ),
-        "summary": exp_rationale,
+        "summary": summary_text,
         "cv_level": level_text,
         "jd_required_level": req_text,
         "cv_level_code": cv_level,
@@ -699,12 +706,15 @@ def build_experience_detail(
             "required_years": round(years_req, 1),
             "gap_text": gap_text,
         },
-        "project_relevance_avg": round(
-            sum(exp_features.get("project_relevance_scores", [])) /
-            max(len(exp_features.get("project_relevance_scores", [])), 1)
-            if exp_features and exp_features.get("project_relevance_scores") else 0.0,
-            2,
-        ) if exp_features else 0.0,
+        "project_relevance_avg": project_relevance_avg,
+        "projects": [
+            {
+                "name": p.get("name", "Project"),
+                "relevance": round(p.get("relevance_score", 0.0) * 100, 0),
+                "description": p.get("description", "")[:100] + "..." if len(p.get("description", "")) > 100 else p.get("description", ""),
+            }
+            for p in (exp_features.get("projects", []) if exp_features else [])
+        ] if exp_features and exp_features.get("projects") else [],
     }
 
 

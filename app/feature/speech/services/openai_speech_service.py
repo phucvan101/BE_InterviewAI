@@ -1,3 +1,4 @@
+from typing import Optional
 import inspect
 from collections.abc import AsyncIterator
 from io import BytesIO
@@ -35,8 +36,8 @@ class OpenAISpeechService:
         audio_bytes: bytes,
         filename: str,
         content_type: str,
-        language: str | None = None,
-        prompt: str | None = None,
+        language: Optional[str] = None,
+        prompt: Optional[str] = None,
     ) -> str:
         client = self._client()
         audio_file = (filename, BytesIO(audio_bytes), content_type)
@@ -62,7 +63,7 @@ class OpenAISpeechService:
         text: str,
         voice: str,
         response_format: str,
-        instructions: str | None = None,
+        instructions: Optional[str] = None,
     ) -> bytes:
         client = self._client()
         params = {

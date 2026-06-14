@@ -1,3 +1,4 @@
+from typing import Optional
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -44,7 +45,7 @@ class AnalysisSessionService:
         )
         return result.scalar_one_or_none()
 
-    async def get_by_documents(self, user_id: int, id_cv: int, id_jd: int, id_ci: int | None = None) -> AnalysisSession | None:
+    async def get_by_documents(self, user_id: int, id_cv: int, id_jd: int, id_ci: Optional[int] = None) -> AnalysisSession | None:
         query = select(AnalysisSession).where(
             AnalysisSession.user_id == user_id,
             AnalysisSession.id_cv == id_cv,

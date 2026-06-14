@@ -1,3 +1,4 @@
+from typing import Optional
 from datetime import datetime
 
 from pydantic import BaseModel, ConfigDict, EmailStr, Field
@@ -32,7 +33,7 @@ class AdminUserCreate(BaseModel):
     email: EmailStr
     password: str = Field(..., min_length=6)
 
-    full_name: str | None = Field(None, max_length=100)
+    full_name: Optional[str] = Field(None, max_length=100)
 
     is_active: bool = True
     is_verified: bool = False
@@ -41,12 +42,12 @@ class AdminUserCreate(BaseModel):
 
 class AdminUserUpdate(BaseModel):
     email: EmailStr | None = None
-    username: str | None = Field(None, min_length=3, max_length=50, pattern=r"^[a-zA-Z0-9_-]+$")
-    full_name: str | None = Field(None, max_length=100)
-    password: str | None = None 
-    is_active: bool | None = None
-    is_deleted: bool | None = None
-    is_verified: bool | None = None
+    username: Optional[str] = Field(None, min_length=3, max_length=50, pattern=r"^[a-zA-Z0-9_-]+$")
+    full_name: Optional[str] = Field(None, max_length=100)
+    password: Optional[str] = None 
+    is_active: Optional[bool] = None
+    is_deleted: Optional[bool] = None
+    is_verified: Optional[bool] = None
 
 
 class AdminUserRolesUpdate(BaseModel):

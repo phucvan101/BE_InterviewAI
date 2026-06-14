@@ -1,3 +1,4 @@
+from typing import Optional
 from datetime import date as date_type
 
 from pydantic import BaseModel, EmailStr, Field
@@ -28,10 +29,10 @@ class AdminDashboardActivityPoint(BaseModel):
 
 class AdminDashboardTopUser(BaseModel):
     user_id: int
-    full_name: str | None = None
+    full_name: Optional[str] = None
     username: str
     email: EmailStr
-    avatar_url: str | None = None
+    avatar_url: Optional[str] = None
     session_count: int
 
 

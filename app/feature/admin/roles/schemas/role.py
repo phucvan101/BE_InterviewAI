@@ -1,3 +1,4 @@
+from typing import Optional
 from datetime import datetime
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -9,13 +10,13 @@ class PermissionResponse(BaseModel):
     id: int
     code: str
     name: str
-    description: str | None
+    description: Optional[str]
     module: str
 
 
 class RoleBase(BaseModel):
     name: str = Field(..., min_length=3, max_length=80, pattern=r"^[a-zA-Z0-9_-]+$")
-    description: str | None = Field(None, max_length=255)
+    description: Optional[str] = Field(None, max_length=255)
 
 
 class RoleCreate(RoleBase):
@@ -23,8 +24,8 @@ class RoleCreate(RoleBase):
 
 
 class RoleUpdate(BaseModel):
-    name: str | None = Field(None, min_length=3, max_length=80, pattern=r"^[a-zA-Z0-9_-]+$")
-    description: str | None = Field(None, max_length=255)
+    name: Optional[str] = Field(None, min_length=3, max_length=80, pattern=r"^[a-zA-Z0-9_-]+$")
+    description: Optional[str] = Field(None, max_length=255)
     permission_codes: list[str] | None = None
 
 

@@ -11,7 +11,6 @@ Changes from v5:
 - Each scoring section has its own detail block
 """
 
-from __future__ import annotations
 
 import logging
 from datetime import datetime

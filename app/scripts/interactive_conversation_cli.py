@@ -165,10 +165,7 @@ async def run_interactive(
 
         conversation = await service.create_conversation(
             user_id=user.id,
-<<<<<<< HEAD
             job_position="Sample Interview" if use_sample else "N/A",
-=======
->>>>>>> c2202c1 (rebase main)
             job_description=job_description.strip() or "N/A",
             cv_profile=cv_profile.strip() or "N/A",
         )
@@ -226,7 +223,6 @@ async def run_interactive(
             score = None
             recommendation = "N/A"
         else:
-<<<<<<< HEAD
             report = await service.create_analysis_report(conversation.id)
             evaluation = {
                 "overall_score": report.overall_score,
@@ -241,24 +237,12 @@ async def run_interactive(
 
         if no_ai:
             await service.end_conversation(conversation.id, result=evaluation, score=score)
-=======
-            evaluation = await service.evaluate_answer(conversation.id)
-            score = evaluation.get("fit_score")
-            recommendation = evaluation.get("recommendation")
-
-        await service.end_conversation(conversation.id, result=evaluation, score=score)
->>>>>>> c2202c1 (rebase main)
         await db.commit()
 
         print(f"Status: {ConversationStatus.COMPLETED}")
         print(f"Score: {score}")
-<<<<<<< HEAD
         print(f"Grade: {recommendation}")
         print("Report JSON:")
-=======
-        print(f"Recommendation: {recommendation}")
-        print("Result JSON:")
->>>>>>> c2202c1 (rebase main)
         print(json.dumps(evaluation, ensure_ascii=False, indent=2))
         return 0
     finally:

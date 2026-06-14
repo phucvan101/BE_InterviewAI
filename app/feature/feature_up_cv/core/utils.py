@@ -1,5 +1,4 @@
 # -*- coding: utf-8 -*-
-from __future__ import annotations
 """
 Shared utility functions for feature_up_cv module.
 
@@ -8,10 +7,10 @@ to eliminate code duplication.
 """
 
 import re
-from typing import Any, List
+from typing import Any, List, Optional
 
 
-def extract_first_json(text: str) -> str | None:
+def extract_first_json(text: str) -> Optional[str]:
     """Extract the first balanced JSON object from a string."""
     stack = 0
     start = None

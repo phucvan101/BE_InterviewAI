@@ -98,12 +98,14 @@ class SelfCorrectingFeedbackAgent:
         applied = False
 
         if evaluation.new_synonyms:
-            tool_result = self.synonym_tool.run(evaluation.new_synonyms)
+            # Call _run directly to avoid LangChain BaseTool.run() API issues
+            tool_result = self.synonym_tool._run(evaluation.new_synonyms)
             logger.info(f"[LangChain Agent] Tool: {tool_result}")
             applied = True
 
         if evaluation.learned_rule:
-            tool_result = self.faiss_tool.run(
+            # Call _run directly to avoid LangChain BaseTool.run() API issues
+            tool_result = self.faiss_tool._run(
                 rule_text=evaluation.learned_rule,
                 context=feedback_text,
             )

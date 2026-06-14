@@ -1,3 +1,4 @@
+from typing import Optional
 import logging
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
@@ -22,8 +23,8 @@ router = APIRouter()
 )
 async def speech_to_text(
     file: UploadFile = File(..., description="File audio cần transcribe"),
-    language: str | None = Form(default=None, description="Mã ngôn ngữ tuỳ chọn, ví dụ: vi"),
-    prompt: str | None = Form(default=None, description="Ngữ cảnh tuỳ chọn cho transcription"),
+    language: Optional[str] = Form(default=None, description="Mã ngôn ngữ tuỳ chọn, ví dụ: vi"),
+    prompt: Optional[str] = Form(default=None, description="Ngữ cảnh tuỳ chọn cho transcription"),
     current_user: User = Depends(get_current_active_user),
 ) -> SpeechToTextResponse:
     del current_user

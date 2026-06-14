@@ -1,3 +1,4 @@
+from typing import Optional
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.feature.email.repository import AnalysisSessionRepository
@@ -22,7 +23,7 @@ class EmailApplicationService:
             except ImportError:
                 pass
 
-    async def send_job_application(self, session_id: int, user_id: int | None = None) -> tuple[bool, str]:
+    async def send_job_application(self, session_id: int, user_id: Optional[int] = None) -> tuple[bool, str]:
         """
         Gửi email xin việc cho công ty dựa vào analysis session.
         Flow:

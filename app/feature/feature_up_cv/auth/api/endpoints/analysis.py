@@ -53,14 +53,20 @@ class AnalysisCVJDRequest(BaseModel):
 
 router = APIRouter(prefix="/analysis", tags=["Analysis"])
 
+# Debug endpoint to test if requests reach the server
+@router.get("/test", tags=["Debug"])
+async def test_endpoint():
+    print(">>> TEST ENDPOINT HIT <<<", flush=True)
+    return {"status": "ok", "message": "Test endpoint works"}
+
 
 def _log_parser_result(parser_name: str, started_at: float, success: bool, error: str | None = None) -> None:
     elapsed_ms = (time.perf_counter() - started_at) * 1000
     status_str = "SUCCESS" if success else "FAILED"
     if success:
-        print(f"[PARSER] {parser_name}: {status_str} ({elapsed_ms:.1f} ms)")
+        print(f"[PARSER] {parser_name}: {status_str} ({elapsed_ms:.1f} ms)", flush=True)
     else:
-        print(f"[PARSER] {parser_name}: {status_str} ({elapsed_ms:.1f} ms) - {error or 'unknown error'}")
+        print(f"[PARSER] {parser_name}: {status_str} ({elapsed_ms:.1f} ms) - {error or 'unknown error'}", flush=True)
 
 
 def _build_skills_detail(analysis_result: Dict[str, Any]) -> Dict[str, Any]:
@@ -385,7 +391,6 @@ def _build_experience_detail_response(response: Dict[str, Any]) -> Dict[str, Any
 # Import utilities from feature_up_cv using absolute imports
 try:
     from app.feature.feature_up_cv.scoring.hybrid_scoring import calculate_hybrid_score
-    from app.feature.feature_up_cv.feedback_agent.memory_faiss import agent_memory
     from app.feature.feature_up_cv.vector_search.embedding_service import get_embedding_service
     from app.feature.feature_up_cv.vector_search.faiss_index_manager import get_faiss_manager
     from app.feature.feature_up_cv.parsers.parser_cv import llm_parser_cv
@@ -394,7 +399,7 @@ try:
     from app.feature.feature_up_cv.parsers.parser_jd import llm_parser_jd
     from app.feature.feature_up_cv.core.gemini_client import GeminiQuotaExceededError, GeminiRateLimitedError
 except ImportError as e:
-    print(f"⚠️ Warning: Could not import from feature_up_cv: {e}")
+    print(f"⚠️ Warning: Could not import from feature_up_cv: {e}", flush=True)
     calculate_hybrid_score = None
     llm_parser_cv = None
     llm_parser_company = None
@@ -434,12 +439,12 @@ async def _compute_and_cache_embeddings(
     if cv_record.embedding_vector_url:
         existing = embedder.load_vector(cv_record.embedding_vector_url)
         if existing is not None:
-            print(f"[EMBEDDING] CV cache hit for id_cv={cv_record.id_cv}")
+            print(f"[EMBEDDING] CV cache hit for id_cv={cv_record.id_cv}", flush=True)
             cv_embedding = existing
             cv_cache_hit = True
 
     if cv_embedding is None:
-        print(f"[EMBEDDING] Computing CV embedding for id_cv={cv_record.id_cv}")
+        print(f"[EMBEDDING] Computing CV embedding for id_cv={cv_record.id_cv}", flush=True)
         cv_text = embedder.encode_structured_cv(cv_data)
         cv_embedding = embedder.encode(cv_text)
         vector_path = embedder.save_vector(cv_embedding, cv_record.id_cv, FILE_TYPE_CV)
@@ -459,12 +464,12 @@ async def _compute_and_cache_embeddings(
     if jd_record.embedding_vector_url:
         existing = embedder.load_vector(jd_record.embedding_vector_url)
         if existing is not None:
-            print(f"[EMBEDDING] JD cache hit for id_jd={jd_record.id_jd}")
+            print(f"[EMBEDDING] JD cache hit for id_jd={jd_record.id_jd}", flush=True)
             jd_embedding = existing
             jd_cache_hit = True
 
     if jd_embedding is None:
-        print(f"[EMBEDDING] Computing JD embedding for id_jd={jd_record.id_jd}")
+        print(f"[EMBEDDING] Computing JD embedding for id_jd={jd_record.id_jd}", flush=True)
         jd_text = embedder.encode_structured_jd(jd_data)
         jd_embedding = embedder.encode(jd_text)
         vector_path = embedder.save_vector(jd_embedding, jd_record.id_jd, FILE_TYPE_JD)
@@ -513,7 +518,7 @@ async def _parse_cv_with_cache(
                 record.raw_file_url = raw_file_url
                 await db.flush()
                 await db.commit()
-            print(f"[CACHE HIT] CV parser - using user's own cache id_cv={record.id_cv}")
+            print(f"[CACHE HIT] CV parser - using user's own cache id_cv={record.id_cv}", flush=True)
             return cached, record.id_cv, True
 
     # 2. Global cache hit (same content uploaded by another user)
@@ -521,7 +526,7 @@ async def _parse_cv_with_cache(
     if global_existing and global_existing.parser_file_url:
         cached = load_parser_result(global_existing.parser_file_url)
         if cached:
-            print(f"[CACHE HIT] CV parser - using global cache from id_cv={global_existing.id_cv}")
+            print(f"[CACHE HIT] CV parser - using global cache from id_cv={global_existing.id_cv}", flush=True)
             record.parser_file_url = global_existing.parser_file_url
             record.text_hashed = text_hash
             if raw_file_url:
@@ -531,7 +536,7 @@ async def _parse_cv_with_cache(
             return cached, record.id_cv, False
 
     # 3. No cache -> call LLM
-    print(f"[CACHE MISS] CV parser - calling LLM")
+    print(f"[CACHE MISS] CV parser - calling LLM", flush=True)
     cv_started_at = time.perf_counter()
     try:
         cv_data = llm_parser_cv(cv_text)
@@ -553,7 +558,7 @@ async def _parse_cv_with_cache(
         record.raw_file_url = raw_file_url
     await db.flush()
     await db.commit()
-    print(f"[CACHE SAVED] CV parser result saved to id_cv={record.id_cv}")
+    print(f"[CACHE SAVED] CV parser result saved to id_cv={record.id_cv}", flush=True)
 
     return cv_data, record.id_cv, False
 
@@ -579,7 +584,7 @@ async def _parse_jd_with_cache(
     if record.text_hashed == text_hash and record.parser_file_url:
         cached = load_parser_result(record.parser_file_url)
         if cached:
-            print(f"[CACHE HIT] JD parser - using user's own cache id_jd={record.id_jd}")
+            print(f"[CACHE HIT] JD parser - using user's own cache id_jd={record.id_jd}", flush=True)
             return cached, record.id_jd, True
 
     # 2. Global cache hit
@@ -587,7 +592,7 @@ async def _parse_jd_with_cache(
     if global_existing and global_existing.parser_file_url:
         cached = load_parser_result(global_existing.parser_file_url)
         if cached:
-            print(f"[CACHE HIT] JD parser - using global cache from id_jd={global_existing.id_jd}")
+            print(f"[CACHE HIT] JD parser - using global cache from id_jd={global_existing.id_jd}", flush=True)
             record.parser_file_url = global_existing.parser_file_url
             record.text_hashed = text_hash
             await db.flush()
@@ -595,7 +600,7 @@ async def _parse_jd_with_cache(
             return cached, record.id_jd, False
 
     # 3. No cache
-    print(f"[CACHE MISS] JD parser - calling LLM")
+    print(f"[CACHE MISS] JD parser - calling LLM", flush=True)
     jd_started_at = time.perf_counter()
     try:
         jd_data = llm_parser_jd(jd_text=jd_text)
@@ -615,7 +620,7 @@ async def _parse_jd_with_cache(
     record.text_hashed = text_hash
     await db.flush()
     await db.commit()
-    print(f"[CACHE SAVED] JD parser result saved to id_jd={record.id_jd}")
+    print(f"[CACHE SAVED] JD parser result saved to id_jd={record.id_jd}", flush=True)
 
     return jd_data, record.id_jd, False
 
@@ -641,7 +646,7 @@ async def _parse_company_with_cache(
     if record.text_hashed == text_hash and record.parser_file_url:
         cached = load_parser_result(record.parser_file_url)
         if cached:
-            print(f"[CACHE HIT] COMPANY parser - using user's own cache id_ci={record.id_ci}")
+            print(f"[CACHE HIT] COMPANY parser - using user's own cache id_ci={record.id_ci}", flush=True)
             return cached, record.id_ci, True
 
     # 2. Global cache hit
@@ -649,7 +654,7 @@ async def _parse_company_with_cache(
     if global_existing and global_existing.parser_file_url:
         cached = load_parser_result(global_existing.parser_file_url)
         if cached:
-            print(f"[CACHE HIT] COMPANY parser - using global cache from id_ci={global_existing.id_ci}")
+            print(f"[CACHE HIT] COMPANY parser - using global cache from id_ci={global_existing.id_ci}", flush=True)
             record.parser_file_url = global_existing.parser_file_url
             record.text_hashed = text_hash
             await db.flush()
@@ -657,19 +662,19 @@ async def _parse_company_with_cache(
             return cached, record.id_ci, False
 
     # 3. No cache -> call LLM
-    print(f"[CACHE MISS] COMPANY parser - calling LLM")
+    print(f"[CACHE MISS] COMPANY parser - calling LLM", flush=True)
     company_started_at = time.perf_counter()
     try:
         company_info = llm_parser_company(company_text)
         if not company_info.get("success"):
             error_msg = company_info.get("error", "Unknown error")
             _log_parser_result("COMPANY", company_started_at, False, error_msg)
-            print(f"⚠️ Company extraction failed: {error_msg}")
+            print(f"⚠️ Company extraction failed: {error_msg}", flush=True)
             raise ValueError(f"Lỗi khi phân tích thông tin công ty: {error_msg}")
         _log_parser_result("COMPANY", company_started_at, True)
     except Exception as e:
         _log_parser_result("COMPANY", company_started_at, False, str(e))
-        print(f"⚠️ Company extraction error: {e}")
+        print(f"⚠️ Company extraction error: {e}", flush=True)
         raise
 
     # 4. Save parsed result to file
@@ -684,7 +689,7 @@ async def _parse_company_with_cache(
     record.text_content = company_text
     await db.flush()
     await db.commit()
-    print(f"[CACHE SAVED] Company parser result saved to id_ci={record.id_ci}")
+    print(f"[CACHE SAVED] Company parser result saved to id_ci={record.id_ci}", flush=True)
 
     return company_info, record.id_ci, False
 
@@ -696,7 +701,18 @@ async def analyze_cv_jd_match(
     db: AsyncSession = Depends(get_db),
 ):
     import uuid
+    import sys
     from app.core.database import engine
+    
+    # # CRITICAL DEBUG - print to STDERR to ensure visibility
+    # sys.stderr.write("=" * 60 + "\n")
+    # sys.stderr.write(">>> MATCH-CV-JD ENDPOINT HIT! <<<\n")
+    # sys.stderr.write(f">>> User: {current_user.id} ({current_user.email})\n")
+    # sys.stderr.write(f">>> Body: cv={request_body.cv_file_path}, jd={request_body.jd_file_path}\n")
+    # sys.stderr.write("=" * 60 + "\n")
+    sys.stderr.flush()
+    
+    # print(f"[MATCH-CV-JD] Called by user {current_user.id}, cv={request_body.cv_file_path}", flush=True)
     
     # Suppress SQLAlchemy Engine INFO logs temporarily
     original_echo = engine.echo
@@ -830,7 +846,7 @@ async def analyze_cv_jd_match(
             company_hash = compute_text_hash(company_text)
             company_result = await _parse_company_with_cache(company_text, company_hash, user_id, db)
             company_data, id_ci, ci_cache_hit = company_result
-            print(f"parser company info success")
+            print(f"parser company info success", flush=True)
                 
         # ── Check for existing session ────────────────
         session_service = AnalysisSessionService(db)
@@ -844,7 +860,7 @@ async def analyze_cv_jd_match(
             if os.path.exists(existing_session.result_analysis_file_url):
                 cached_result = load_result_analysis(existing_session.result_analysis_file_url)
                 if cached_result and all_cache_hits:
-                    print(f"[CACHE HIT] MATCH_SCORE - using cached result from session={existing_session.id_session}")
+                    print(f"[CACHE HIT] MATCH_SCORE - using cached result from session={existing_session.id_session}", flush=True)
                     # Apply skills_detail transformation even to cached results
                     cached_result["skills_detail"] = _build_skills_detail(cached_result)
                     return {
@@ -855,16 +871,16 @@ async def analyze_cv_jd_match(
                     }
                 else:
                     if not all_cache_hits:
-                        print(f"[CACHE MISS] MATCH_SCORE - underlying files were re-parsed, ignoring existing result for session={existing_session.id_session}")
+                        print(f"[CACHE MISS] MATCH_SCORE - underlying files were re-parsed, ignoring existing result for session={existing_session.id_session}", flush=True)
                     else:
-                        print(f"[CACHE MISS] MATCH_SCORE - physical file exists but could not be loaded for session={existing_session.id_session}")
+                        print(f"[CACHE MISS] MATCH_SCORE - physical file exists but could not be loaded for session={existing_session.id_session}", flush=True)
             else:
-                print(f"[CACHE MISS] MATCH_SCORE - physical file missing for session={existing_session.id_session}")
+                print(f"[CACHE MISS] MATCH_SCORE - physical file missing for session={existing_session.id_session}", flush=True)
         else:
             if existing_session:
-                print(f"[CACHE MISS] MATCH_SCORE - no result url, skipping existing session={existing_session.id_session}")
+                print(f"[CACHE MISS] MATCH_SCORE - no result url, skipping existing session={existing_session.id_session}", flush=True)
             else:
-                print(f"[CACHE MISS] MATCH_SCORE - no existing session found")
+                print(f"[CACHE MISS] MATCH_SCORE - no existing session found", flush=True)
         
         # ── Get CV and JD records for embedding cache ───
         from app.feature.feature_up_cv.auth.services.cv_profile_service import CVProfileService
@@ -885,59 +901,18 @@ async def analyze_cv_jd_match(
             )
             await db.commit()
 
-        # ── Get Agent Learned Knowledge (RAG) ───
-        try:
-            # Query by combining texts
-            # Using strings from CV and JD if available, otherwise just use names
-            query_text = ""
-            if isinstance(cv_data, dict):
-                query_text += cv_data.get("objective", "") + " "
-            if isinstance(jd_data, dict):
-                query_text += jd_data.get("job_title", "")
-            
-            # get rules from FAISS
-            relevant_rules = agent_memory.get_relevant_rules(query=query_text, top_k=3, threshold=0.75) if agent_memory else []
-            learned_knowledge = {"rules": relevant_rules} if relevant_rules else None
-        except Exception as e:
-            print(f"[SCORING] Failed to query agent memory: {e}")
-            learned_knowledge = None
-
-        # ── Get Agent Score Overrides from Database ───
-        score_overrides = None
-        try:
-            from app.feature.feature_up_cv.auth.models.score_override import ScoreOverride
-            override_stmt = select(ScoreOverride).where(
-                ScoreOverride.cv_id == str(id_cv),
-                ScoreOverride.jd_id == str(id_jd)
-            )
-            if not current_user.is_superuser:
-                override_stmt = override_stmt.where(ScoreOverride.user_id == str(user_id))
-            override_stmt = override_stmt.order_by(ScoreOverride.id.desc()).limit(1)
-            override_res = await db.execute(override_stmt)
-            override_record = override_res.scalar_one_or_none()
-            if override_record and override_record.overridden_scores:
-                score_overrides = {
-                    **override_record.overridden_scores,
-                    "rationale": override_record.rationale,
-                }
-                print(f"[SCORING] Found score overrides in DB: {score_overrides}")
-        except Exception as e:
-            print(f"[SCORING] Failed to query score overrides: {e}")
-
         # ── Call hybrid scoring ───
         step = "hybrid_score"
         score_started_at = time.perf_counter()
         try:
             analysis_result = calculate_hybrid_score(
                 cv_data, jd_data, company_data,
-                cv_embedding=cv_embedding, jd_embedding=jd_embedding,
-                score_overrides=score_overrides,
-                learned_knowledge=learned_knowledge
+                cv_embedding=cv_embedding, jd_embedding=jd_embedding
             )
             _log_parser_result("SCORE", score_started_at, True)
         except Exception as e:
             _log_parser_result("SCORE", score_started_at, False, str(e))
-            print(f"[SCORING] Hybrid scoring failed: {e}")
+            print(f"[SCORING] Hybrid scoring failed: {e}", flush=True)
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail=f"Scoring failed: {str(e)}"
@@ -1053,7 +1028,7 @@ async def analyze_cv_jd_match(
                         result_analysis_file_url=str(result_file_path),
                     )
                 )
-                print(f"[CACHE SAVED] Analysis session updated (id={existing_session.id_session}) and result saved")
+                print(f"[CACHE SAVED] Analysis session updated (id={existing_session.id_session}) and result saved", flush=True)
             else:
                 saved_session = await session_service.create(
                     user_id=user_id,
@@ -1072,10 +1047,10 @@ async def analyze_cv_jd_match(
                         result_analysis_file_url=str(result_file_path),
                     )
                 )
-                print("[CACHE SAVED] Analysis session created and result saved")
+                print("[CACHE SAVED] Analysis session created and result saved", flush=True)
             await db.commit()
         except Exception as e:
-            print(f"⚠️ Error saving analysis session: {e}")
+            print(f"⚠️ Error saving analysis session: {e}", flush=True)
         
         return {
             "success": True,
@@ -1124,7 +1099,7 @@ async def analyze_cv_jd_match(
         
         if 'session_start_time' in locals():
             session_elapsed_ms = (time.perf_counter() - session_start_time) * 1000
-            print(f"[SESSION_END] Total time: {session_elapsed_ms:.1f} ms\n")
+            print(f"[SESSION_END] Total time: {session_elapsed_ms:.1f} ms\n", flush=True)
 
 
 @router.get(
@@ -1135,11 +1110,7 @@ async def analyze_cv_jd_match(
 )
 async def get_analysis_session(
     id_session: int,
-<<<<<<< HEAD
     current_user: User = Depends(get_current_authenticated_user),
-=======
-    current_user: User = Depends(get_current_active_user),
->>>>>>> c2202c1 (rebase main)
     db: AsyncSession = Depends(get_db),
 ) -> AnalysisSessionResponse:
     """

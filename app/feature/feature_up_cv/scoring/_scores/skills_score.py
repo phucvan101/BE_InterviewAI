@@ -9,7 +9,6 @@ Scores technical skills based on:
 - Cross-encoder verification for semantic matches
 """
 
-from __future__ import annotations
 
 import logging
 import re

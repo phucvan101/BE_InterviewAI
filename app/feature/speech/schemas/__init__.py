@@ -1,4 +1,4 @@
-from typing import Literal
+from typing import Literal, Optional
 
 from pydantic import BaseModel, Field
 
@@ -15,7 +15,7 @@ class TextToSpeechRequest(BaseModel):
     text: str = Field(..., min_length=1, max_length=4096, description="Văn bản cần đọc")
     voice: str = Field(default="alloy", min_length=1, description="Voice OpenAI TTS")
     response_format: SpeechAudioFormat = Field(default="mp3", description="Định dạng audio trả về")
-    instructions: str | None = Field(
+    instructions: Optional[str] = Field(
         default=None,
         max_length=1024,
         description="Hướng dẫn phong cách giọng đọc tuỳ chọn",

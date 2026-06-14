@@ -36,11 +36,8 @@ class ConversationMessageResponse(ConversationMessageBase):
 
 class ConversationBase(BaseModel):
     """Base schema cho conversation"""
-<<<<<<< HEAD
     job_position: Optional[str] = Field(default=None, description="Tên vị trí phỏng vấn")
     company_name: Optional[str] = Field(default=None, description="Tên công ty nếu có")
-=======
->>>>>>> c2202c1 (rebase main)
     job_description: Optional[str] = Field(default=None, description="Job description")
     cv_profile: Optional[str] = Field(default=None, description="CV profile của ứng viên")
 
@@ -52,7 +49,6 @@ class ConversationCreate(ConversationBase):
 
 class ConversationStartRequest(ConversationBase):
     """Schema để bắt đầu phiên phỏng vấn mới"""
-<<<<<<< HEAD
     analysis_session_id: Optional[int] = Field(
         default=None,
         description="ID của analysis_sessions để lấy JD/CV raw text và liên kết CV gốc",
@@ -60,28 +56,15 @@ class ConversationStartRequest(ConversationBase):
     session_id: Optional[str] = Field(
         default=None,
         description="Deprecated: ID analysis session dạng chuỗi, giữ để tương thích client cũ",
-=======
-    session_id: Optional[str] = Field(
-        default=None,
-        description="Session ID trung gian (từ analysis_sessions.session_id) để lấy JD/CV raw text",
->>>>>>> c2202c1 (rebase main)
     )
 
     @model_validator(mode="after")
     def _validate_source(self):
-<<<<<<< HEAD
         # Ưu tiên analysis_session_id; session_id chỉ giữ để tương thích client cũ.
         if self.analysis_session_id or self.session_id:
             return self
         if not self.job_description or not self.cv_profile:
             raise ValueError("Cần cung cấp `analysis_session_id` hoặc cả `job_description` và `cv_profile`")
-=======
-        # Ưu tiên session_id; nếu không có thì bắt buộc nhập trực tiếp JD + CV (backward compatibility)
-        if self.session_id:
-            return self
-        if not self.job_description or not self.cv_profile:
-            raise ValueError("Cần cung cấp `session_id` hoặc cả `job_description` và `cv_profile`")
->>>>>>> c2202c1 (rebase main)
         return self
 
 
@@ -91,25 +74,18 @@ class ConversationResponse(BaseModel):
 
     id: int
     session_id: str = Field(..., description="Unique session ID")
-<<<<<<< HEAD
     analysis_session_id: Optional[int] = None
     user_id: int
     job_position: str
     company_name: Optional[str] = None
-=======
-    user_id: int
->>>>>>> c2202c1 (rebase main)
     job_description: str
     cv_profile: str
     status: str
     result: Optional[str] = None
     score: Optional[float] = None
-<<<<<<< HEAD
     started_at: datetime
     ended_at: Optional[datetime] = None
     interview_duration_seconds: Optional[int] = None
-=======
->>>>>>> c2202c1 (rebase main)
     created_at: datetime
     updated_at: datetime
     messages: list[ConversationMessageResponse] = []
@@ -121,7 +97,6 @@ class ConversationListResponse(BaseModel):
 
     id: int
     session_id: str
-<<<<<<< HEAD
     analysis_session_id: Optional[int] = None
     user_id: int
     job_position: str
@@ -131,11 +106,6 @@ class ConversationListResponse(BaseModel):
     started_at: datetime
     ended_at: Optional[datetime] = None
     interview_duration_seconds: Optional[int] = None
-=======
-    user_id: int
-    status: str
-    score: Optional[float] = None
->>>>>>> c2202c1 (rebase main)
     created_at: datetime
     updated_at: datetime
     message_count: int = 0
@@ -172,7 +142,6 @@ class InterviewResultResponse(BaseModel):
     score: Optional[float] = None
     result: Optional[dict] = None
     total_messages: int
-<<<<<<< HEAD
 
 
 class ScoreCriterion(BaseModel):
@@ -264,5 +233,3 @@ class ConversationAnalysisReportPaginatedResponse(BaseModel):
     page: int
     page_size: int
     items: list[ConversationAnalysisReportResponse]
-=======
->>>>>>> c2202c1 (rebase main)
