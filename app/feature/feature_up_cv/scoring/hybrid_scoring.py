@@ -273,7 +273,7 @@ def calculate_hybrid_score(
     # Experience detail
     exp_detail = build_experience_detail(
         exp_score, exp_rationale, exp_features,
-        cv_level, req_level, seniority_gap, is_entry_level,
+        cv_level, req_level, seniority_gap, is_entry_level, cv_data,
     )
 
     # Education detail
