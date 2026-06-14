@@ -30,8 +30,7 @@ aiosmtplib>=2.0.0
 sendgrid==6.12.5
 
 # ── Embedding & Vector Search ─────────────
-# sentence-transformers>=2.7.0
-sentence-transformers==2.2.0
+sentence-transformers>=2.7.0
 faiss-cpu>=1.8.0
 numpy>=1.26.0
 PyYAML>=6.0
