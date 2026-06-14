@@ -27,7 +27,7 @@ def _payload(company_score: int = 50) -> AnalysisReportPayload:
     )
 
 
-def test_company_knowledge_score_is_zero_without_company_question():
+def test_company_knowledge_score_is_kept_without_company_question():
     service = ConversationService(db=None)
     payload = _payload(company_score=50)
     messages = [
@@ -41,10 +41,10 @@ def test_company_knowledge_score_is_zero_without_company_question():
         company_name="VeloTech",
     )
 
-    assert payload.scores.company_knowledge.score == 0
-    assert "Không có câu hỏi nào" in payload.scores.company_knowledge.evidence
-    assert payload.overall_score == 56
-    assert payload.overall_grade == "C"
+    assert payload.scores.company_knowledge.score == 50
+    assert payload.scores.company_knowledge.evidence == "AI gave partial credit"
+    assert payload.overall_score == 70
+    assert payload.overall_grade == "B"
 
 
 def test_company_knowledge_score_is_kept_with_company_question():

@@ -9,8 +9,16 @@ class AnalysisSessionService:
     def __init__(self, db: AsyncSession):
         self.db = db
 
+    @staticmethod
+    def _resolve_company_info(
+        company_info: str | None = None,
+        ci_raw_text: str | None = None,
+    ) -> str | None:
+        return company_info if company_info is not None else ci_raw_text
+
     # ── Create ──────────────────────────────
     async def create(self, user_id: int, data: AnalysisSessionCreate) -> AnalysisSession:
+        company_info = self._resolve_company_info(data.company_info, data.ci_raw_text)
         session = AnalysisSession(
             user_id=user_id,
             id_cv=data.id_cv,
@@ -18,7 +26,8 @@ class AnalysisSessionService:
             id_ci=data.id_ci,
             cv_raw_text=data.cv_raw_text,
             jd_raw_text=data.jd_raw_text,
-            ci_raw_text=data.ci_raw_text,
+            ci_raw_text=company_info,
+            company_info=company_info,
             score=data.score,
             experience_score=data.experience_score,
             skills_score=data.skills_score,
@@ -93,11 +102,16 @@ class AnalysisSessionService:
         session = await self.get_by_id(id_session)
         if not session:
             return None
+
+        company_info = self._resolve_company_info(data.company_info, data.ci_raw_text)
         
         if data.cv_raw_text is not None:
             session.cv_raw_text = data.cv_raw_text
         if data.jd_raw_text is not None:
             session.jd_raw_text = data.jd_raw_text
+        if company_info is not None:
+            session.ci_raw_text = company_info
+            session.company_info = company_info
         if data.score is not None:
             session.score = data.score
         if data.experience_score is not None:
