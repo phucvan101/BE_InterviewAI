@@ -17,6 +17,74 @@ PERMISSIONS = [
         "module": "sessions",
         "is_system": True,
     },
+
+    # Users
+    {
+        "code": "users.read",
+        "name": "Xem người dùng",
+        "description": "Xem danh sách và thông tin chi tiết người dùng",
+        "module": "users",
+        "is_system": True,
+    },
+    {
+        "code": "users.create",
+        "name": "Tạo người dùng",
+        "description": "Tạo mới tài khoản người dùng",
+        "module": "users",
+        "is_system": True,
+    },
+    {
+        "code": "users.update",
+        "name": "Cập nhật người dùng",
+        "description": "Chỉnh sửa thông tin người dùng",
+        "module": "users",
+        "is_system": True,
+    },
+    {
+        "code": "users.delete",
+        "name": "Xóa người dùng",
+        "description": "Xóa tài khoản người dùng",
+        "module": "users",
+        "is_system": True,
+    },
+    {
+        "code": "users.deactivate",
+        "name": "Vô hiệu hóa người dùng",
+        "description": "Khóa hoặc vô hiệu hóa tài khoản người dùng",
+        "module": "users",
+        "is_system": True,
+    },
+
+    # Roles
+    {
+        "code": "roles.read",
+        "name": "Xem vai trò",
+        "description": "Xem danh sách và chi tiết vai trò",
+        "module": "roles",
+        "is_system": True,
+    },
+    {
+        "code": "roles.create",
+        "name": "Tạo vai trò",
+        "description": "Tạo mới vai trò và phân quyền",
+        "module": "roles",
+        "is_system": True,
+    },
+    {
+        "code": "roles.update",
+        "name": "Cập nhật vai trò",
+        "description": "Chỉnh sửa thông tin và quyền của vai trò",
+        "module": "roles",
+        "is_system": True,
+    },
+    {
+        "code": "roles.delete",
+        "name": "Xóa vai trò",
+        "description": "Xóa vai trò khỏi hệ thống",
+        "module": "roles",
+        "is_system": True,
+    },
+    
 ]
 
 async def seed():
