@@ -12,7 +12,7 @@ Scores technical skills based on:
 
 import logging
 import re
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
 
@@ -32,6 +32,8 @@ from ._shared import (
     dedupe_strings,
     get_sim_calibration,
     is_soft_skill_text,
+    match_compound_skill,
+    match_context_phrase,
     normalize_importance,
     normalize_skill_key,
     pprefix_batch,
@@ -111,6 +113,15 @@ def collect_cv_evidence(cv_data: dict) -> Tuple[List[str], List[str]]:
             edu.get("description", ""), edu.get("details", ""),
         ]
         evidence.append(" ".join(str(p) for p in parts if p))
+
+    # ── Phase 3: context_phrase -> maps_to into skill_pool ──────────
+    # Vietnamese CVs may describe a skill in natural language; the
+    # feedback agent can declare a phrase->skill mapping so that the
+    # phrase counts as evidence for that skill.
+    context_hits = match_context_phrase(evidence)
+    if context_hits:
+        for _phrase, maps_to in context_hits:
+            skill_pool.append(maps_to)
 
     return dedupe_strings(skill_pool), dedupe_strings([e[:700] for e in evidence])
 
@@ -305,6 +316,17 @@ def find_exact_criterion_evidence(
             if key in cv_norm_map:
                 return "equivalent_match", cv_norm_map[key]
 
+    # ── Pattern-based fallback (Phase 3: skill_patterns.yaml) ────────
+    # If criterion name normalises to the same key as a declared compound
+    # skill whose ALL tokens are present in the CV pool, treat it as an
+    # equivalent match. This is how the feedback agent teaches the
+    # scorer to recognise skill bundles (e.g. "react" + "typescript").
+    if isinstance(criterion_name, str) and criterion_name.strip():
+        crit_key = normalize_skill_key(criterion_name)
+        compound = match_compound_skill(cv_skill_pool)
+        if compound and compound == crit_key:
+            return "equivalent_match", compound
+
     return "", ""
 
 
@@ -386,11 +408,16 @@ def match_criteria_to_cv(
     criteria: List[Dict[str, Any]],
     cv_data: dict,
     embedder: EmbeddingService,
+    learned_knowledge: Optional[Dict[str, Any]] = None,
 ) -> Tuple[List[Dict[str, Any]], List[str]]:
     """
     Match JD criteria against CV evidence using semantic embedding.
 
     Returns: (results, cv_skill_pool)
+
+    ``learned_knowledge`` is forwarded to the threshold manager so that
+    user-driven overrides from the Feedback Agent can adjust the
+    perfect_match / relevant_match cutoffs on a per-category basis.
     """
     cv_skill_pool, cv_evidence = collect_cv_evidence(cv_data)
     if not criteria:
@@ -469,8 +496,21 @@ def match_criteria_to_cv(
                     best_sim = float(np.clip((raw_sim - SIM_MIN) / span, 0.0, 1.0))
                     evidence = cv_evidence[best_idx]
 
-                    perfect_thr = SCORING_CONFIG.PERFECT_MATCH_THRESHOLD
-                    relevant_thr = SCORING_CONFIG.RELEVANT_MATCH_THRESHOLD
+                    # Phase 3: resolve per-category thresholds so that
+                    # user-driven overrides (Feedback Agent) can loosen
+                    # or tighten the perfect/relevant cutoff.
+                    category_key = str(criterion.get("category", "")).lower()
+                    try:
+                        from app.feature.feature_up_cv.feedback_agent.threshold_manager import (
+                            resolve_threshold,
+                        )
+                        perfect_thr, relevant_thr = resolve_threshold(
+                            category_key, learned_knowledge
+                        )
+                    except Exception as _te:
+                        logger.debug("resolve_threshold fallback: %s", _te)
+                        perfect_thr = SCORING_CONFIG.PERFECT_MATCH_THRESHOLD
+                        relevant_thr = SCORING_CONFIG.RELEVANT_MATCH_THRESHOLD
 
                     if best_sim >= perfect_thr:
                         match_status = MATCH_PERFECT
@@ -582,6 +622,7 @@ def score_skills(
     domain_penalty: float,
     cv_embedding: np.ndarray = None,
     jd_embedding: np.ndarray = None,
+    learned_knowledge: dict = None,
 ) -> Tuple[
     float,                    # score
     List[dict],               # perfect_requirements
@@ -605,7 +646,9 @@ def score_skills(
               embedding_sim, relevant_requirements, breakdown, criteria_results)
     """
     criteria = build_jd_criteria(jd_data)
-    criteria_results, _ = match_criteria_to_cv(criteria, cv_data, embedder)
+    criteria_results, _ = match_criteria_to_cv(
+        criteria, cv_data, embedder, learned_knowledge=learned_knowledge
+    )
 
     if not criteria:
         return (

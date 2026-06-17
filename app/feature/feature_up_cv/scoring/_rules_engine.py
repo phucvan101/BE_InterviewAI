@@ -25,7 +25,16 @@ def parse_rule(rule_data: Any) -> Tuple[Optional[str], Optional[Dict[str, Any]]]
     Parse a rule from either string text or structured dict.
 
     Returns: (rule_type, params)
+
+    Hướng 3: ``rule_data`` may be a wrapper dict from FAISS
+    (e.g. ``{"rule": "text", "structured_rule": {...}}``) — in that case
+    the structured payload is preferred, the text is kept as fallback.
     """
+    # Unwrap the FAISS wrapper format added in Phase 4.
+    if isinstance(rule_data, dict) and "structured_rule" in rule_data:
+        structured = rule_data.get("structured_rule")
+        if isinstance(structured, dict):
+            rule_data = structured
     # If rule is a dict with structured format
     if isinstance(rule_data, dict):
         rule_type = rule_data.get("rule_type", rule_data.get("type", ""))
@@ -203,6 +212,18 @@ def apply_learned_rules(
                 bonus, message, new_total_bonus = result
                 adjusted_exp = min(adjusted_exp + bonus, MAX_EXPERIENCE_SCORE)
                 total_bonus_applied = new_total_bonus
+                rules_text.append(message)
+
+        # CUSTOM_PROPOSED — Hướng 3: rule từ LLM dạng structured.
+        # Chỉ chấp nhận action.type ∈ {bonus, penalty} với cap
+        # hợp lý; các action nguy hiểm bị bỏ qua và log.
+        elif rule_type == "CUSTOM_PROPOSED":
+            result = _apply_custom_proposed(
+                cv_data, jd_data, adjusted_exp, params
+            )
+            if result:
+                delta, message = result
+                adjusted_exp = max(0, min(adjusted_exp + delta, MAX_EXPERIENCE_SCORE))
                 rules_text.append(message)
 
     rules_applied = " | ".join(r for r in rules_text if isinstance(r, str))
@@ -398,3 +419,43 @@ def _apply_entry_level_bonus(
 
     message = f"ENTRY_LEVEL_INTERNSHIP: +{capped_bonus:.1f} điểm ({', '.join(messages)})"
     return capped_bonus, message, total_bonus
+
+
+def _apply_custom_proposed(
+    cv_data: dict,
+    jd_data: dict,
+    current_exp: float,
+    params: dict,
+) -> Optional[Tuple[float, str]]:
+    """
+    Hướng 3: apply a structured rule proposed by the LLM (CUSTOM_PROPOSED).
+
+    Only bonus/penalty actions are honoured. The delta is capped at
+    +/-8 điểm để tránh LLM abuse. Other action types are silently
+    skipped (and logged).
+    """
+    action = params.get("action") or {}
+    if not isinstance(action, dict):
+        return None
+    atype = action.get("type")
+    if atype == "bonus":
+        try:
+            v = float(action.get("value", action.get("min_value", 0)))
+        except (TypeError, ValueError):
+            return None
+        delta = max(0.0, min(v, 8.0))
+        if delta <= 0:
+            return None
+        rule_id = params.get("rule_id", "")
+        return delta, f"CUSTOM_PROPOSED bonus +{delta:.1f} (rule_id={rule_id})"
+    if atype == "penalty":
+        try:
+            v = float(action.get("percent", 0.0))
+        except (TypeError, ValueError):
+            return None
+        delta = -max(0.0, min(v, 0.5)) * current_exp
+        if delta == 0:
+            return None
+        rule_id = params.get("rule_id", "")
+        return delta, f"CUSTOM_PROPOSED penalty {delta:.2f} (rule_id={rule_id})"
+    return None

@@ -1,0 +1,8 @@
+default:
+  perfect_match: 0.8
+  relevant_match: 0.6
+technical_skill:
+  perfect_match: 0.8
+  relevant_match: 0.5
+  note: Nới lỏng ngưỡng perfect_match cho kỹ năng kỹ thuật để phù hợp với mô tả 
+    tự nhiên tiếng Việt và các cụm từ đồng nghĩa.

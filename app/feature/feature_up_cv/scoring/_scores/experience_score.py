@@ -13,7 +13,7 @@ Scores work experience based on:
 
 import logging
 import re
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
 
@@ -35,6 +35,44 @@ from ._shared import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+class _ExpBreakdown:
+    """
+    Thread-local-ish recorder that tracks each multiplicative / capping
+    step applied to the experience score. Each entry captures the rule
+    name, the value before / after, and a human-readable reason so the
+    final response can explain *why* the score ended up at a given
+    number (and the Feedback Agent can decide where to override).
+    """
+
+    __slots__ = ("entries",)
+
+    def __init__(self) -> None:
+        self.entries: List[Dict[str, Any]] = []
+
+    def add(
+        self,
+        step: str,
+        before: float,
+        after: float,
+        reason: str,
+        extra: Optional[Dict[str, Any]] = None,
+    ) -> None:
+        entry: Dict[str, Any] = {
+            "step": step,
+            "before": round(float(before), 4),
+            "after": round(float(after), 4),
+            "delta": round(float(after) - float(before), 4),
+            "reason": reason,
+        }
+        if extra:
+            entry["extra"] = extra
+        self.entries.append(entry)
+
+    def to_dict(self) -> List[Dict[str, Any]]:
+        return list(self.entries)
+
 
 # ── Years Parsing ──────────────────────────────────────────────────────────────────
 def parse_duration_string(duration: str) -> float:
@@ -302,6 +340,7 @@ def score_experience(
     7. Apply domain penalty
     """
     jd_struct = jd_data.get("structured", jd_data)
+    breakdown = _ExpBreakdown()
 
     # ── 1. JD seniority requirements ────────────────────────────────
     seniority_req = (jd_struct.get("seniority") or "").lower()
@@ -546,30 +585,92 @@ def score_experience(
 
     # ── 9. Domain-mismatch experience penalty ─────────────────────
     if domain_penalty >= 0.5 and total_work_years > 0 and skill_overlap < 0.10:
+        before = years_score
         years_score = years_score * 0.65
+        breakdown.add(
+            "domain_mismatch_exp",
+            before,
+            years_score,
+            (
+                f"Domain penalty {domain_penalty:.2f} với skill_overlap "
+                f"{skill_overlap:.0%} → giảm 35% years_score"
+            ),
+            extra={"domain_penalty": domain_penalty, "skill_overlap": skill_overlap},
+        )
 
     # ── 10. Severe underqualification cap ─────────────────────────
     if (not is_entry_level and years_req > 0 and all_exp_years > 0
             and all_exp_years <= years_req * 0.5):
         years_gap_ratio = all_exp_years / years_req
+        before = seniority_score
         seniority_score = round(min(seniority_score * years_gap_ratio, 10.0), 1)
+        breakdown.add(
+            "underqualified_seniority",
+            before,
+            seniority_score,
+            (
+                f"all_exp_years {all_exp_years:.1f} ≤ years_req*0.5 "
+                f"({years_req * 0.5:.1f}) → scale seniority x{years_gap_ratio:.2f}"
+            ),
+        )
 
     if (not is_entry_level and years_req > 0 and all_exp_years > 0
             and all_exp_years <= years_req * 0.86 and domain_penalty < 0.7):
+        before = raw_total
         raw_total = safe_cap(raw_total, SCORING_CONFIG.UNDERQUALIFIED_CAP)
+        breakdown.add(
+            "underqualified_cap",
+            before,
+            raw_total,
+            (
+                f"all_exp_years ≤ years_req*0.86 với domain_penalty <0.7 → "
+                f"cap raw_total ≤ {SCORING_CONFIG.UNDERQUALIFIED_CAP}"
+            ),
+        )
 
     if (not is_entry_level and years_req > 0 and all_exp_years > 0
             and years_req - all_exp_years >= 2.0):
+        before = raw_total
         raw_total = safe_cap(raw_total, SCORING_CONFIG.SEVERE_GAP_CAP)
+        breakdown.add(
+            "severe_gap_cap",
+            before,
+            raw_total,
+            (
+                f"Thiếu ≥2 năm kinh nghiệm (gap={years_req - all_exp_years:.1f}) → "
+                f"cap raw_total ≤ {SCORING_CONFIG.SEVERE_GAP_CAP}"
+            ),
+        )
 
     if (domain_penalty < 0.4 and skill_overlap < 0.40 and not is_entry_level
             and years_req > 0 and all_exp_years > 0):
+        before = raw_total
         raw_total = safe_cap(raw_total, SCORING_CONFIG.SPECIALIZATION_MISMATCH_CAP)
+        breakdown.add(
+            "specialization_mismatch_cap",
+            before,
+            raw_total,
+            (
+                f"domain_penalty<0.4 nhưng skill_overlap<0.40 → "
+                f"cap raw_total ≤ {SCORING_CONFIG.SPECIALIZATION_MISMATCH_CAP}"
+            ),
+        )
 
     # ── 11. Final score with domain penalty ───────────────────────
     # Apply domain penalty more leniently for good candidates
     penalty_factor = 1.0 - (domain_penalty * 0.6)  # Less aggressive penalty
+    before = raw_total
     total_exp = round(min(raw_total * penalty_factor, 50.0), 2)
+    breakdown.add(
+        "domain_penalty_factor",
+        before,
+        total_exp,
+        (
+            f"penalty_factor = 1 - 0.6*domain_penalty = {penalty_factor:.3f}, "
+            f"cap 50"
+        ),
+        extra={"penalty_factor": round(penalty_factor, 4)},
+    )
 
     # ── v2: APPLY OVERQUALIFIED DETECTION ────────────────────────────────────────
     # Fix for 90% cases where overqualified candidates get inflated scores
@@ -577,21 +678,40 @@ def score_experience(
         cv_data, jd_data, total_work_years, years_req
     )
     if is_ovq:
+        before = total_exp
         total_exp, ovq_penalty_reason = compute_overqualified_penalty(
             is_ovq, ovq_severity, total_exp
         )
         logger.info(f"[OVERQUALIFIED] {ovq_reason} -> {ovq_penalty_reason}")
+        breakdown.add(
+            "overqualified_penalty",
+            before,
+            total_exp,
+            f"{ovq_reason} | {ovq_penalty_reason}",
+            extra={"severity": ovq_severity},
+        )
 
     # ── v2: APPLY CAREER CHANGE DETECTION ────────────────────────────────────────
     # Fix for 20% cases where career changers don't get proper penalty
     career_change = analyze_career_change(cv_data, jd_data, skill_overlap)
     if career_change.is_career_change:
-        exp_before_cc = total_exp
+        before = total_exp
         total_exp, cc_penalty_reason = compute_career_change_experience_penalty(
             career_change, total_exp, skill_overlap
         )
         logger.info(f"[CAREER_CHANGE] {career_change.reason} -> {cc_penalty_reason}")
         total_exp = max(0, min(total_exp, 50.0))
+        breakdown.add(
+            "career_change_penalty",
+            before,
+            total_exp,
+            f"{career_change.reason} | {cc_penalty_reason}",
+            extra={
+                "severity": career_change.severity,
+                "cv_domain": career_change.cv_domain,
+                "jd_domain": career_change.jd_domain,
+            },
+        )
 
     # ── v2: APPLY EXPERIENCE QUALITY ANALYSIS ────────────────────────────────────
     # Quality over Quantity - don't just count years
@@ -600,10 +720,21 @@ def score_experience(
     )
     if quality_mult < 1.0:
         # Apply quality adjustment
+        before = total_exp
         quality_adjusted = total_exp * (0.5 + 0.5 * quality_mult)
-        # Don't reduce too much, but signal the concern
         if quality_concerns and total_exp > 30:
             logger.info(f"[EXP_QUALITY] Concerns: {quality_concerns}")
+        breakdown.add(
+            "experience_quality",
+            before,
+            round(quality_adjusted, 2),
+            (
+                f"quality_mult={quality_mult:.2f} → scale x"
+                f"{0.5 + 0.5 * quality_mult:.3f} (informational only, "
+                f"không áp dụng để tránh trừ kép)"
+            ),
+            extra={"quality_mult": quality_mult, "concerns": quality_concerns},
+        )
 
     # ── 12. Features ───────────────────────────────────────────────
     try:
@@ -629,6 +760,8 @@ def score_experience(
             }
             for i, p in enumerate(cv_projects)
         ]
+        # Phase 3: breakdown log để Feedback Agent biết CAP NÀO đã kick in
+        features["breakdown"] = breakdown.to_dict()
     except Exception:
         features = {}
 

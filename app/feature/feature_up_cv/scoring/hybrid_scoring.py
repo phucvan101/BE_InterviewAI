@@ -151,7 +151,8 @@ def calculate_hybrid_score(
             criteria_match_results,
         ) = score_skills(
             cv_data, jd_data, embedder, domain_penalty,
-            cv_embedding=cv_embedding, jd_embedding=jd_embedding
+            cv_embedding=cv_embedding, jd_embedding=jd_embedding,
+            learned_knowledge=learned_knowledge,
         )
 
         edu_score, edu_rationale = score_education(
@@ -161,6 +162,21 @@ def calculate_hybrid_score(
         career_obj_score, career_obj_rationale, career_details = score_career_objectives(
             cv_data, jd_data, embedder, domain_penalty
         )
+
+        # Hướng 7: company_fit auto-retry. If the user did NOT upload
+        # a CI file, try to derive a minimal company_data from the JD
+        # text. Best-effort: never raises, falls back to original
+        # empty input when extraction fails.
+        if not company_data:
+            try:
+                from app.feature.feature_up_cv.feedback_agent.company_retry import (
+                    maybe_research_company,
+                )
+                derived = maybe_research_company(jd_data)
+                if derived:
+                    company_data = derived
+            except Exception as _ce:
+                logger.debug("[CompanyRetry] skipped: %s", _ce)
 
         try:
             company_score, company_rationale = score_company_fit(
@@ -275,6 +291,9 @@ def calculate_hybrid_score(
         exp_score, exp_rationale, exp_features,
         cv_level, req_level, seniority_gap, is_entry_level, cv_data,
     )
+    # Phase 3: expose exp breakdown log (informational, helps Feedback
+    # Agent pinpoint which cap / penalty caused the score drop)
+    exp_detail["breakdown"] = exp_features.get("breakdown", []) if exp_features else []
 
     # Education detail
     edu_detail = build_education_detail(edu_score, edu_rationale, cv_data)

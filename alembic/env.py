@@ -24,6 +24,23 @@ from app.feature.conversation.model import (  # noqa: F401,E402
     ConversationAnalysisReport,
 )
 
+# Feedback Agent models - OPTIONAL.
+# Imported conditionally so that branches without the feedback_agent package
+# (e.g. rebuild_feature_upCV) keep ``Base.metadata`` clean and `alembic upgrade`
+# continues to work without errors. The two new tables (score_overrides and
+# feedback_logs) are only created on branches where the agent is present
+# and the corresponding migration has been merged in.
+try:
+    from app.feature.feature_up_cv.auth.models import (  # noqa: F401,E402
+        score_override as _score_override_model,
+    )
+    from app.feature.feature_up_cv.auth.models import (  # noqa: F401,E402
+        feedback_log as _feedback_log_model,
+    )
+except ImportError:
+    # Branch does not include the feedback_agent module - safe to ignore.
+    pass
+
 config = context.config
 
 if config.config_file_name is not None:

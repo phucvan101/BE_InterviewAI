@@ -1,0 +1,5 @@
+compound_skills: []
+context_phrases:
+  - phrase: tích hợp cổng thanh toán
+    maps_to: payment-integration
+    reason: VN CVs

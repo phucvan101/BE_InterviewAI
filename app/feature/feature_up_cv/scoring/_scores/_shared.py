@@ -18,6 +18,7 @@ Centralizes:
 import json
 import logging
 import re
+import threading
 from pathlib import Path
 from typing import Any, Dict, List, Set, Tuple, Optional
 
@@ -245,6 +246,91 @@ _sim_calibration_cache: Dict[str, tuple] = {}
 # Cache for domain/seniority embeddings
 _domain_anchors_embs: Dict[str, np.ndarray] = {}
 _seniority_anchors_embs: Dict[int, np.ndarray] = {}
+
+
+# ── Skill Patterns (compound + context_phrase) ──────────────────────────────────────
+# Loaded lazily from skill_patterns.yaml. PatternManager is the canonical
+# writer; this module only consumes the data.
+_PATTERN_CACHE: Dict[str, List[Dict[str, Any]]] = {
+    "compound_skills": [],
+    "context_phrases": [],
+}
+_PATTERN_CACHE_LOADED: bool = False
+_PATTERN_LOCK = threading.Lock()
+
+
+def _load_patterns_from_disk() -> None:
+    """Best-effort load of skill_patterns.yaml. Swallows all errors."""
+    global _PATTERN_CACHE_LOADED
+    if _PATTERN_CACHE_LOADED:
+        return
+    try:
+        from app.feature.feature_up_cv.feedback_agent.pattern_manager import (
+            get_pattern_manager,
+        )
+        mgr = get_pattern_manager()
+        _PATTERN_CACHE.update(mgr.load_patterns())
+    except Exception as e:
+        logger.debug("Could not load skill_patterns.yaml: %s", e)
+    _PATTERN_CACHE_LOADED = True
+
+
+def reload_skill_patterns() -> Dict[str, List[Dict[str, Any]]]:
+    """Force-reload patterns after the feedback agent updates the YAML file."""
+    global _PATTERN_CACHE_LOADED
+    with _PATTERN_LOCK:
+        _PATTERN_CACHE_LOADED = False
+        _PATTERN_CACHE.update(
+            {"compound_skills": [], "context_phrases": []}
+        )
+        _load_patterns_from_disk()
+    return dict(_PATTERN_CACHE)
+
+
+def match_compound_skill(
+    cv_skill_pool: List[str],
+) -> Optional[str]:
+    """
+    Return the first compound-skill key that ALL of whose tokens appear in
+    the normalised CV skill pool. Returns ``None`` if none match.
+    """
+    _load_patterns_from_disk()
+    cv_norm = {
+        normalize_skill_key(s) for s in cv_skill_pool
+        if isinstance(s, str) and s.strip()
+    }
+    for entry in _PATTERN_CACHE.get("compound_skills", []) or []:
+        tokens = [
+            normalize_skill_key(t) for t in entry.get("tokens", [])
+            if isinstance(t, str) and t.strip()
+        ]
+        if not tokens:
+            continue
+        if all(t in cv_norm for t in tokens):
+            return str(entry.get("key", "")).strip().lower() or None
+    return None
+
+
+def match_context_phrase(cv_evidence: List[str]) -> List[Tuple[str, str]]:
+    """
+    Scan CV evidence strings for any context phrase and return all
+    (phrase, maps_to) hits. Matching is case-insensitive substring.
+    """
+    _load_patterns_from_disk()
+    hits: List[Tuple[str, str]] = []
+    if not cv_evidence:
+        return hits
+    haystack = " ".join(
+        str(s).lower() for s in cv_evidence if isinstance(s, str) and s
+    )
+    if not haystack.strip():
+        return hits
+    for entry in _PATTERN_CACHE.get("context_phrases", []) or []:
+        phrase = str(entry.get("phrase", "")).strip().lower()
+        maps_to = str(entry.get("maps_to", "")).strip().lower()
+        if phrase and maps_to and phrase in haystack:
+            hits.append((phrase, maps_to))
+    return hits
 
 
 # ── Skill Normalization ──────────────────────────────────────────────────────────────────

@@ -1,0 +1,7 @@
+default:
+  perfect_match: 0.8
+  relevant_match: 0.6
+technical_skill:
+  perfect_match: 0.75
+  relevant_match: 0.5
+  note: Vietnamese natural language
