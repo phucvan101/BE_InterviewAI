@@ -1,0 +1,159 @@
+﻿=== SRC ===
+NGUYnN MINH QU├éN
+Backend AI Engineer
+Email: quan.nguyen.dev@gmail.com
+Phone: 0987654321
+Location: H├á Nni
+SUMMARY
+Backend AI Engineer vni hnn 3 nnm kinh nghinm ph├ít trinn hn thnng AI Recruitment v├á NLP
+platform. C├│ kinh nghinm x├óy dnng CV Parsing Pipeline, Semantic Search Engine, AI Interview
+System, Hybrid Scoring CV-JD v├á Vector Search Infrastructure.
+SKILLS
+- Python, FastAPI, Django
+- OpenAI API, Gemini API
+- Semantic Search, Embeddings, Cosine Similarity
+- PostgreSQL, Redis, Elasticsearch, Qdrant
+- Docker, GitHub Actions, Linux
+EXPERIENCE
+AI Backend Engineer ΓÇö SmartHire Vietnam (06/2023 - Present)
+- X├óy dnng hn thnng CV Parser hn trn PDF/DOCX
+- Thint kn hybrid scoring algorithm cho matching CV-JD
+- Tni nu semantic search gi├║p tnng nn ch├¡nh x├íc matching tn 71% l├¬n 89%
+- T├¡ch hnp Gemini API nn ph├ón t├¡ch kn nnng nng vi├¬n
+- X├óy dnng vector search sn dnng Qdrant
+Backend Developer ΓÇö HRTech Labs (01/2022 - 05/2023)
+- X├óy dnng API xn l├╜ dn linu tuynn dnng
+- L├ám vinc vni Elasticsearch cho job search
+- Dockerize to├án bn hn thnng backend
+EDUCATION
+nni hnc B├ích Khoa H├á Nni ΓÇö Kn thunt phnn mnm (2018 - 2022)
+
+=== FIELDS ( 128 ) ===
+cv_20260617125758_2_1::personal_info.name | personal_info.name = 'NGUYß╗äN MINH QU├éN'
+cv_20260617125758_2_1::personal_info.phone | personal_info.phone = '0987654321'
+cv_20260617125758_2_1::personal_info.email | personal_info.email = 'quan.nguyen.dev@gmail.com'
+cv_20260617125758_2_1::personal_info.address | personal_info.address = 'H├á Nß╗Öi'
+cv_20260617125758_2_1::domain | domain = 'tech_ai'
+cv_20260617125758_2_1::objective | objective = 'Backend AI Engineer vß╗¢i h╞ín 3 n─âm kinh nghiß╗çm ph├ít triß╗ân hß╗ç thß╗æng AI Recruitment v├á NLP platform. C├│ kinh nghiß╗çm x├óy dß╗▒ng CV Parsing Pipeline, Semantic Search Engine, AI Interview System, Hybrid Scor
+cv_20260617125758_2_1::education[0].school | education[0].school = '─Éß║íi hß╗ìc B├ích Khoa H├á Nß╗Öi'
+cv_20260617125758_2_1::education[0].major | education[0].major = 'Kß╗╣ thuß║¡t phß║ºn mß╗üm'
+cv_20260617125758_2_1::education[0].start | education[0].start = '2018'
+cv_20260617125758_2_1::education[0].end | education[0].end = '2022'
+cv_20260617125758_2_1::work_experience[0].company | work_experience[0].company = 'SmartHire Vietnam'
+cv_20260617125758_2_1::work_experience[0].title | work_experience[0].title = 'AI Backend Engineer'
+cv_20260617125758_2_1::work_experience[0].start | work_experience[0].start = '2023'
+cv_20260617125758_2_1::work_experience[0].end | work_experience[0].end = 'Present'
+cv_20260617125758_2_1::work_experience[0].highlights[0] | work_experience[0].highlights[0] = 'X├óy dß╗▒ng hß╗ç thß╗æng CV Parser hß╗ù trß╗ú PDF/DOCX'
+cv_20260617125758_2_1::work_experience[0].highlights[1] | work_experience[0].highlights[1] = 'Thiß║┐t kß║┐ hybrid scoring algorithm cho matching CV-JD'
+cv_20260617125758_2_1::work_experience[0].highlights[2] | work_experience[0].highlights[2] = 'Tß╗æi ╞░u semantic search gi├║p t─âng ─æß╗Ö ch├¡nh x├íc matching tß╗½ 71% l├¬n 89%'
+cv_20260617125758_2_1::work_experience[0].highlights[3] | work_experience[0].highlights[3] = 'T├¡ch hß╗úp Gemini API ─æß╗â ph├ón t├¡ch kß╗╣ n─âng ß╗⌐ng vi├¬n'
+cv_20260617125758_2_1::work_experience[0].highlights[4] | work_experience[0].highlights[4] = 'X├óy dß╗▒ng vector search sß╗¡ dß╗Ñng Qdrant'
+cv_20260617125758_2_1::work_experience[1].company | work_experience[1].company = 'HRTech Labs'
+cv_20260617125758_2_1::work_experience[1].title | work_experience[1].title = 'Backend Developer'
+cv_20260617125758_2_1::work_experience[1].start | work_experience[1].start = '2022'
+cv_20260617125758_2_1::work_experience[1].end | work_experience[1].end = '2023'
+cv_20260617125758_2_1::work_experience[1].highlights[0] | work_experience[1].highlights[0] = 'X├óy dß╗▒ng API xß╗¡ l├╜ dß╗» liß╗çu tuyß╗ân dß╗Ñng'
+cv_20260617125758_2_1::work_experience[1].highlights[1] | work_experience[1].highlights[1] = 'L├ám viß╗çc vß╗¢i Elasticsearch cho job search'
+cv_20260617125758_2_1::work_experience[1].highlights[2] | work_experience[1].highlights[2] = 'Dockerize to├án bß╗Ö hß╗ç thß╗æng backend'
+cv_20260617125758_2_1::skills[0] | skills[0] = 'python'
+cv_20260617125758_2_1::skills[1] | skills[1] = 'fastapi'
+cv_20260617125758_2_1::skills[2] | skills[2] = 'django'
+cv_20260617125758_2_1::skills[3] | skills[3] = 'api'
+cv_20260617125758_2_1::skills[4] | skills[4] = 'embeddings'
+cv_20260617125758_2_1::skills[5] | skills[5] = 'postgresql'
+cv_20260617125758_2_1::skills[6] | skills[6] = 'redis'
+cv_20260617125758_2_1::skills[7] | skills[7] = 'elasticsearch'
+cv_20260617125758_2_1::skills[8] | skills[8] = 'docker'
+cv_20260617125758_2_1::skills[9] | skills[9] = 'githubactions'
+cv_20260617125758_2_1::skills[10] | skills[10] = 'linux'
+cv_20260617125758_2_1::skills[11] | skills[11] = 'nlp'
+cv_20260617125758_2_1::skills[12] | skills[12] = 'Cvjd Matching'
+cv_20260617125758_2_1::skills[13] | skills[13] = 'gemini'
+cv_20260617125758_2_1::skill_evidence[0].skill | skill_evidence[0].skill = 'Python'
+cv_20260617125758_2_1::skill_evidence[0].context | skill_evidence[0].context = 'Sß╗¡ dß╗Ñng tß║íi SmartHire Vietnam v├á HRTech Labs; ph├ít triß╗ân hß╗ç thß╗æng AI Recruitment v├á NLP platform.'
+cv_20260617125758_2_1::skill_evidence[1].skill | skill_evidence[1].skill = 'FastAPI'
+cv_20260617125758_2_1::skill_evidence[1].context | skill_evidence[1].context = 'Liß╗çt k├¬ trong kß╗╣ n─âng.'
+cv_20260617125758_2_1::skill_evidence[2].skill | skill_evidence[2].skill = 'Django'
+cv_20260617125758_2_1::skill_evidence[2].context | skill_evidence[2].context = 'Liß╗çt k├¬ trong kß╗╣ n─âng.'
+cv_20260617125758_2_1::skill_evidence[3].skill | skill_evidence[3].skill = 'OpenAI API'
+cv_20260617125758_2_1::skill_evidence[3].context | skill_evidence[3].context = 'Liß╗çt k├¬ trong kß╗╣ n─âng.'
+cv_20260617125758_2_1::skill_evidence[4].skill | skill_evidence[4].skill = 'Gemini API'
+cv_20260617125758_2_1::skill_evidence[4].context | skill_evidence[4].context = 'T├¡ch hß╗úp Gemini API ─æß╗â ph├ón t├¡ch kß╗╣ n─âng ß╗⌐ng vi├¬n tß║íi SmartHire Vietnam.'
+cv_20260617125758_2_1::skill_evidence[5].skill | skill_evidence[5].skill = 'Semantic Search'
+cv_20260617125758_2_1::skill_evidence[5].context | skill_evidence[5].context = 'C├│ kinh nghiß╗çm x├óy dß╗▒ng Semantic Search Engine; tß╗æi ╞░u semantic search tß║íi SmartHire Vietnam.'
+cv_20260617125758_2_1::skill_evidence[6].skill | skill_evidence[6].skill = 'Embeddings'
+cv_20260617125758_2_1::skill_evidence[6].context | skill_evidence[6].context = 'Liß╗çt k├¬ trong kß╗╣ n─âng.'
+cv_20260617125758_2_1::skill_evidence[7].skill | skill_evidence[7].skill = 'Cosine Similarity'
+cv_20260617125758_2_1::skill_evidence[7].context | skill_evidence[7].context = 'Liß╗çt k├¬ trong kß╗╣ n─âng.'
+cv_20260617125758_2_1::skill_evidence[8].skill | skill_evidence[8].skill = 'PostgreSQL'
+cv_20260617125758_2_1::skill_evidence[8].context | skill_evidence[8].context = 'Liß╗çt k├¬ trong kß╗╣ n─âng.'
+cv_20260617125758_2_1::skill_evidence[9].skill | skill_evidence[9].skill = 'Redis'
+cv_20260617125758_2_1::skill_evidence[9].context | skill_evidence[9].context = 'Liß╗çt k├¬ trong kß╗╣ n─âng.'
+cv_20260617125758_2_1::skill_evidence[10].skill | skill_evidence[10].skill = 'Elasticsearch'
+cv_20260617125758_2_1::skill_evidence[10].context | skill_evidence[10].context = 'L├ám viß╗çc vß╗¢i Elasticsearch cho job search tß║íi HRTech Labs.'
+cv_20260617125758_2_1::skill_evidence[11].skill | skill_evidence[11].skill = 'Qdrant'
+cv_20260617125758_2_1::skill_evidence[11].context | skill_evidence[11].context = 'X├óy dß╗▒ng vector search sß╗¡ dß╗Ñng Qdrant tß║íi SmartHire Vietnam.'
+cv_20260617125758_2_1::skill_evidence[12].skill | skill_evidence[12].skill = 'Docker'
+cv_20260617125758_2_1::skill_evidence[12].context | skill_evidence[12].context = 'Dockerize to├án bß╗Ö hß╗ç thß╗æng backend tß║íi HRTech Labs.'
+cv_20260617125758_2_1::skill_evidence[13].skill | skill_evidence[13].skill = 'GitHub Actions'
+cv_20260617125758_2_1::skill_evidence[13].context | skill_evidence[13].context = 'Liß╗çt k├¬ trong kß╗╣ n─âng.'
+cv_20260617125758_2_1::skill_evidence[14].skill | skill_evidence[14].skill = 'Linux'
+cv_20260617125758_2_1::skill_evidence[14].context | skill_evidence[14].context = 'Liß╗çt k├¬ trong kß╗╣ n─âng.'
+cv_20260617125758_2_1::skill_evidence[15].skill | skill_evidence[15].skill = 'AI Recruitment'
+cv_20260617125758_2_1::skill_evidence[15].context | skill_evidence[15].context = 'Ph├ít triß╗ân hß╗ç thß╗æng AI Recruitment.'
+cv_20260617125758_2_1::skill_evidence[16].skill | skill_evidence[16].skill = 'NLP'
+cv_20260617125758_2_1::skill_evidence[16].context | skill_evidence[16].context = 'Ph├ít triß╗ân NLP platform.'
+cv_20260617125758_2_1::skill_evidence[17].skill | skill_evidence[17].skill = 'CV Parsing'
+cv_20260617125758_2_1::skill_evidence[17].context | skill_evidence[17].context = 'X├óy dß╗▒ng hß╗ç thß╗æng CV Parser hß╗ù trß╗ú PDF/DOCX tß║íi SmartHire Vietnam.'
+cv_20260617125758_2_1::skill_evidence[18].skill | skill_evidence[18].skill = 'AI Interview System'
+cv_20260617125758_2_1::skill_evidence[18].context | skill_evidence[18].context = 'C├│ kinh nghiß╗çm x├óy dß╗▒ng AI Interview System.'
+cv_20260617125758_2_1::skill_evidence[19].skill | skill_evidence[19].skill = 'CV-JD Matching'
+cv_20260617125758_2_1::skill_evidence[19].context | skill_evidence[19].context = 'Thiß║┐t kß║┐ hybrid scoring algorithm cho matching CV-JD.'
+cv_20260617125758_2_1::skill_evidence[20].skill | skill_evidence[20].skill = 'Vector Search'
+cv_20260617125758_2_1::skill_evidence[20].context | skill_evidence[20].context = 'X├óy dß╗▒ng Vector Search Infrastructure v├á sß╗¡ dß╗Ñng Qdrant cho vector search.'
+cv_20260617125758_2_1::skill_evidence[21].skill | skill_evidence[21].skill = 'API'
+cv_20260617125758_2_1::skill_evidence[21].context | skill_evidence[21].context = 'X├óy dß╗▒ng API xß╗¡ l├╜ dß╗» liß╗çu tuyß╗ân dß╗Ñng tß║íi HRTech Labs.'
+cv_20260617125758_2_1::technical_skills[0] | technical_skills[0] = 'Python'
+cv_20260617125758_2_1::technical_skills[1] | technical_skills[1] = 'FastAPI'
+cv_20260617125758_2_1::technical_skills[2] | technical_skills[2] = 'Django'
+cv_20260617125758_2_1::technical_skills[3] | technical_skills[3] = 'OpenAI API'
+cv_20260617125758_2_1::technical_skills[4] | technical_skills[4] = 'Gemini API'
+cv_20260617125758_2_1::technical_skills[5] | technical_skills[5] = 'Embeddings'
+cv_20260617125758_2_1::technical_skills[6] | technical_skills[6] = 'Cosine Similarity'
+cv_20260617125758_2_1::technical_skills[7] | technical_skills[7] = 'PostgreSQL'
+cv_20260617125758_2_1::technical_skills[8] | technical_skills[8] = 'Redis'
+cv_20260617125758_2_1::technical_skills[9] | technical_skills[9] = 'Elasticsearch'
+cv_20260617125758_2_1::technical_skills[10] | technical_skills[10] = 'Qdrant'
+cv_20260617125758_2_1::technical_skills[11] | technical_skills[11] = 'Docker'
+cv_20260617125758_2_1::technical_skills[12] | technical_skills[12] = 'GitHub Actions'
+cv_20260617125758_2_1::technical_skills[13] | technical_skills[13] = 'Linux'
+cv_20260617125758_2_1::technical_skills[14] | technical_skills[14] = 'API'
+cv_20260617125758_2_1::domain_skills[0] | domain_skills[0] = 'AI Recruitment'
+cv_20260617125758_2_1::domain_skills[1] | domain_skills[1] = 'NLP'
+cv_20260617125758_2_1::domain_skills[2] | domain_skills[2] = 'CV Parsing'
+cv_20260617125758_2_1::domain_skills[3] | domain_skills[3] = 'Semantic Search'
+cv_20260617125758_2_1::domain_skills[4] | domain_skills[4] = 'AI Interview System'
+cv_20260617125758_2_1::domain_skills[5] | domain_skills[5] = 'CV-JD Matching'
+cv_20260617125758_2_1::domain_skills[6] | domain_skills[6] = 'Vector Search'
+cv_20260617125758_2_1::skill_metadata.technical_skills[0] | skill_metadata.technical_skills[0] = 'Python'
+cv_20260617125758_2_1::skill_metadata.technical_skills[1] | skill_metadata.technical_skills[1] = 'FastAPI'
+cv_20260617125758_2_1::skill_metadata.technical_skills[2] | skill_metadata.technical_skills[2] = 'Django'
+cv_20260617125758_2_1::skill_metadata.technical_skills[3] | skill_metadata.technical_skills[3] = 'OpenAI API'
+cv_20260617125758_2_1::skill_metadata.technical_skills[4] | skill_metadata.technical_skills[4] = 'Gemini API'
+cv_20260617125758_2_1::skill_metadata.technical_skills[5] | skill_metadata.technical_skills[5] = 'Embeddings'
+cv_20260617125758_2_1::skill_metadata.technical_skills[6] | skill_metadata.technical_skills[6] = 'Cosine Similarity'
+cv_20260617125758_2_1::skill_metadata.technical_skills[7] | skill_metadata.technical_skills[7] = 'PostgreSQL'
+cv_20260617125758_2_1::skill_metadata.technical_skills[8] | skill_metadata.technical_skills[8] = 'Redis'
+cv_20260617125758_2_1::skill_metadata.technical_skills[9] | skill_metadata.technical_skills[9] = 'Elasticsearch'
+cv_20260617125758_2_1::skill_metadata.technical_skills[10] | skill_metadata.technical_skills[10] = 'Qdrant'
+cv_20260617125758_2_1::skill_metadata.technical_skills[11] | skill_metadata.technical_skills[11] = 'Docker'
+cv_20260617125758_2_1::skill_metadata.technical_skills[12] | skill_metadata.technical_skills[12] = 'GitHub Actions'
+cv_20260617125758_2_1::skill_metadata.technical_skills[13] | skill_metadata.technical_skills[13] = 'Linux'
+cv_20260617125758_2_1::skill_metadata.technical_skills[14] | skill_metadata.technical_skills[14] = 'API'
+cv_20260617125758_2_1::skill_metadata.domain_skills[0] | skill_metadata.domain_skills[0] = 'AI Recruitment'
+cv_20260617125758_2_1::skill_metadata.domain_skills[1] | skill_metadata.domain_skills[1] = 'NLP'
+cv_20260617125758_2_1::skill_metadata.domain_skills[2] | skill_metadata.domain_skills[2] = 'CV Parsing'
+cv_20260617125758_2_1::skill_metadata.domain_skills[3] | skill_metadata.domain_skills[3] = 'Semantic Search'
+cv_20260617125758_2_1::skill_metadata.domain_skills[4] | skill_metadata.domain_skills[4] = 'AI Interview System'
+cv_20260617125758_2_1::skill_metadata.domain_skills[5] | skill_metadata.domain_skills[5] = 'CV-JD Matching'
+cv_20260617125758_2_1::skill_metadata.domain_skills[6] | skill_metadata.domain_skills[6] = 'Vector Search'

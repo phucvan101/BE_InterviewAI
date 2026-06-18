@@ -1,0 +1,103 @@
+﻿SRC:
+Giß╗¢i thiß╗çu C├┤ng ty Cß╗ò phß║ºn C├┤ng nghß╗ç AI-Viet
+Tß╗òng quan
+AI-Viet l├á mß╗Öt trong nhß╗»ng c├┤ng ty h├áng ─æß║ºu trong l─⌐nh vß╗▒c ph├ít triß╗ân phß║ºn mß╗üm v├á ß╗⌐ng dß╗Ñng tr├¡ tuß╗ç nh├ón tß║ío (AI) tß║íi Viß╗çt Nam. ─É╞░ß╗úc th├ánh lß║¡p v├áo n─âm 2020, ch├║ng t├┤i mang lß║íi c├íc giß║úi ph├íp c├┤ng nghß╗ç ti├¬n tiß║┐n nhß║Ñt ─æß╗â t─âng c╞░ß╗¥ng hiß╗çu suß║Ñt kinh doanh cho kh├ích h├áng, ─æß╗ông thß╗¥i tß║ío ra t├íc ─æß╗Öng t├¡ch cß╗▒c ─æß║┐n x├ú hß╗Öi.
+Sß╗⌐ mß╗çnh
+Ti├¬n phong ß╗⌐ng dß╗Ñng tr├¡ tuß╗ç nh├ón tß║ío ─æß╗â giß║úi quyß║┐t c├íc b├ái to├ín kh├│ cß╗ºa doanh nghiß╗çp v├á cß╗Öng ─æß╗ông, h╞░ß╗¢ng tß╗¢i mß╗Öt t╞░╞íng lai tß╗▒ ─æß╗Öng h├│a v├á th├┤ng minh h╞ín.
+L─⌐nh vß╗▒c kinh doanh
+- Ph├ít triß╗ân phß║ºn mß╗üm doanh nghiß╗çp (ERP, CRM)
+- ß╗¿ng dß╗Ñng Tr├¡ tuß╗ç nh├ón tß║ío (AI) v├á Machine Learning trong y tß║┐ v├á gi├ío dß╗Ñc
+- Dß╗ïch vß╗Ñ t╞░ vß║Ñn chuyß╗ân ─æß╗òi sß╗æ cho doanh nghiß╗çp vß╗½a v├á nhß╗Å
+Gi├í trß╗ï cß╗æt l├╡i
+- S├íng tß║ío kh├┤ng ngß╗½ng
+- ─Éam m├¬ c├┤ng nghß╗ç
+- Minh bß║ích v├á Tr├ích nhiß╗çm
+- Hß╗úp t├íc c├╣ng ph├ít triß╗ân
+V─ân h├│a c├┤ng ty
+M├┤i tr╞░ß╗¥ng l├ám viß╗çc trß║╗ trung, n─âng ─æß╗Öng, khuyß║┐n kh├¡ch sß╗▒ s├íng tß║ío v├á ─æß╗òi mß╗¢i. Ch├║ng t├┤i lu├┤n ─æß╗ü cao tinh thß║ºn l├ám viß╗çc nh├│m, sß╗▒ linh hoß║ít v├á tß║ío c╞í hß╗Öi ph├ít triß╗ân c├í nh├ón tß╗æi ─æa cho tß╗½ng th├ánh vi├¬n.
+Kß╗╣ n─âng v├á C├┤ng nghß╗ç sß╗¡ dß╗Ñng
+Ch├║ng t├┤i ├íp dß╗Ñng c├íc c├┤ng nghß╗ç ti├¬n tiß║┐n nhß║Ñt bao gß╗ôm:
+- L─⌐nh vß╗▒c AI: Python, TensorFlow, PyTorch, LangChain, OpenAI API.
+- Ph├ít triß╗ân Web: ReactJS, NodeJS, Next.js, Django.
+- Hß║í tß║ºng & ─É├ím m├óy: AWS, Google Cloud, Docker, Kubernetes.
+Th├ánh tß╗▒u nß╗òi bß║¡t
+- Top 10 Startup C├┤ng nghß╗ç triß╗ân vß╗ìng n─âm 2022 do hiß╗çp hß╗Öi VINASA b├¼nh chß╗ìn.
+- ─Éß║ít giß║úi th╞░ß╗ƒng Sao Khu├¬ 2023 cho nß╗ün tß║úng AI phß╗Ñc vß╗Ñ gi├ío dß╗Ñc.
+
+FIELDS:
+ci_20260617125814_2_1::company_name | company_name = 'C├┤ng ty Cß╗ò phß║ºn C├┤ng nghß╗ç AI-Viet'
+ci_20260617125814_2_1::industry | industry = 'AI/ML'
+ci_20260617125814_2_1::sub_industry | sub_industry = 'Software Development, EdTech, Healthcare Tech, Digital Transformation Consulting'
+ci_20260617125814_2_1::business_model | business_model = 'B2B'
+ci_20260617125814_2_1::description | description = 'AI-Viet l├á mß╗Öt trong nhß╗»ng c├┤ng ty h├áng ─æß║ºu trong l─⌐nh vß╗▒c ph├ít triß╗ân phß║ºn mß╗üm v├á ß╗⌐ng dß╗Ñng tr├¡ tuß╗ç nh├ón tß║ío (AI) tß║íi Viß╗çt Nam. ─É╞░ß╗úc th├ánh lß║¡p v├áo n─âm 2020, c├┤ng ty mang lß║íi c├íc giß║úi ph├íp c├┤ng nghß╗ç ti
+ci_20260617125814_2_1::mission | mission = 'Ti├¬n phong ß╗⌐ng dß╗Ñng tr├¡ tuß╗ç nh├ón tß║ío ─æß╗â giß║úi quyß║┐t c├íc b├ái to├ín kh├│ cß╗ºa doanh nghiß╗çp v├á cß╗Öng ─æß╗ông, h╞░ß╗¢ng tß╗¢i mß╗Öt t╞░╞íng lai tß╗▒ ─æß╗Öng h├│a v├á th├┤ng minh h╞ín.'
+ci_20260617125814_2_1::values[0] | values[0] = 'S├íng tß║ío kh├┤ng ngß╗½ng'
+ci_20260617125814_2_1::values[1] | values[1] = '─Éam m├¬ c├┤ng nghß╗ç'
+ci_20260617125814_2_1::values[2] | values[2] = 'Minh bß║ích v├á Tr├ích nhiß╗çm'
+ci_20260617125814_2_1::values[3] | values[3] = 'Hß╗úp t├íc c├╣ng ph├ít triß╗ân'
+ci_20260617125814_2_1::work_culture | work_culture = 'M├┤i tr╞░ß╗¥ng l├ám viß╗çc trß║╗ trung, n─âng ─æß╗Öng, khuyß║┐n kh├¡ch sß╗▒ s├íng tß║ío v├á ─æß╗òi mß╗¢i. ─Éß╗ü cao tinh thß║ºn l├ám viß╗çc nh├│m, sß╗▒ linh hoß║ít v├á tß║ío c╞í hß╗Öi ph├ít triß╗ân c├í nh├ón tß╗æi ─æa.'
+ci_20260617125814_2_1::tech_culture | tech_culture = 'Startup, Innovation-driven'
+ci_20260617125814_2_1::key_skills[0] | key_skills[0] = 'Python'
+ci_20260617125814_2_1::key_skills[1] | key_skills[1] = 'TensorFlow'
+ci_20260617125814_2_1::key_skills[2] | key_skills[2] = 'PyTorch'
+ci_20260617125814_2_1::key_skills[3] | key_skills[3] = 'LangChain'
+ci_20260617125814_2_1::key_skills[4] | key_skills[4] = 'OpenAI API'
+ci_20260617125814_2_1::key_skills[5] | key_skills[5] = 'React'
+ci_20260617125814_2_1::key_skills[6] | key_skills[6] = 'Node.js'
+ci_20260617125814_2_1::key_skills[7] | key_skills[7] = 'Next.js'
+ci_20260617125814_2_1::key_skills[8] | key_skills[8] = 'Django'
+ci_20260617125814_2_1::key_skills[9] | key_skills[9] = 'AWS'
+ci_20260617125814_2_1::key_skills[10] | key_skills[10] = 'GCP'
+ci_20260617125814_2_1::key_skills[11] | key_skills[11] = 'Docker'
+ci_20260617125814_2_1::key_skills[12] | key_skills[12] = 'Kubernetes'
+ci_20260617125814_2_1::key_skills[13] | key_skills[13] = 'JavaScript'
+ci_20260617125814_2_1::technologies[0] | technologies[0] = 'Python'
+ci_20260617125814_2_1::technologies[1] | technologies[1] = 'TensorFlow'
+ci_20260617125814_2_1::technologies[2] | technologies[2] = 'PyTorch'
+ci_20260617125814_2_1::technologies[3] | technologies[3] = 'LangChain'
+ci_20260617125814_2_1::technologies[4] | technologies[4] = 'OpenAI API'
+ci_20260617125814_2_1::technologies[5] | technologies[5] = 'React'
+ci_20260617125814_2_1::technologies[6] | technologies[6] = 'Node.js'
+ci_20260617125814_2_1::technologies[7] | technologies[7] = 'Next.js'
+ci_20260617125814_2_1::technologies[8] | technologies[8] = 'Django'
+ci_20260617125814_2_1::technologies[9] | technologies[9] = 'AWS'
+ci_20260617125814_2_1::technologies[10] | technologies[10] = 'GCP'
+ci_20260617125814_2_1::technologies[11] | technologies[11] = 'Docker'
+ci_20260617125814_2_1::technologies[12] | technologies[12] = 'Kubernetes'
+ci_20260617125814_2_1::technologies[13] | technologies[13] = 'JavaScript'
+ci_20260617125814_2_1::primary_languages[0] | primary_languages[0] = 'Python'
+ci_20260617125814_2_1::primary_languages[1] | primary_languages[1] = 'JavaScript'
+ci_20260617125814_2_1::frameworks[0] | frameworks[0] = 'React'
+ci_20260617125814_2_1::frameworks[1] | frameworks[1] = 'Node.js'
+ci_20260617125814_2_1::frameworks[2] | frameworks[2] = 'Next.js'
+ci_20260617125814_2_1::frameworks[3] | frameworks[3] = 'Django'
+ci_20260617125814_2_1::infrastructure[0] | infrastructure[0] = 'AWS'
+ci_20260617125814_2_1::infrastructure[1] | infrastructure[1] = 'GCP'
+ci_20260617125814_2_1::infrastructure[2] | infrastructure[2] = 'Docker'
+ci_20260617125814_2_1::infrastructure[3] | infrastructure[3] = 'Kubernetes'
+ci_20260617125814_2_1::ai_ml_stack[0] | ai_ml_stack[0] = 'Python'
+ci_20260617125814_2_1::ai_ml_stack[1] | ai_ml_stack[1] = 'TensorFlow'
+ci_20260617125814_2_1::ai_ml_stack[2] | ai_ml_stack[2] = 'PyTorch'
+ci_20260617125814_2_1::ai_ml_stack[3] | ai_ml_stack[3] = 'LangChain'
+ci_20260617125814_2_1::ai_ml_stack[4] | ai_ml_stack[4] = 'OpenAI API'
+ci_20260617125814_2_1::products[0].name | products[0].name = 'Phß║ºn mß╗üm doanh nghiß╗çp'
+ci_20260617125814_2_1::products[0].description | products[0].description = 'Ph├ít triß╗ân c├íc giß║úi ph├íp phß║ºn mß╗üm quß║ún l├╜ doanh nghiß╗çp nh╞░ ERP, CRM.'
+ci_20260617125814_2_1::products[0].target_customers | products[0].target_customers = 'Doanh nghiß╗çp'
+ci_20260617125814_2_1::products[1].name | products[1].name = 'ß╗¿ng dß╗Ñng Tr├¡ tuß╗ç nh├ón tß║ío (AI) v├á Machine Learning'
+ci_20260617125814_2_1::products[1].description | products[1].description = 'Ph├ít triß╗ân c├íc ß╗⌐ng dß╗Ñng AI/ML chuy├¬n biß╗çt cho l─⌐nh vß╗▒c y tß║┐ v├á gi├ío dß╗Ñc.'
+ci_20260617125814_2_1::products[1].target_customers | products[1].target_customers = 'L─⌐nh vß╗▒c y tß║┐, L─⌐nh vß╗▒c gi├ío dß╗Ñc'
+ci_20260617125814_2_1::products[2].name | products[2].name = 'Dß╗ïch vß╗Ñ t╞░ vß║Ñn chuyß╗ân ─æß╗òi sß╗æ'
+ci_20260617125814_2_1::products[2].description | products[2].description = 'Cung cß║Ñp dß╗ïch vß╗Ñ t╞░ vß║Ñn v├á triß╗ân khai chuyß╗ân ─æß╗òi sß╗æ cho c├íc doanh nghiß╗çp vß╗½a v├á nhß╗Å.'
+ci_20260617125814_2_1::products[2].target_customers | products[2].target_customers = 'Doanh nghiß╗çp vß╗½a v├á nhß╗Å'
+ci_20260617125814_2_1::products[3].name | products[3].name = 'Nß╗ün tß║úng AI phß╗Ñc vß╗Ñ gi├ío dß╗Ñc'
+ci_20260617125814_2_1::products[3].description | products[3].description = 'Nß╗ün tß║úng AI chuy├¬n biß╗çt ─æ╞░ß╗úc trao giß║úi Sao Khu├¬, hß╗ù trß╗ú c├íc hoß║ít ─æß╗Öng trong l─⌐nh vß╗▒c gi├ío dß╗Ñc.'
+ci_20260617125814_2_1::products[3].target_customers | products[3].target_customers = 'L─⌐nh vß╗▒c gi├ío dß╗Ñc'
+ci_20260617125814_2_1::target_customers[0] | target_customers[0] = 'Doanh nghiß╗çp'
+ci_20260617125814_2_1::target_customers[1] | target_customers[1] = 'Cß╗Öng ─æß╗ông'
+ci_20260617125814_2_1::target_customers[2] | target_customers[2] = 'L─⌐nh vß╗▒c y tß║┐'
+ci_20260617125814_2_1::target_customers[3] | target_customers[3] = 'L─⌐nh vß╗▒c gi├ío dß╗Ñc'
+ci_20260617125814_2_1::target_customers[4] | target_customers[4] = 'Doanh nghiß╗çp vß╗½a v├á nhß╗Å'
+ci_20260617125814_2_1::growth_stage | growth_stage = 'Startup'
+ci_20260617125814_2_1::company_culture | company_culture = 'M├┤i tr╞░ß╗¥ng l├ám viß╗çc trß║╗ trung, n─âng ─æß╗Öng, khuyß║┐n kh├¡ch sß╗▒ s├íng tß║ío v├á ─æß╗òi mß╗¢i. ─Éß╗ü cao tinh thß║ºn l├ám viß╗çc nh├│m, sß╗▒ linh hoß║ít v├á tß║ío c╞í hß╗Öi ph├ít triß╗ân c├í nh├ón tß╗æi ─æa cho tß╗½ng th├ánh vi├¬n.'
+ci_20260617125814_2_1::key_achievements[0] | key_achievements[0] = 'Top 10 Startup C├┤ng nghß╗ç triß╗ân vß╗ìng n─âm 2022 do hiß╗çp hß╗Öi VINASA b├¼nh chß╗ìn'
+ci_20260617125814_2_1::key_achievements[1] | key_achievements[1] = '─Éß║ít giß║úi th╞░ß╗ƒng Sao Khu├¬ 2023 cho nß╗ün tß║úng AI phß╗Ñc vß╗Ñ gi├ío dß╗Ñc'

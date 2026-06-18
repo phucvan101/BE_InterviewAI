@@ -60,8 +60,6 @@ from .response_builder import (
     AreaItem,
     RecommendationItem,
 )
-from ._rules_engine import apply_learned_rules
-
 
 # ── Main Entry Point ──────────────────────────────────────────────────────────────────
 def calculate_hybrid_score(
@@ -70,8 +68,6 @@ def calculate_hybrid_score(
     company_data: dict = None,
     cv_embedding: np.ndarray = None,
     jd_embedding: np.ndarray = None,
-    score_overrides: dict = None, # [AGENT OVERRIDE] Thêm tham số nhận điểm ghi đè từ DB
-    learned_knowledge: dict = None, # [AGENT KNOWLEDGE] Thêm tham số nhận bài học từ RAG
 ) -> dict:
     """
     Hybrid CV-JD scoring v6 — rich structured response.
@@ -172,61 +168,6 @@ def calculate_hybrid_score(
                 f"[COMPANY_FIT] Isolated exception: {_ce}", exc_info=True
             )
             company_score, company_rationale = 0.0, f"Loi tinh company fit: {_ce}"
-
-        # ── [AGENT INJECTION] Áp dụng bài học (Learned Rules từ FAISS) ──
-        if learned_knowledge and "rules" in learned_knowledge and learned_knowledge["rules"]:
-            # Áp dụng learned rules để điều chỉnh scores
-            (
-                exp_score,
-                skills_score,
-                domain_penalty,
-                domain_penalty_reason,
-                rules_applied,
-            ) = apply_learned_rules(
-                cv_data=cv_data,
-                jd_data=jd_data,
-                learned_knowledge=learned_knowledge,
-                exp_score=exp_score,
-                skills_score=skills_score,
-                domain_penalty=domain_penalty,
-                domain_penalty_reason=domain_penalty_reason,
-                total_work_years=total_work_years,
-                project_years=project_years,
-            )
-            if rules_applied:
-                exp_rationale += f"\n[Hệ thống AI đã tự động điều chỉnh theo bài học: {rules_applied}]"
-
-        # ── [AGENT INJECTION] Áp dụng điểm ghi đè (Score Override) ──
-        if score_overrides:
-            override_limits = {
-                "experience_score": 50.0,
-                "skills_score": 30.0,
-                "education_score": 10.0,
-                "career_objectives_score": 10.0,
-                "company_fit_score": 10.0,
-            }
-
-            def _safe_override(key: str, current_score: float) -> float:
-                if key not in score_overrides:
-                    return current_score
-                try:
-                    value = float(score_overrides[key])
-                except (TypeError, ValueError):
-                    logger.warning("Ignoring invalid score override %s=%r", key, score_overrides[key])
-                    return current_score
-                return min(max(value, 0.0), override_limits[key])
-
-            if "experience_score" in score_overrides:
-                exp_score = _safe_override("experience_score", exp_score)
-                exp_rationale = score_overrides.get("rationale", exp_rationale + " (Đã được cập nhật bởi Agent)")
-            if "skills_score" in score_overrides:
-                skills_score = _safe_override("skills_score", skills_score)
-            if "education_score" in score_overrides:
-                edu_score = _safe_override("education_score", edu_score)
-            if "career_objectives_score" in score_overrides:
-                career_obj_score = _safe_override("career_objectives_score", career_obj_score)
-            if "company_fit_score" in score_overrides:
-                company_score = _safe_override("company_fit_score", company_score)
 
         overall = round(
             min(exp_score + skills_score + edu_score + career_obj_score, 100.0)

@@ -1,0 +1,822 @@
+{
+  "ci_20260617125814_2_1": {
+    "ci_20260617125814_2_1::company_name": {
+      "verdict": "grounded",
+      "reason": "tên công ty xuất hiện nguyên văn ở tiêu đề source"
+    },
+    "ci_20260617125814_2_1::industry": {
+      "verdict": "grounded",
+      "reason": "source mô tả AI/ML rõ ràng; 'AI/ML' là cách viết tắt/alphabet của 'trí tuệ nhân tạo (AI) và Machine Learning'"
+    },
+    "ci_20260617125814_2_1::sub_industry": {
+      "verdict": "grounded",
+      "reason": "Software Development, EdTech, Healthcare Tech, Digital Transformation Consulting - đều là diễn giải ngữ nghĩa của 'phát triển phần mềm', 'giáo dục', 'y tế', 'tư vấn chuyển đổi số' có trong source. Đây là bản dịch/enum hóa, không phải bịa"
+    },
+    "ci_20260617125814_2_1::business_model": {
+      "verdict": "fabricated",
+      "reason": "source không đề cập mô hình B2B/B2C/B2B2C gì cả; trường này hoàn toàn do model bịa"
+    },
+    "ci_20260617125814_2_1::description": {
+      "verdict": "grounded",
+      "reason": "phần lớn là paraphrase gần nguyên văn từ source (đoạn 'AI-Viet là một trong những công ty hàng đầu...'). Có thay đổi nhỏ 'chúng tôi' -> 'công ty' nhưng không thêm thông tin mới"
+    },
+    "ci_20260617125814_2_1::mission": {
+      "verdict": "grounded",
+      "reason": "trích nguyên văn từ source (mục 'Sứ mệnh')"
+    },
+    "ci_20260617125814_2_1::values[0]": {
+      "verdict": "grounded",
+      "reason": "trong source: 'Sáng tạo không ngừng'"
+    },
+    "ci_20260617125814_2_1::values[1]": {
+      "verdict": "grounded",
+      "reason": "trong source: 'Đam mê công nghệ'"
+    },
+    "ci_20260617125814_2_1::values[2]": {
+      "verdict": "grounded",
+      "reason": "trong source: 'Minh bạch và Trách nhiệm'"
+    },
+    "ci_20260617125814_2_1::values[3]": {
+      "verdict": "grounded",
+      "reason": "trong source: 'Hợp tác cùng phát triển'"
+    },
+    "ci_20260617125814_2_1::work_culture": {
+      "verdict": "grounded",
+      "reason": "trích gần nguyên văn từ mục 'Văn hóa công ty' của source"
+    },
+    "ci_20260617125814_2_1::tech_culture": {
+      "verdict": "grounded",
+      "reason": "'Startup' có trong source ('Top 10 Startup Công nghệ'); 'Innovation-driven' là suy luận hợp lý từ 'sáng tạo không ngừng', 'khuyến khích sự sáng tạo và đổi mới'. Có thể coi là chuẩn hóa, không phải bịa"
+    },
+    "ci_20260617125814_2_1::key_skills[0]": {
+      "verdict": "grounded",
+      "reason": "Python có trong source: 'Lĩnh vực AI: Python, TensorFlow, PyTorch, LangChain, OpenAI API'"
+    },
+    "ci_20260617125814_2_1::key_skills[1]": {
+      "verdict": "grounded",
+      "reason": "TensorFlow có trong source"
+    },
+    "ci_20260617125814_2_1::key_skills[2]": {
+      "verdict": "grounded",
+      "reason": "PyTorch có trong source"
+    },
+    "ci_20260617125814_2_1::key_skills[3]": {
+      "verdict": "grounded",
+      "reason": "LangChain có trong source"
+    },
+    "ci_20260617125814_2_1::key_skills[4]": {
+      "verdict": "grounded",
+      "reason": "OpenAI API có trong source"
+    },
+    "ci_20260617125814_2_1::key_skills[5]": {
+      "verdict": "grounded",
+      "reason": "React có trong source: 'Phát triển Web: ReactJS, NodeJS, Next.js, Django' (viết tắt React = ReactJS)"
+    },
+    "ci_20260617125814_2_1::key_skills[6]": {
+      "verdict": "grounded",
+      "reason": "Node.js = NodeJS trong source"
+    },
+    "ci_20260617125814_2_1::key_skills[7]": {
+      "verdict": "grounded",
+      "reason": "Next.js có trong source"
+    },
+    "ci_20260617125814_2_1::key_skills[8]": {
+      "verdict": "grounded",
+      "reason": "Django có trong source"
+    },
+    "ci_20260617125814_2_1::key_skills[9]": {
+      "verdict": "grounded",
+      "reason": "AWS có trong source: 'Hạ tầng & Đám mây: AWS, Google Cloud, Docker, Kubernetes'"
+    },
+    "ci_20260617125814_2_1::key_skills[10]": {
+      "verdict": "grounded",
+      "reason": "GCP = Google Cloud trong source (alias/abbreviation hợp lý)"
+    },
+    "ci_20260617125814_2_1::key_skills[11]": {
+      "verdict": "grounded",
+      "reason": "Docker có trong source"
+    },
+    "ci_20260617125814_2_1::key_skills[12]": {
+      "verdict": "grounded",
+      "reason": "Kubernetes có trong source"
+    },
+    "ci_20260617125814_2_1::key_skills[13]": {
+      "verdict": "fabricated",
+      "reason": "source không đề cập JavaScript; chỉ liệt kê Python, ReactJS, NodeJS, Next.js, Django. JavaScript là implícito do dùng Node/React nhưng source không ghi - đây là kiểu suy luận sai/không có trong tài liệu"
+    },
+    "ci_20260617125814_2_1::technologies[0]": {
+      "verdict": "grounded",
+      "reason": "trùng key_skills[0] - Python trong source"
+    },
+    "ci_20260617125814_2_1::technologies[1]": {
+      "verdict": "grounded",
+      "reason": "trùng key_skills[1]"
+    },
+    "ci_20260617125814_2_1::technologies[2]": {
+      "verdict": "grounded",
+      "reason": "trùng key_skills[2]"
+    },
+    "ci_20260617125814_2_1::technologies[3]": {
+      "verdict": "grounded",
+      "reason": "trùng key_skills[3]"
+    },
+    "ci_20260617125814_2_1::technologies[4]": {
+      "verdict": "grounded",
+      "reason": "trùng key_skills[4]"
+    },
+    "ci_20260617125814_2_1::technologies[5]": {
+      "verdict": "grounded",
+      "reason": "trùng key_skills[5]"
+    },
+    "ci_20260617125814_2_1::technologies[6]": {
+      "verdict": "grounded",
+      "reason": "trùng key_skills[6]"
+    },
+    "ci_20260617125814_2_1::technologies[7]": {
+      "verdict": "grounded",
+      "reason": "trùng key_skills[7]"
+    },
+    "ci_20260617125814_2_1::technologies[8]": {
+      "verdict": "grounded",
+      "reason": "trùng key_skills[8]"
+    },
+    "ci_20260617125814_2_1::technologies[9]": {
+      "verdict": "grounded",
+      "reason": "trùng key_skills[9]"
+    },
+    "ci_20260617125814_2_1::technologies[10]": {
+      "verdict": "grounded",
+      "reason": "trùng key_skills[10]"
+    },
+    "ci_20260617125814_2_1::technologies[11]": {
+      "verdict": "grounded",
+      "reason": "trùng key_skills[11]"
+    },
+    "ci_20260617125814_2_1::technologies[12]": {
+      "verdict": "grounded",
+      "reason": "trùng key_skills[12]"
+    },
+    "ci_20260617125814_2_1::technologies[13]": {
+      "verdict": "fabricated",
+      "reason": "trùng key_skills[13] - JavaScript không có trong source"
+    },
+    "ci_20260617125814_2_1::primary_languages[0]": {
+      "verdict": "grounded",
+      "reason": "Python trong source"
+    },
+    "ci_20260617125814_2_1::primary_languages[1]": {
+      "verdict": "fabricated",
+      "reason": "JavaScript không có trong source; chỉ Python là ngôn ngữ lập trình được đề cập rõ"
+    },
+    "ci_20260617125814_2_1::frameworks[0]": {
+      "verdict": "grounded",
+      "reason": "React = ReactJS trong source"
+    },
+    "ci_20260617125814_2_1::frameworks[1]": {
+      "verdict": "grounded",
+      "reason": "Node.js = NodeJS trong source"
+    },
+    "ci_20260617125814_2_1::frameworks[2]": {
+      "verdict": "grounded",
+      "reason": "Next.js có trong source"
+    },
+    "ci_20260617125814_2_1::frameworks[3]": {
+      "verdict": "grounded",
+      "reason": "Django có trong source"
+    },
+    "ci_20260617125814_2_1::infrastructure[0]": {
+      "verdict": "grounded",
+      "reason": "AWS trong source"
+    },
+    "ci_20260617125814_2_1::infrastructure[1]": {
+      "verdict": "grounded",
+      "reason": "GCP = Google Cloud trong source"
+    },
+    "ci_20260617125814_2_1::infrastructure[2]": {
+      "verdict": "grounded",
+      "reason": "Docker trong source"
+    },
+    "ci_20260617125814_2_1::infrastructure[3]": {
+      "verdict": "grounded",
+      "reason": "Kubernetes trong source"
+    },
+    "ci_20260617125814_2_1::ai_ml_stack[0]": {
+      "verdict": "grounded",
+      "reason": "Python trong source"
+    },
+    "ci_20260617125814_2_1::ai_ml_stack[1]": {
+      "verdict": "grounded",
+      "reason": "TensorFlow trong source"
+    },
+    "ci_20260617125814_2_1::ai_ml_stack[2]": {
+      "verdict": "grounded",
+      "reason": "PyTorch trong source"
+    },
+    "ci_20260617125814_2_1::ai_ml_stack[3]": {
+      "verdict": "grounded",
+      "reason": "LangChain trong source"
+    },
+    "ci_20260617125814_2_1::ai_ml_stack[4]": {
+      "verdict": "grounded",
+      "reason": "OpenAI API trong source"
+    },
+    "ci_20260617125814_2_1::products[0].name": {
+      "verdict": "grounded",
+      "reason": "source mục 'Lĩnh vực kinh doanh' có 'Phát triển phần mềm doanh nghiệp (ERP, CRM)'; 'Phần mềm doanh nghiệp' là viết tắt tương đương"
+    },
+    "ci_20260617125814_2_1::products[0].description": {
+      "verdict": "grounded",
+      "reason": "trích gần nguyên văn 'Phát triển các giải phần mềm quản lý doanh nghiệp như ERP, CRM' (source) -> paraphrase gần giống"
+    },
+    "ci_20260617125814_2_1::products[0].target_customers": {
+      "verdict": "grounded",
+      "reason": "'Doanh nghiệp' nằm trong ngữ cảnh source ('cho doanh nghiệp vừa và nhỏ', 'khách hàng')"
+    },
+    "ci_20260617125814_2_1::products[1].name": {
+      "verdict": "grounded",
+      "reason": "'Ứng dụng Trí tuệ nhân tạo (AI) và Machine Learning' trích gần nguyên văn từ source"
+    },
+    "ci_20260617125814_2_1::products[1].description": {
+      "verdict": "grounded",
+      "reason": "paraphrase của 'Ứng dụng Trí tuệ nhân tạo (AI) và Machine Learning trong y tế và giáo dục' trong source"
+    },
+    "ci_20260617125814_2_1::products[1].target_customers": {
+      "verdict": "grounded",
+      "reason": "'Lĩnh vực y tế, Lĩnh vực giáo dục' trích từ source"
+    },
+    "ci_20260617125814_2_1::products[2].name": {
+      "verdict": "grounded",
+      "reason": "'Dịch vụ tư vấn chuyển đổi số' trích từ source"
+    },
+    "ci_20260617125814_2_1::products[2].description": {
+      "verdict": "grounded",
+      "reason": "paraphrase gần nguyên văn từ source"
+    },
+    "ci_20260617125814_2_1::products[2].target_customers": {
+      "verdict": "grounded",
+      "reason": "'Doanh nghiệp vừa và nhỏ' trong source"
+    },
+    "ci_20260617125814_2_1::products[3].name": {
+      "verdict": "grounded",
+      "reason": "source đề cập 'nền tảng AI phục vụ giáo dục' trong mục 'Thành tựu nổi bật' - suy luận hợp lý rằng đây là một sản phẩm"
+    },
+    "ci_20260617125814_2_1::products[3].description": {
+      "verdict": "grounded",
+      "reason": "'Nền tảng AI chuyên biệt được trao giải Sao Khuê, hỗ trợ các hoạt động trong lĩnh vực giáo dục' là paraphrase gần nguyên văn từ source ('Nền tảng AI phục vụ giáo dục' + 'giải thưởng Sao Khuê 2023 cho nền tảng AI phục vụ giáo dục')"
+    },
+    "ci_20260617125814_2_1::products[3].target_customers": {
+      "verdict": "grounded",
+      "reason": "'Lĩnh vực giáo dục' trong source"
+    },
+    "ci_20260617125814_2_1::target_customers[0]": {
+      "verdict": "grounded",
+      "reason": "'Doanh nghiệp' ngữ cảnh trong source"
+    },
+    "ci_20260617125814_2_1::target_customers[1]": {
+      "verdict": "fabricated",
+      "reason": "source không đề cập 'Cộng đồng' như một nhóm khách hàng mục tiêu; đoạn 'tạo ra tác động tích cực đến xã đông' là về sứ mệnh xã hội, không phải target customer"
+    },
+    "ci_20260617125814_2_1::target_customers[2]": {
+      "verdict": "grounded",
+      "reason": "'Lĩnh vực y tế' trong source"
+    },
+    "ci_20260617125814_2_1::target_customers[3]": {
+      "verdict": "grounded",
+      "reason": "'Lĩnh vực giáo dục' trong source"
+    },
+    "ci_20260617125814_2_1::target_customers[4]": {
+      "verdict": "grounded",
+      "reason": "'Doanh nghiệp vừa và nhỏ' trong source"
+    },
+    "ci_20260617125814_2_1::growth_stage": {
+      "verdict": "grounded",
+      "reason": "source: 'Top 10 Startup Công nghệ triển vọng năm 2022' - 'Startup' là thuật ngữ được source dùng"
+    },
+    "ci_20260617125814_2_1::company_culture": {
+      "verdict": "grounded",
+      "reason": "trích nguyên văn từ mục 'Văn hóa công ty' trong source"
+    },
+    "ci_20260617125814_2_1::key_achievements[0]": {
+      "verdict": "grounded",
+      "reason": "trích nguyên văn từ mục 'Thành tựu nổi bật'"
+    },
+    "ci_20260617125814_2_1::key_achievements[1]": {
+      "verdict": "grounded",
+      "reason": "trích nguyên văn từ mục 'Thành tựu nổi bật'"
+    }
+  },
+  "cv_20260617125758_2_1": {
+    "cv_20260617125758_2_1::personal_info.name": {
+      "verdict": "grounded",
+      "reason": "source PDF lỗi font ghi 'NGUYnN MINH QUÂN' = NGUYỄN MINH QUÂN. Model khôi phục đúng dấu"
+    },
+    "cv_20260617125758_2_1::personal_info.phone": {
+      "verdict": "grounded",
+      "reason": "source: 'Phone: 0987654321'"
+    },
+    "cv_20260617125758_2_1::personal_info.email": {
+      "verdict": "grounded",
+      "reason": "source: 'Email: quan.nguyen.dev@gmail.com'"
+    },
+    "cv_20260617125758_2_1::personal_info.address": {
+      "verdict": "grounded",
+      "reason": "source: 'Location: Hà Nni' = Hà Nội (lỗi font). Model khôi phục đúng dấu"
+    },
+    "cv_20260617125758_2_1::domain": {
+      "verdict": "grounded",
+      "reason": "source mô tả Backend AI Engineer, AI Recruitment, NLP platform -> 'tech_ai' là enum domain hợp lý"
+    },
+    "cv_20260617125758_2_1::objective": {
+      "verdict": "grounded",
+      "reason": "paraphrase gần nguyên văn đoạn SUMMARY trong source"
+    },
+    "cv_20260617125758_2_1::education[0].school": {
+      "verdict": "grounded",
+      "reason": "source: 'nni hnc Bách Khoa Hà Nni' = Đại học Bách Khoa Hà Nội (lỗi font)"
+    },
+    "cv_20260617125758_2_1::education[0].major": {
+      "verdict": "grounded",
+      "reason": "source PDF lỗi font ghi 'Kn thunt phnn mnm' = 'Kỹ thuật phần mềm'. Model khôi phục dấu đúng"
+    },
+    "cv_20260617125758_2_1::education[0].start": {
+      "verdict": "grounded",
+      "reason": "source: '(2018 - 2022)'"
+    },
+    "cv_20260617125758_2_1::education[0].end": {
+      "verdict": "grounded",
+      "reason": "source: '(2018 - 2022)'"
+    },
+    "cv_20260617125758_2_1::work_experience[0].company": {
+      "verdict": "grounded",
+      "reason": "source: 'SmartHire Vietnam'"
+    },
+    "cv_20260617125758_2_1::work_experience[0].title": {
+      "verdict": "grounded",
+      "reason": "source: 'AI Backend Engineer'"
+    },
+    "cv_20260617125758_2_1::work_experience[0].start": {
+      "verdict": "grounded",
+      "reason": "source: '06/2023' -> 2023"
+    },
+    "cv_20260617125758_2_1::work_experience[0].end": {
+      "verdict": "grounded",
+      "reason": "source: 'Present' -> 'Present' (chuẩn hóa)"
+    },
+    "cv_20260617125758_2_1::work_experience[0].highlights[0]": {
+      "verdict": "grounded",
+      "reason": "paraphrase gần nguyên văn 'Xây dnng hn thnng CV Parser hn trn PDF/DOCX' (source) -> 'Xây dựng hệ thống CV Parser hỗ trợ PDF/DOCX'"
+    },
+    "cv_20260617125758_2_1::work_experience[0].highlights[1]": {
+      "verdict": "grounded",
+      "reason": "paraphrase gần nguyên văn 'Thint kn hybrid scoring algorithm cho matching CV-JD'"
+    },
+    "cv_20260617125758_2_1::work_experience[0].highlights[2]": {
+      "verdict": "grounded",
+      "reason": "paraphrase gần nguyên văn 'Tni nu semantic search gip tnng nn chính xác matching tn 71% lên 89%' -> 'Tối ưu semantic search giúp tăng độ chính xác matching từ 71% lên 89%'"
+    },
+    "cv_20260617125758_2_1::work_experience[0].highlights[3]": {
+      "verdict": "grounded",
+      "reason": "paraphrase gần nguyên văn 'Tích hnp Gemini API nn phân tích kn nng nng viên'"
+    },
+    "cv_20260617125758_2_1::work_experience[0].highlights[4]": {
+      "verdict": "grounded",
+      "reason": "paraphrase gần nguyên văn 'Xây dnng vector search sn dnng Qdrant'"
+    },
+    "cv_20260617125758_2_1::work_experience[1].company": {
+      "verdict": "grounded",
+      "reason": "source: 'HRTech Labs'"
+    },
+    "cv_20260617125758_2_1::work_experience[1].title": {
+      "verdict": "grounded",
+      "reason": "source: 'Backend Developer'"
+    },
+    "cv_20260617125758_2_1::work_experience[1].start": {
+      "verdict": "grounded",
+      "reason": "source: '01/2022' -> 2022"
+    },
+    "cv_20260617125758_2_1::work_experience[1].end": {
+      "verdict": "grounded",
+      "reason": "source: '05/2023' -> 2023"
+    },
+    "cv_20260617125758_2_1::work_experience[1].highlights[0]": {
+      "verdict": "grounded",
+      "reason": "paraphrase 'Xây dnng API x lý d liu tuyn dng' (source) -> 'Xây dựng API xử lý dữ liệu tuyển dụng'"
+    },
+    "cv_20260617125758_2_1::work_experience[1].highlights[1]": {
+      "verdict": "grounded",
+      "reason": "paraphrase 'Làm vinc vi Elasticsearch cho job search' (source) -> 'Làm việc với Elasticsearch cho job search'"
+    },
+    "cv_20260617125758_2_1::work_experience[1].highlights[2]": {
+      "verdict": "grounded",
+      "reason": "paraphrase 'Dockerize toàn b h thng backend' (source) -> 'Dockerize toàn bộ hệ thống backend'"
+    },
+    "cv_20260617125758_2_1::skills[0]": {
+      "verdict": "grounded",
+      "reason": "'python' trong source mục SKILLS"
+    },
+    "cv_20260617125758_2_1::skills[1]": {
+      "verdict": "grounded",
+      "reason": "FastAPI trong source"
+    },
+    "cv_20260617125758_2_1::skills[2]": {
+      "verdict": "grounded",
+      "reason": "Django trong source"
+    },
+    "cv_20260617125758_2_1::skills[3]": {
+      "verdict": "fabricated",
+      "reason": "'api' như một skill riêng không có trong source; source có 'OpenAI API' và 'Gemini API' nhưng gộp thành 'api' chung là do model tự tạo"
+    },
+    "cv_20260617125758_2_1::skills[4]": {
+      "verdict": "grounded",
+      "reason": "Embeddings trong source"
+    },
+    "cv_20260617125758_2_1::skills[5]": {
+      "verdict": "grounded",
+      "reason": "PostgreSQL trong source"
+    },
+    "cv_20260617125758_2_1::skills[6]": {
+      "verdict": "grounded",
+      "reason": "Redis trong source"
+    },
+    "cv_20260617125758_2_1::skills[7]": {
+      "verdict": "grounded",
+      "reason": "Elasticsearch trong source"
+    },
+    "cv_20260617125758_2_1::skills[8]": {
+      "verdict": "grounded",
+      "reason": "Docker trong source"
+    },
+    "cv_20260617125758_2_1::skills[9]": {
+      "verdict": "grounded",
+      "reason": "GitHub Actions trong source: 'GitHub Actions'"
+    },
+    "cv_20260617125758_2_1::skills[10]": {
+      "verdict": "grounded",
+      "reason": "Linux trong source"
+    },
+    "cv_20260617125758_2_1::skills[11]": {
+      "verdict": "grounded",
+      "reason": "NLP trong source (trong SUMMARY: 'NLP platform')"
+    },
+    "cv_20260617125758_2_1::skills[12]": {
+      "verdict": "fabricated",
+      "reason": "'Cvjd Matching' (viết liền, viết hoa chữ C) là cách viết biến dạng từ 'matching CV-JD' trong highlights; source không có 'Cvjd Matching' như một skill tên riêng"
+    },
+    "cv_20260617125758_2_1::skills[13]": {
+      "verdict": "grounded",
+      "reason": "'gemini' trong source: 'Gemini API'"
+    },
+    "cv_20260617125758_2_1::skill_evidence[0].skill": {
+      "verdict": "grounded",
+      "reason": "Python trong source"
+    },
+    "cv_20260617125758_2_1::skill_evidence[0].context": {
+      "verdict": "grounded",
+      "reason": "paraphrase hợp lý: source có SmartHire Vietnam, HRTech Labs, AI Recruitment, NLP platform"
+    },
+    "cv_20260617125758_2_1::skill_evidence[1].skill": {
+      "verdict": "grounded",
+      "reason": "FastAPI trong source"
+    },
+    "cv_20260617125758_2_1::skill_evidence[1].context": {
+      "verdict": "fabricated",
+      "reason": "'Liệt kê trong kỹ năng' - cụm từ này không có trong source, model tự thêm mô tả generic"
+    },
+    "cv_20260617125758_2_1::skill_evidence[2].skill": {
+      "verdict": "grounded",
+      "reason": "Django trong source"
+    },
+    "cv_20260617125758_2_1::skill_evidence[2].context": {
+      "verdict": "fabricated",
+      "reason": "'Liệt kê trong kỹ năng' không có trong source"
+    },
+    "cv_20260617125758_2_1::skill_evidence[3].skill": {
+      "verdict": "grounded",
+      "reason": "OpenAI API trong source"
+    },
+    "cv_20260617125758_2_1::skill_evidence[3].context": {
+      "verdict": "fabricated",
+      "reason": "'Liệt kê trong kỹ năng' không có trong source"
+    },
+    "cv_20260617125758_2_1::skill_evidence[4].skill": {
+      "verdict": "grounded",
+      "reason": "Gemini API trong source"
+    },
+    "cv_20260617125758_2_1::skill_evidence[4].context": {
+      "verdict": "grounded",
+      "reason": "paraphrase gần nguyên văn 'Tích hợp Gemini API để phân tích kỹ năng ứng viên' trong highlights"
+    },
+    "cv_20260617125758_2_1::skill_evidence[5].skill": {
+      "verdict": "grounded",
+      "reason": "Semantic Search trong source"
+    },
+    "cv_20260617125758_2_1::skill_evidence[5].context": {
+      "verdict": "grounded",
+      "reason": "paraphrase 'Có kinh nghiệm xây dựng Semantic Search Engine' + 'tối ưu semantic search' đều từ source"
+    },
+    "cv_20260617125758_2_1::skill_evidence[6].skill": {
+      "verdict": "grounded",
+      "reason": "Embeddings trong source"
+    },
+    "cv_20260617125758_2_1::skill_evidence[6].context": {
+      "verdict": "fabricated",
+      "reason": "'Liệt kê trong kỹ năng' không có trong source"
+    },
+    "cv_20260617125758_2_1::skill_evidence[7].skill": {
+      "verdict": "grounded",
+      "reason": "Cosine Similarity trong source"
+    },
+    "cv_20260617125758_2_1::skill_evidence[7].context": {
+      "verdict": "fabricated",
+      "reason": "'Liệt kê trong kỹ năng' không có trong source"
+    },
+    "cv_20260617125758_2_1::skill_evidence[8].skill": {
+      "verdict": "grounded",
+      "reason": "PostgreSQL trong source"
+    },
+    "cv_20260617125758_2_1::skill_evidence[8].context": {
+      "verdict": "fabricated",
+      "reason": "'Liệt kê trong kỹ năng' không có trong source"
+    },
+    "cv_20260617125758_2_1::skill_evidence[9].skill": {
+      "verdict": "grounded",
+      "reason": "Redis trong source"
+    },
+    "cv_20260617125758_2_1::skill_evidence[9].context": {
+      "verdict": "fabricated",
+      "reason": "'Liệt kê trong kỹ năng' không có trong source"
+    },
+    "cv_20260617125758_2_1::skill_evidence[10].skill": {
+      "verdict": "grounded",
+      "reason": "Elasticsearch trong source"
+    },
+    "cv_20260617125758_2_1::skill_evidence[10].context": {
+      "verdict": "grounded",
+      "reason": "paraphrase 'Làm việc với Elasticsearch cho job search' trong highlights (HRTech Labs)"
+    },
+    "cv_20260617125758_2_1::skill_evidence[11].skill": {
+      "verdict": "grounded",
+      "reason": "Qdrant trong source"
+    },
+    "cv_20260617125758_2_1::skill_evidence[11].context": {
+      "verdict": "grounded",
+      "reason": "paraphrase 'Xây dựng vector search sử dụng Qdrant' trong highlights"
+    },
+    "cv_20260617125758_2_1::skill_evidence[12].skill": {
+      "verdict": "grounded",
+      "reason": "Docker trong source"
+    },
+    "cv_20260617125758_2_1::skill_evidence[12].context": {
+      "verdict": "grounded",
+      "reason": "paraphrase 'Dockerize toàn bộ hệ thống backend' trong highlights (HRTech Labs)"
+    },
+    "cv_20260617125758_2_1::skill_evidence[13].skill": {
+      "verdict": "grounded",
+      "reason": "GitHub Actions trong source"
+    },
+    "cv_20260617125758_2_1::skill_evidence[13].context": {
+      "verdict": "fabricated",
+      "reason": "'Liệt kê trong kỹ năng' không có trong source"
+    },
+    "cv_20260617125758_2_1::skill_evidence[14].skill": {
+      "verdict": "grounded",
+      "reason": "Linux trong source"
+    },
+    "cv_20260617125758_2_1::skill_evidence[14].context": {
+      "verdict": "fabricated",
+      "reason": "'Liệt kê trong kỹ năng' không có trong source"
+    },
+    "cv_20260617125758_2_1::skill_evidence[15].skill": {
+      "verdict": "grounded",
+      "reason": "AI Recruitment trong source (SUMMARY)"
+    },
+    "cv_20260617125758_2_1::skill_evidence[15].context": {
+      "verdict": "grounded",
+      "reason": "'Phát triển hệ thống AI Recruitment' - paraphrase gần nguyên văn từ source"
+    },
+    "cv_20260617125758_2_1::skill_evidence[16].skill": {
+      "verdict": "grounded",
+      "reason": "NLP trong source (NLP platform)"
+    },
+    "cv_20260617125758_2_1::skill_evidence[16].context": {
+      "verdict": "grounded",
+      "reason": "'Phát triển NLP platform' - paraphrase gần nguyên văn từ source"
+    },
+    "cv_20260617125758_2_1::skill_evidence[17].skill": {
+      "verdict": "grounded",
+      "reason": "CV Parsing trong source ('CV Parsing Pipeline' trong SUMMARY)"
+    },
+    "cv_20260617125758_2_1::skill_evidence[17].context": {
+      "verdict": "grounded",
+      "reason": "'Xây dựng hệ thống CV Parser hỗ trợ PDF/DOCX' - paraphrase gần nguyên văn từ highlights"
+    },
+    "cv_20260617125758_2_1::skill_evidence[18].skill": {
+      "verdict": "grounded",
+      "reason": "AI Interview System trong source (SUMMARY)"
+    },
+    "cv_20260617125758_2_1::skill_evidence[18].context": {
+      "verdict": "grounded",
+      "reason": "'Có kinh nghiệm xây dựng AI Interview System' - paraphrase gần nguyên văn từ source"
+    },
+    "cv_20260617125758_2_1::skill_evidence[19].skill": {
+      "verdict": "grounded",
+      "reason": "CV-JD Matching trong source ('matching CV-JD' trong highlights)"
+    },
+    "cv_20260617125758_2_1::skill_evidence[19].context": {
+      "verdict": "grounded",
+      "reason": "'Thiết kế hybrid scoring algorithm cho matching CV-JD' - paraphrase gần nguyên văn từ highlights"
+    },
+    "cv_20260617125758_2_1::skill_evidence[20].skill": {
+      "verdict": "grounded",
+      "reason": "Vector Search trong source ('Vector Search Infrastructure' trong SUMMARY)"
+    },
+    "cv_20260617125758_2_1::skill_evidence[20].context": {
+      "verdict": "grounded",
+      "reason": "'Xây dựng Vector Search Infrastructure và sử dụng Qdrant cho vector search' - paraphrase gần nguyên văn từ source"
+    },
+    "cv_20260617125758_2_1::skill_evidence[21].skill": {
+      "verdict": "grounded",
+      "reason": "API trong source (Xây dựng API)"
+    },
+    "cv_20260617125758_2_1::skill_evidence[21].context": {
+      "verdict": "grounded",
+      "reason": "'Xây dựng API xử lý dữ liệu tuyển dụng tại HRTech Labs' - paraphrase gần nguyên văn từ highlights"
+    },
+    "cv_20260617125758_2_1::technical_skills[0]": {
+      "verdict": "grounded",
+      "reason": "Python trong source"
+    },
+    "cv_20260617125758_2_1::technical_skills[1]": {
+      "verdict": "grounded",
+      "reason": "FastAPI trong source"
+    },
+    "cv_20260617125758_2_1::technical_skills[2]": {
+      "verdict": "grounded",
+      "reason": "Django trong source"
+    },
+    "cv_20260617125758_2_1::technical_skills[3]": {
+      "verdict": "grounded",
+      "reason": "OpenAI API trong source"
+    },
+    "cv_20260617125758_2_1::technical_skills[4]": {
+      "verdict": "grounded",
+      "reason": "Gemini API trong source"
+    },
+    "cv_20260617125758_2_1::technical_skills[5]": {
+      "verdict": "grounded",
+      "reason": "Embeddings trong source"
+    },
+    "cv_20260617125758_2_1::technical_skills[6]": {
+      "verdict": "grounded",
+      "reason": "Cosine Similarity trong source"
+    },
+    "cv_20260617125758_2_1::technical_skills[7]": {
+      "verdict": "grounded",
+      "reason": "PostgreSQL trong source"
+    },
+    "cv_20260617125758_2_1::technical_skills[8]": {
+      "verdict": "grounded",
+      "reason": "Redis trong source"
+    },
+    "cv_20260617125758_2_1::technical_skills[9]": {
+      "verdict": "grounded",
+      "reason": "Elasticsearch trong source"
+    },
+    "cv_20260617125758_2_1::technical_skills[10]": {
+      "verdict": "grounded",
+      "reason": "Qdrant trong source"
+    },
+    "cv_20260617125758_2_1::technical_skills[11]": {
+      "verdict": "grounded",
+      "reason": "Docker trong source"
+    },
+    "cv_20260617125758_2_1::technical_skills[12]": {
+      "verdict": "grounded",
+      "reason": "GitHub Actions trong source"
+    },
+    "cv_20260617125758_2_1::technical_skills[13]": {
+      "verdict": "grounded",
+      "reason": "Linux trong source"
+    },
+    "cv_20260617125758_2_1::technical_skills[14]": {
+      "verdict": "grounded",
+      "reason": "API - source có 'OpenAI API', 'Gemini API', 'Xây dựng API'"
+    },
+    "cv_20260617125758_2_1::domain_skills[0]": {
+      "verdict": "grounded",
+      "reason": "AI Recruitment trong source (SUMMARY)"
+    },
+    "cv_20260617125758_2_1::domain_skills[1]": {
+      "verdict": "grounded",
+      "reason": "NLP trong source (NLP platform)"
+    },
+    "cv_20260617125758_2_1::domain_skills[2]": {
+      "verdict": "grounded",
+      "reason": "CV Parsing trong source (CV Parsing Pipeline)"
+    },
+    "cv_20260617125758_2_1::domain_skills[3]": {
+      "verdict": "grounded",
+      "reason": "Semantic Search trong source (Semantic Search Engine)"
+    },
+    "cv_20260617125758_2_1::domain_skills[4]": {
+      "verdict": "grounded",
+      "reason": "AI Interview System trong source"
+    },
+    "cv_20260617125758_2_1::domain_skills[5]": {
+      "verdict": "grounded",
+      "reason": "CV-JD Matching trong source (matching CV-JD)"
+    },
+    "cv_20260617125758_2_1::domain_skills[6]": {
+      "verdict": "grounded",
+      "reason": "Vector Search trong source (Vector Search Infrastructure)"
+    },
+    "cv_20260617125758_2_1::skill_metadata.technical_skills[0]": {
+      "verdict": "grounded",
+      "reason": "trùng technical_skills[0]"
+    },
+    "cv_20260617125758_2_1::skill_metadata.technical_skills[1]": {
+      "verdict": "grounded",
+      "reason": "trùng technical_skills[1]"
+    },
+    "cv_20260617125758_2_1::skill_metadata.technical_skills[2]": {
+      "verdict": "grounded",
+      "reason": "trùng technical_skills[2]"
+    },
+    "cv_20260617125758_2_1::skill_metadata.technical_skills[3]": {
+      "verdict": "grounded",
+      "reason": "trùng technical_skills[3]"
+    },
+    "cv_20260617125758_2_1::skill_metadata.technical_skills[4]": {
+      "verdict": "grounded",
+      "reason": "trùng technical_skills[4]"
+    },
+    "cv_20260617125758_2_1::skill_metadata.technical_skills[5]": {
+      "verdict": "grounded",
+      "reason": "trùng technical_skills[5]"
+    },
+    "cv_20260617125758_2_1::skill_metadata.technical_skills[6]": {
+      "verdict": "grounded",
+      "reason": "trùng technical_skills[6]"
+    },
+    "cv_20260617125758_2_1::skill_metadata.technical_skills[7]": {
+      "verdict": "grounded",
+      "reason": "trùng technical_skills[7]"
+    },
+    "cv_20260617125758_2_1::skill_metadata.technical_skills[8]": {
+      "verdict": "grounded",
+      "reason": "trùng technical_skills[8]"
+    },
+    "cv_20260617125758_2_1::skill_metadata.technical_skills[9]": {
+      "verdict": "grounded",
+      "reason": "trùng technical_skills[9]"
+    },
+    "cv_20260617125758_2_1::skill_metadata.technical_skills[10]": {
+      "verdict": "grounded",
+      "reason": "trùng technical_skills[10]"
+    },
+    "cv_20260617125758_2_1::skill_metadata.technical_skills[11]": {
+      "verdict": "grounded",
+      "reason": "trùng technical_skills[11]"
+    },
+    "cv_20260617125758_2_1::skill_metadata.technical_skills[12]": {
+      "verdict": "grounded",
+      "reason": "trùng technical_skills[12]"
+    },
+    "cv_20260617125758_2_1::skill_metadata.technical_skills[13]": {
+      "verdict": "grounded",
+      "reason": "trùng technical_skills[13]"
+    },
+    "cv_20260617125758_2_1::skill_metadata.technical_skills[14]": {
+      "verdict": "grounded",
+      "reason": "trùng technical_skills[14]"
+    },
+    "cv_20260617125758_2_1::skill_metadata.domain_skills[0]": {
+      "verdict": "grounded",
+      "reason": "trùng domain_skills[0]"
+    },
+    "cv_20260617125758_2_1::skill_metadata.domain_skills[1]": {
+      "verdict": "grounded",
+      "reason": "trùng domain_skills[1]"
+    },
+    "cv_20260617125758_2_1::skill_metadata.domain_skills[2]": {
+      "verdict": "grounded",
+      "reason": "trùng domain_skills[2]"
+    },
+    "cv_20260617125758_2_1::skill_metadata.domain_skills[3]": {
+      "verdict": "grounded",
+      "reason": "trùng domain_skills[3]"
+    },
+    "cv_20260617125758_2_1::skill_metadata.domain_skills[4]": {
+      "verdict": "grounded",
+      "reason": "trùng domain_skills[4]"
+    },
+    "cv_20260617125758_2_1::skill_metadata.domain_skills[5]": {
+      "verdict": "grounded",
+      "reason": "trùng domain_skills[5]"
+    },
+    "cv_20260617125758_2_1::skill_metadata.domain_skills[6]": {
+      "verdict": "grounded",
+      "reason": "trùng domain_skills[6]"
+    }
+  }
+}
